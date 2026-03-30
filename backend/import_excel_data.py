@@ -9,7 +9,7 @@ mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 db_name = os.environ.get('DB_NAME', 'test_database')
 
 # Your doctor ID (will be fetched from database)
-DOCTOR_EMAIL = "doctor@dentalapp.com"
+DOCTOR_EMAIL = "midhilesh.krishna@gmail.com"
 
 # Clinic name mapping
 CLINIC_MAP = {
