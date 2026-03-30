@@ -200,6 +200,16 @@ class ImplantCreate(BaseModel):
     site_specific_notes: Optional[str] = None
     complication_remarks: Optional[str] = None
     case_number: Optional[str] = None
+    # NEW FIELDS from Reference Excel
+    arch: Optional[str] = "Upper"  # Upper/Lower
+    jaw_region: Optional[str] = "Anterior"  # Anterior/Posterior
+    implant_system: Optional[str] = None  # Product line/system name
+    cover_screw: bool = False
+    healing_abutment: bool = False
+    membrane_used: bool = False
+    isq_value: Optional[float] = None  # Implant Stability Quotient
+    follow_up_date: Optional[str] = None
+    surgeon_name: Optional[str] = None
 
 # Auth Endpoints
 @api_router.post("/auth/register")
@@ -552,6 +562,153 @@ async def get_analytics_overview(request: Request):
         "total_clinics": total_clinics,
         "implant_types": implant_types,
         "pending_osseointegration": pending_osseo
+    }
+
+@api_router.get("/analytics/brand-surgeon-summary")
+async def get_brand_surgeon_summary(request: Request):
+    user = await get_current_user(request)
+    
+    # Brand analysis
+    brand_analysis = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"]}},
+        {"$group": {
+            "_id": "$brand",
+            "count": {"$sum": 1},
+            "systems": {"$addToSet": "$implant_system"},
+            "avg_torque": {"$avg": "$insertion_torque"},
+            "avg_isq": {"$avg": "$isq_value"}
+        }},
+        {"$sort": {"count": -1}}
+    ]).to_list(100)
+    
+    total_implants = await db.implants.count_documents({"doctor_id": user["_id"]})
+    
+    # Add percentage
+    for brand in brand_analysis:
+        brand["percentage"] = round((brand["count"] / total_implants * 100), 2) if total_implants > 0 else 0
+        brand["systems"] = [s for s in brand["systems"] if s]  # Filter out None
+    
+    # Surgeon analysis
+    surgeon_analysis = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"]}},
+        {"$group": {
+            "_id": "$surgeon_name",
+            "implants_placed": {"$sum": 1},
+            "sites_used": {"$addToSet": "$tooth_number"},
+            "brands_used": {"$addToSet": "$brand"}
+        }},
+        {"$sort": {"implants_placed": -1}}
+    ]).to_list(100)
+    
+    for surgeon in surgeon_analysis:
+        surgeon["percentage"] = round((surgeon["implants_placed"] / total_implants * 100), 2) if total_implants > 0 else 0
+        surgeon["unique_sites"] = len(surgeon["sites_used"])
+        surgeon["brands_used"] = [b for b in surgeon["brands_used"] if b]
+    
+    return {
+        "brands": brand_analysis,
+        "surgeons": surgeon_analysis,
+        "total_implants": total_implants
+    }
+
+@api_router.get("/analytics/site-usage")
+async def get_site_usage_analysis(request: Request):
+    user = await get_current_user(request)
+    
+    # Site analysis with arch and jaw region
+    site_analysis = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"]}},
+        {"$group": {
+            "_id": {
+                "tooth_number": "$tooth_number",
+                "arch": "$arch",
+                "jaw_region": "$jaw_region"
+            },
+            "count": {"$sum": 1},
+            "last_surgery": {"$max": "$surgery_date"},
+            "brands": {"$addToSet": "$brand"}
+        }},
+        {"$sort": {"count": -1}}
+    ]).to_list(100)
+    
+    total_implants = await db.implants.count_documents({"doctor_id": user["_id"]})
+    
+    for site in site_analysis:
+        site["percentage"] = round((site["count"] / total_implants * 100), 2) if total_implants > 0 else 0
+        site["tooth_number"] = site["_id"]["tooth_number"]
+        site["arch"] = site["_id"]["arch"]
+        site["jaw_region"] = site["_id"]["jaw_region"]
+        site["brands"] = [b for b in site["brands"] if b]
+        del site["_id"]
+    
+    return {
+        "sites": site_analysis,
+        "total_implants": total_implants
+    }
+
+@api_router.get("/analytics/dimension-analysis")
+async def get_dimension_analysis(request: Request):
+    user = await get_current_user(request)
+    
+    # Diameter analysis
+    diameter_analysis = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"], "diameter_mm": {"$ne": None}}},
+        {"$group": {
+            "_id": "$diameter_mm",
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]).to_list(100)
+    
+    # Length analysis
+    length_analysis = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"], "length_mm": {"$ne": None}}},
+        {"$group": {
+            "_id": "$length_mm",
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]).to_list(100)
+    
+    # Combination matrix
+    combination_matrix = await db.implants.aggregate([
+        {"$match": {"doctor_id": user["_id"], "diameter_mm": {"$ne": None}, "length_mm": {"$ne": None}}},
+        {"$group": {
+            "_id": {
+                "diameter": "$diameter_mm",
+                "length": "$length_mm"
+            },
+            "count": {"$sum": 1}
+        }}
+    ]).to_list(500)
+    
+    total_implants = await db.implants.count_documents({"doctor_id": user["_id"]})
+    
+    # Add percentages
+    for diam in diameter_analysis:
+        diam["percentage"] = round((diam["count"] / total_implants * 100), 2) if total_implants > 0 else 0
+        diam["diameter"] = diam["_id"]
+        del diam["_id"]
+    
+    for length in length_analysis:
+        length["percentage"] = round((length["count"] / total_implants * 100), 2) if total_implants > 0 else 0
+        length["length"] = length["_id"]
+        del length["_id"]
+    
+    # Format matrix for easy consumption
+    matrix = {}
+    for combo in combination_matrix:
+        diam = combo["_id"]["diameter"]
+        length = combo["_id"]["length"]
+        if diam not in matrix:
+            matrix[diam] = {}
+        matrix[diam][length] = combo["count"]
+    
+    return {
+        "diameters": diameter_analysis,
+        "lengths": length_analysis,
+        "matrix": matrix,
+        "total_implants": total_implants
     }
 
 @api_router.get("/analytics/financial")
