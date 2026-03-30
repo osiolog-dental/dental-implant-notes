@@ -211,6 +211,23 @@ class ImplantCreate(BaseModel):
     follow_up_date: Optional[str] = None
     surgeon_name: Optional[str] = None
 
+class FPDCreate(BaseModel):
+    patient_id: str
+    tooth_numbers: List[int]
+    prosthetic_loading_date: Optional[str] = None
+    crown_count: str = "Single"  # Single / Multiple
+    connected_implant_ids: Optional[List[str]] = []
+    crown_type: str = "Screw Retained"  # Cement Retained / Screw Retained
+    crown_material: str = "Zirconia"  # Metal / Porcelain fused to metal / Zirconia
+    clinical_notes: Optional[str] = None
+    clinic_id: Optional[str] = None
+
+class ProfileUpdate(BaseModel):
+    college: Optional[str] = None
+    college_place: Optional[str] = None
+    phone: Optional[str] = None
+    specialization: Optional[str] = None
+
 # Auth Endpoints
 @api_router.post("/auth/register")
 async def register(doctor: DoctorRegister, response: Response):
@@ -438,6 +455,55 @@ async def update_implant(implant_id: str, implant: ImplantCreate, request: Reque
         raise HTTPException(status_code=404, detail="Implant not found")
 
 # File Upload Endpoints
+
+# FPD Record Endpoints
+@api_router.post("/fpd-records")
+async def create_fpd_record(fpd: FPDCreate, request: Request):
+    user = await get_current_user(request)
+    fpd_doc = fpd.model_dump()
+    fpd_doc["doctor_id"] = user["_id"]
+    fpd_doc["created_at"] = datetime.now(timezone.utc)
+
+    year = datetime.now().year
+    count = await db.fpd_records.count_documents({"doctor_id": user["_id"]}) + 1
+    fpd_doc["case_number"] = f"FPD-{year}-{count:03d}"
+
+    result = await db.fpd_records.insert_one(fpd_doc)
+    fpd_doc["_id"] = str(result.inserted_id)
+    return fpd_doc
+
+@api_router.get("/fpd-records")
+async def get_fpd_records(request: Request, patient_id: Optional[str] = None):
+    user = await get_current_user(request)
+    query = {"doctor_id": user["_id"]}
+    if patient_id:
+        query["patient_id"] = patient_id
+    records = await db.fpd_records.find(query).to_list(1000)
+    for r in records:
+        r["_id"] = str(r["_id"])
+    return records
+
+@api_router.delete("/fpd-records/{record_id}")
+async def delete_fpd_record(record_id: str, request: Request):
+    user = await get_current_user(request)
+    result = await db.fpd_records.delete_one({"_id": ObjectId(record_id), "doctor_id": user["_id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="FPD record not found")
+    return {"message": "FPD record deleted"}
+
+# Profile Update Endpoint
+@api_router.put("/auth/profile")
+async def update_profile(profile: ProfileUpdate, request: Request):
+    user = await get_current_user(request)
+    update_data = {k: v for k, v in profile.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.users.update_one({"_id": ObjectId(user["_id"])}, {"$set": update_data})
+    updated = await db.users.find_one({"_id": ObjectId(user["_id"])})
+    updated["_id"] = str(updated["_id"])
+    updated.pop("password_hash", None)
+    return updated
+
 @api_router.post("/implants/{implant_id}/photos")
 async def upload_photo(
     implant_id: str,

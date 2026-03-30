@@ -173,7 +173,7 @@ const MedicalVault = () => {
             Back to Patient
           </button>
           <h2 className="text-lg font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>
-            Medical Vault
+            Photo Vault
           </h2>
           <p className="text-sm text-[#5C6773] mt-1">{patient?.name}</p>
         </div>
