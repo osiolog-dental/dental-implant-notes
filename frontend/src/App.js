@@ -10,6 +10,7 @@ import PatientDetails from './pages/PatientDetails';
 import MedicalVault from './pages/MedicalVault';
 import Analytics from './pages/Analytics';
 import Clinics from './pages/Clinics';
+import Account from './pages/Account';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -27,6 +28,7 @@ function App() {
             <Route path="patients/:patientId/vault" element={<MedicalVault />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="clinics" element={<Clinics />} />
+            <Route path="account" element={<Account />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

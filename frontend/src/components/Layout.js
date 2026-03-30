@@ -1,6 +1,15 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { House, Users, ChartLine, Buildings, SignOut, CalendarCheck, ListChecks, ClockCounterClockwise, MagnifyingGlass } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix } from '@phosphor-icons/react';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '../components/ui/dropdown-menu';
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -26,16 +35,26 @@ const Layout = () => {
     { path: '/clinics', label: 'Search', icon: MagnifyingGlass }
   ];
 
+  const rawName = user?.name || 'Doctor';
+  const displayName = rawName.startsWith('Dr.') || rawName.startsWith('Dr ') ? rawName : `Dr. ${rawName}`;
+  const initials = rawName
+    .replace(/^Dr\.?\s*/i, '')
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U';
+
   return (
     <div className="min-h-screen bg-[#F9F9F8] flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#F0F0EE] border-r border-[#E5E5E2] hidden md:block">
+      <aside className="w-64 bg-[#F0F0EE] border-r border-[#E5E5E2] hidden md:flex md:flex-col relative">
         <div className="p-6">
           <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">DentalHub</h1>
           <p className="text-xs text-[#5C6773] mt-1">Implant Management</p>
         </div>
         
-        <nav className="px-3 mt-6">
+        <nav className="px-3 mt-6 flex-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -56,32 +75,75 @@ const Layout = () => {
             );
           })}
         </nav>
-
-        <div className="absolute bottom-0 w-64 p-4 border-t border-[#E5E5E2]">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium">
-              {user?.name?.charAt(0) || 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#2A2F35] truncate">{user?.name}</p>
-              <p className="text-xs text-[#5C6773] truncate">{user?.email}</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            data-testid="logout-button"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-[#E5E5E2] rounded-lg text-[#5C6773] text-sm hover:bg-[#F9F9F8] transition-colors duration-200"
-          >
-            <SignOut size={16} />
-            Logout
-          </button>
-        </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto pb-20 md:pb-0">
-        <Outlet />
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header Bar */}
+        <header className="h-14 bg-white border-b border-[#E5E5E2] flex items-center justify-between px-4 md:px-6 shrink-0 z-40" data-testid="top-header">
+          <div className="md:hidden">
+            <h1 className="text-lg font-semibold text-[#2A2F35] tracking-tight">DentalHub</h1>
+          </div>
+          <div className="hidden md:block" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[#F0F0EE] transition-colors duration-150 outline-none" data-testid="profile-menu-trigger">
+                <span className="text-sm font-medium text-[#2A2F35] hidden sm:block max-w-[160px] truncate">
+                  {displayName}
+                </span>
+                <Avatar className="h-8 w-8">
+                  {user?.profile_picture && (
+                    <AvatarImage src={user.profile_picture} alt={user?.name} />
+                  )}
+                  <AvatarFallback className="bg-[#82A098] text-white text-xs font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium text-[#2A2F35]">{displayName}</p>
+                  <p className="text-xs text-[#5C6773] truncate">{user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="account-menu-item"
+                className="cursor-pointer gap-2"
+                onClick={() => navigate('/account')}
+              >
+                <UserCircle size={16} weight="regular" />
+                My Account
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="settings-menu-item"
+                className="cursor-pointer gap-2"
+                onClick={() => navigate('/account')}
+              >
+                <GearSix size={16} weight="regular" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="logout-menu-item"
+                className="cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
+                onClick={handleLogout}
+              >
+                <SignOut size={16} weight="regular" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">
