@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Camera } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Camera, Tag } from '@phosphor-icons/react';
+import ImplantProgressTracker from '../components/ImplantProgressTracker';
+import ImplantTagScanner from '../components/ImplantTagScanner';
 import {
   Dialog,
   DialogContent,
@@ -65,6 +67,7 @@ const INITIAL_IMPLANT = {
   follow_up_date: '',
   surgeon_name: '',
   clinic_id: '',
+  tag_image: null,
 };
 
 const INITIAL_FPD = {
@@ -192,6 +195,17 @@ const PatientDetails = () => {
 
   const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
+  const handleTagAutoFill = (parsed) => {
+    setFormData(prev => ({
+      ...prev,
+      ...(parsed.brand      && { brand: parsed.brand }),
+      ...(parsed.size       && { size: parsed.size }),
+      ...(parsed.diameter_mm && { diameter_mm: parsed.diameter_mm }),
+      ...(parsed.length_mm  && { length_mm: parsed.length_mm, length: `${parsed.length_mm}mm` }),
+      ...(parsed.implant_system && { implant_system: parsed.implant_system }),
+    }));
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -263,6 +277,13 @@ const PatientDetails = () => {
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmitImplant} className="space-y-4 mt-2">
+                {/* Implant Tag Scanner */}
+                <ImplantTagScanner
+                  tagImage={formData.tag_image}
+                  onAutoFill={handleTagAutoFill}
+                  onImageCapture={(img) => updateField('tag_image', img)}
+                />
+
                 {/* Row 1: Tooth, Type, Brand */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
@@ -656,7 +677,7 @@ const PatientDetails = () => {
                 <div key={implant._id} data-testid={`implant-record-${implant._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#82A098] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                      <div className="w-10 h-10 bg-[#82A098] rounded-lg flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
                         {implant.tooth_number}
                       </div>
                       <div>
@@ -665,12 +686,33 @@ const PatientDetails = () => {
                         {implant.case_number && <p className="text-xs text-[#5C6773]">Case: {implant.case_number}</p>}
                       </div>
                     </div>
-                    {daysRemaining > 0 && (
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-[#E8A76C]">{daysRemaining} days</p>
-                        <p className="text-xs text-[#5C6773]">until osseointegration</p>
-                      </div>
-                    )}
+                    <div className="flex items-start gap-3 flex-shrink-0 ml-2">
+                      {/* Tag image thumbnail */}
+                      {implant.tag_image ? (
+                        <div className="relative group" data-testid={`tag-thumb-${implant._id}`}>
+                          <img
+                            src={implant.tag_image}
+                            alt="Implant tag"
+                            className="w-14 h-14 object-cover rounded-lg border border-[#E5E5E2] shadow-sm cursor-pointer"
+                            onClick={() => window.open(implant.tag_image, '_blank')}
+                            title="Click to view full tag"
+                          />
+                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#82A098] rounded-full flex items-center justify-center shadow">
+                            <Tag size={10} className="text-white" weight="fill" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg border border-dashed border-[#E5E5E2] flex items-center justify-center" title="No tag image">
+                          <Tag size={16} className="text-[#E5E5E2]" />
+                        </div>
+                      )}
+                      {daysRemaining > 0 && (
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-[#E8A76C]">{daysRemaining} days</p>
+                          <p className="text-xs text-[#5C6773]">until osseointegration</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div><span className="text-[#5C6773]">Size:</span> <span className="font-medium text-[#2A2F35]">{implant.size}</span></div>
@@ -679,6 +721,7 @@ const PatientDetails = () => {
                     <div><span className="text-[#5C6773]">Connection:</span> <span className="font-medium text-[#2A2F35]">{implant.connection_type}</span></div>
                   </div>
                   {implant.notes && <p className="mt-2 text-xs text-[#5C6773] italic">{implant.notes}</p>}
+                  <ImplantProgressTracker implant={implant} onUpdate={fetchAll} />
                 </div>
               );
             })}

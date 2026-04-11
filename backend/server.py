@@ -31,6 +31,14 @@ db = client[os.environ['DB_NAME']]
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=[os.environ.get('FRONTEND_URL', 'http://localhost:3000')],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 JWT_ALGORITHM = "HS256"
 APP_NAME = "dentalhub"
 
@@ -120,10 +128,26 @@ class DoctorRegister(BaseModel):
     name: str
     phone: str
     country: str
+    currency: Optional[str] = 'USD'
     registration_number: str
-    college: str
+    college: Optional[str] = None
     specialization: str
     profile_picture: Optional[str] = None
+    # Extended fields
+    gender: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    address_street: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    designation: Optional[str] = None
+    organization: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    primary_clinic: Optional[str] = None
+    consulting_clinics: Optional[str] = None
+    clinical_focus: Optional[str] = None
+    education: Optional[List[Dict[str, Any]]] = []
+    publications: Optional[List[Dict[str, Any]]] = []
 
 class DoctorLogin(BaseModel):
     email: EmailStr
@@ -185,6 +209,18 @@ class ImplantCreate(BaseModel):
     isq_value: Optional[float] = None  # Implant Stability Quotient
     follow_up_date: Optional[str] = None
     surgeon_name: Optional[str] = None
+    tag_image: Optional[str] = None   # base64 data URL of the implant package label
+    # Progress tracking
+    current_stage: int = 1  # 1=Placement, 2=Second Stage/Impressions, 3=Prosthesis Delivery
+    osseointegration_days: int = 90  # Editable healing period in days
+    stage_2_date: Optional[str] = None  # Date stage 2 was logged
+    stage_3_date: Optional[str] = None  # Date stage 3 was logged
+
+class ImplantStageUpdate(BaseModel):
+    current_stage: Optional[int] = None
+    osseointegration_days: Optional[int] = None
+    stage_2_date: Optional[str] = None
+    stage_3_date: Optional[str] = None
 
 class FPDCreate(BaseModel):
     patient_id: str
@@ -202,6 +238,7 @@ class ProfileUpdate(BaseModel):
     college_place: Optional[str] = None
     phone: Optional[str] = None
     specialization: Optional[str] = None
+    currency: Optional[str] = None
 
 # Auth Endpoints
 @api_router.post("/auth/register")
@@ -403,6 +440,57 @@ async def get_implants(request: Request, patient_id: Optional[str] = None):
         implant["_id"] = str(implant["_id"])
     return implants
 
+@api_router.get("/implants/due-for-second-stage")
+async def get_implants_due_for_second_stage(request: Request):
+    """Return stage-1 implants whose osseointegration period has elapsed."""
+    user = await get_current_user(request)
+    today = datetime.now(timezone.utc)
+
+    stage1_implants = await db.implants.find({
+        "doctor_id": user["_id"],
+        "$or": [{"current_stage": 1}, {"current_stage": {"$exists": False}}],
+        "surgery_date": {"$exists": True, "$ne": None, "$ne": ""},
+    }).to_list(1000)
+
+    due = []
+    for implant in stage1_implants:
+        surgery_date_str = implant.get("surgery_date")
+        if not surgery_date_str:
+            continue
+        try:
+            surgery_date = datetime.fromisoformat(surgery_date_str)
+            if surgery_date.tzinfo is None:
+                surgery_date = surgery_date.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+
+        osseo_days = implant.get("osseointegration_days", 90)
+        days_elapsed = (today - surgery_date).days
+        if days_elapsed >= osseo_days:
+            patient_name = "Unknown"
+            patient_id_str = None
+            try:
+                patient = await db.patients.find_one({"_id": ObjectId(implant["patient_id"])})
+                if patient:
+                    patient_name = patient["name"]
+                    patient_id_str = str(patient["_id"])
+            except Exception:
+                pass
+
+            due.append({
+                "implant_id": str(implant["_id"]),
+                "tooth_number": implant.get("tooth_number"),
+                "brand": implant.get("brand"),
+                "patient_name": patient_name,
+                "patient_id": patient_id_str,
+                "days_elapsed": days_elapsed,
+                "osseointegration_days": osseo_days,
+                "surgery_date": surgery_date_str,
+                "case_number": implant.get("case_number"),
+            })
+
+    return due
+
 @api_router.get("/implants/{implant_id}")
 async def get_implant(implant_id: str, request: Request):
     user = await get_current_user(request)
@@ -414,6 +502,26 @@ async def get_implant(implant_id: str, request: Request):
         return implant
     except:
         raise HTTPException(status_code=404, detail="Implant not found")
+
+@api_router.patch("/implants/{implant_id}/stage")
+async def update_implant_stage(implant_id: str, update: ImplantStageUpdate, request: Request):
+    """Advance treatment stage or edit osseointegration days for a single implant."""
+    user = await get_current_user(request)
+    # Only include fields that were explicitly sent in the request body
+    patch = update.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    try:
+        obj_id = ObjectId(implant_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid implant ID")
+    result = await db.implants.update_one(
+        {"_id": obj_id, "doctor_id": user["_id"]},
+        {"$set": patch}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Implant not found")
+    return {"message": "Stage updated successfully"}
 
 @api_router.put("/implants/{implant_id}")
 async def update_implant(implant_id: str, implant: ImplantCreate, request: Request):
@@ -779,14 +887,6 @@ async def get_financial_analytics(request: Request):
     }
 
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=[os.environ.get('FRONTEND_URL', 'http://localhost:3000')],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Startup event
 @app.on_event("startup")
