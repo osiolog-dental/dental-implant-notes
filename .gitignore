@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Emergent platform internal artifacts
+.emergent/
+
 # IDE and editors
 .idea/
 .vscode/
@@ -63,6 +66,7 @@ chainlit.md
 
 # Data and databases
 agenthub/agents/youtube/db
+backend/uploads/
 
 # Archive files and large assets
 **/*.zip
