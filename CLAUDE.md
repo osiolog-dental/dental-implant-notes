@@ -188,6 +188,14 @@ cd frontend && yarn start    # runs on port 3000 via CRACO
 - `JWT_SECRET` — JWT signing secret
 - `EMERGENT_LLM_KEY` — Emergent Object Storage key (photo uploads)
 
+### After any backend code change — REQUIRED
+After completing any change to `backend/server.py` or any other backend file that requires a server restart:
+1. Re-run the backend server: `cd backend && uvicorn server:app --reload --port 8001`
+2. Re-run the frontend if not already running: `cd frontend && yarn start`
+3. Open the app in the browser and verify the affected feature works before reporting the task as complete.
+
+**Do NOT consider a backend task done until the server has been restarted and the app has been opened and verified.**
+
 ### Testing protocol
 - Read `test_result.md` before running tests — it tracks task status and agent communication
 - All interactive elements need `data-testid` for the testing agent to find them
@@ -197,3 +205,79 @@ cd frontend && yarn start    # runs on port 3000 via CRACO
 
 ## Active User (dev/test)
 - Email: `midhilesh.krishna@gmail.com`
+
+---
+
+## Engineering Standards — Non-Negotiable Rules
+
+These rules exist because the primary user is non-technical. Every task must meet these standards without being asked. Think of them as the quality bar that separates "it runs" from "it's production-ready."
+
+---
+
+### 1. Always Read Before Touching
+- Before editing ANY file, read the relevant section first. Never guess at existing code.
+- Before adding a new API endpoint, read the full `server.py` to check for conflicts, existing patterns, and naming conventions.
+- Before editing a React page, read the component's current state — especially `PatientDetails.js` which changes frequently.
+
+### 2. Full Vertical Slice — No Half-Done Work
+Every feature must be complete end-to-end before being called done:
+- Backend route → Pydantic model → DB write/read → Frontend API call → UI render → Visual verification
+- If a task only touches one layer, explicitly verify the other layers still work (regression check).
+- Never leave a feature partially wired (e.g., backend done but frontend not calling it).
+
+### 3. Design System Compliance — Always
+- Before writing any UI component, check `design_guidelines.json` for the correct color tokens, font, spacing, and border-radius values.
+- Brand color: `#82A098` (teal-green). Accent: `#C27E70` (terracotta). Background: `#F9F9F8`. Never hardcode colors that deviate.
+- All cards: `rounded-xl`, `shadow-sm`, flat `1px` border using `#E5E5E2`. No heavy drop shadows.
+- Fonts: `Work Sans` for headings, `IBM Plex Sans` for body text.
+- Every new interactive element (button, input, modal, link) **MUST** have a `data-testid` attribute.
+
+### 4. Errors Must Be Visible to the User
+- Every API call in the frontend must have a `.catch()` or `try/catch` block that shows an error message in the UI (toast, alert, or inline error text) — never fail silently.
+- Backend route errors must return meaningful HTTP status codes and `detail` messages, not bare 500s.
+- If a form submission fails, the form must stay filled in (don't reset on error).
+
+### 5. UI Verification After Every Change — REQUIRED
+This applies to frontend AND backend changes:
+- Start both servers (backend on `:8001`, frontend on `:3000`).
+- Navigate to the affected page and click through the feature.
+- Test the happy path (normal use) AND at least one edge case (empty state, invalid input, missing data).
+- Do not report a task complete based on code review alone — visual confirmation is required.
+
+### 6. Regression Awareness
+- When editing a shared file (`Layout.js`, `AuthContext.js`, `server.py`), check all pages/routes that depend on it.
+- After any routing change in `App.js`, verify that login → dashboard → patient detail navigation still works.
+- After any auth change, verify that protected routes still redirect unauthenticated users.
+
+### 7. PatientDetails.js — Handle With Extreme Care
+- This file is LARGE and FRAGILE. Any JSX nesting error will break the entire patient detail view.
+- Do not add new state, new modals, or new logic directly into this file.
+- New modals or panels must be extracted into separate component files under `frontend/src/components/`.
+- After any edit to this file: check that the FDI chart renders, the implant modal opens, and the photo vault tab loads.
+
+### 8. Data Safety — Never Destructive Without Confirmation
+- Never drop, wipe, or bulk-delete MongoDB collections or documents without explicit user instruction.
+- Never reset user accounts or overwrite doctor data during testing.
+- Use the test account (`midhilesh.krishna@gmail.com`) for all dev/test operations — never use or invent other accounts.
+
+### 9. Interpret Vague Requests Clinically
+The user is a domain expert in dentistry but not in software. When a request is ambiguous:
+- Interpret it in the richest, most clinically useful way that fits the existing data model.
+- Example: "add a note field" → add it to the right DB schema, surface it in both the form and the detail view, and make it optional.
+- If something could go two ways, pick the approach that matches how dentists actually work, and note the choice.
+
+### 10. Report Back Clearly — Non-Technical Language
+After completing any task, summarize:
+- What was changed and where (file names, not line numbers).
+- What the user should now be able to do in the app.
+- Any known limitations or next steps.
+- Do NOT use jargon like "I refactored the state management" — say "I fixed the save button in the implant form so it no longer clears your entries on error."
+
+### 11. Never Break Auth
+- The JWT cookie flow is the app's security backbone. Never change cookie settings, token expiry, or the `/api/auth/me` route behavior without explicit instruction.
+- After any backend change near auth routes, re-test login → access a protected page → logout → confirm redirect.
+
+### 12. Keep the Codebase Clean
+- Do not leave `console.log` statements, commented-out dead code, or `TODO` comments in committed code unless they are tracked in the backlog.
+- Do not install new npm packages or Python libraries without mentioning it to the user and confirming it fits the existing stack.
+- Do not add duplicate routes, duplicate components, or duplicate utility functions — search first.
