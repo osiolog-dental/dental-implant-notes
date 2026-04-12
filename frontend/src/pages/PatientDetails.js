@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { ArrowLeft, Plus, Camera, Tag } from '@phosphor-icons/react';
 import ImplantProgressTracker from '../components/ImplantProgressTracker';
 import ImplantTagScanner from '../components/ImplantTagScanner';
+import DentalChart from '../components/DentalChart';
+import ToothActionModal from '../components/ToothActionModal';
 import {
   Dialog,
   DialogContent,
@@ -18,16 +20,6 @@ import { Label } from '@/components/ui/label';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-const FDI_CHART = {
-  upper: [
-    [18, 17, 16, 15, 14, 13, 12, 11],
-    [21, 22, 23, 24, 25, 26, 27, 28]
-  ],
-  lower: [
-    [48, 47, 46, 45, 44, 43, 42, 41],
-    [31, 32, 33, 34, 35, 36, 37, 38]
-  ]
-};
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
@@ -93,6 +85,9 @@ const PatientDetails = () => {
   const [formData, setFormData] = useState({ ...INITIAL_IMPLANT });
   const [fpdData, setFpdData] = useState({ ...INITIAL_FPD });
   const [clinics, setClinics] = useState([]);
+  const [toothConditions, setToothConditions] = useState({});
+  const [isToothModalOpen, setIsToothModalOpen] = useState(false);
+  const [crownOnImplantTooth, setCrownOnImplantTooth] = useState(null);
 
   useEffect(() => {
     fetchAll();
@@ -120,10 +115,35 @@ const PatientDetails = () => {
 
   const handleToothClick = (toothNumber) => {
     setSelectedTooth(toothNumber);
+    setIsToothModalOpen(true);
+  };
+
+  const handleConditionChange = (toothNumber, condition) => {
+    setToothConditions(prev => ({
+      ...prev,
+      [toothNumber]: { ...(prev[toothNumber] || {}), condition },
+    }));
+  };
+
+  const openImplantLog = (toothNumber) => {
     const arch = toothNumber <= 28 ? 'Upper' : 'Lower';
     const tens = Math.floor(toothNumber / 10);
     const jaw_region = ([1, 2, 3, 4].includes(tens) && (toothNumber % 10) <= 3) ? 'Anterior' : 'Posterior';
-    setFormData({ ...formData, tooth_number: toothNumber, arch, jaw_region });
+    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region });
+    setIsImplantOpen(true);
+  };
+
+  const openCrownLog = (toothNumber) => {
+    setFpdData({ ...INITIAL_FPD, tooth_numbers: [toothNumber] });
+    setIsFpdOpen(true);
+  };
+
+  const openCrownOnImplant = (toothNumber) => {
+    setCrownOnImplantTooth(toothNumber);
+    const arch = toothNumber <= 28 ? 'Upper' : 'Lower';
+    const tens = Math.floor(toothNumber / 10);
+    const jaw_region = ([1, 2, 3, 4].includes(tens) && (toothNumber % 10) <= 3) ? 'Anterior' : 'Posterior';
+    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region });
     setIsImplantOpen(true);
   };
 
@@ -476,50 +496,21 @@ const PatientDetails = () => {
                 <DialogTitle className="text-xl font-semibold">FPD Log Sheet</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmitFpd} className="space-y-4 mt-2">
-                {/* FDI Mini Chart for tooth selection */}
+                {/* FDI Chart — tooth selection for FPD */}
                 <div>
-                  <Label className="text-xs mb-2 block">Select Teeth (click to toggle)</Label>
-                  <div className="space-y-3 bg-[#F9F9F8] p-3 rounded-lg border border-[#E5E5E2]">
-                    <p className="text-xs text-[#5C6773] text-center uppercase tracking-wider">Upper Jaw</p>
-                    <div className="flex justify-center gap-4 overflow-x-auto pb-1">
-                      {FDI_CHART.upper.map((quadrant, qi) => (
-                        <div key={qi} className="flex gap-1">
-                          {quadrant.map(tooth => (
-                            <button type="button" key={tooth} onClick={() => toggleFpdTooth(tooth)}
-                              data-testid={`fpd-tooth-${tooth}`}
-                              className={`w-9 h-9 rounded text-xs font-medium transition-all ${
-                                fpdData.tooth_numbers.includes(tooth)
-                                  ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
-                                  : 'bg-white border border-[#E5E5E2] text-[#2A2F35] hover:border-[#3B82F6]'
-                              }`}
-                            >{tooth}</button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-[#5C6773] text-center uppercase tracking-wider">Lower Jaw</p>
-                    <div className="flex justify-center gap-4 overflow-x-auto pb-1">
-                      {FDI_CHART.lower.map((quadrant, qi) => (
-                        <div key={qi} className="flex gap-1">
-                          {quadrant.map(tooth => (
-                            <button type="button" key={tooth} onClick={() => toggleFpdTooth(tooth)}
-                              data-testid={`fpd-tooth-${tooth}`}
-                              className={`w-9 h-9 rounded text-xs font-medium transition-all ${
-                                fpdData.tooth_numbers.includes(tooth)
-                                  ? 'bg-[#3B82F6] text-white border-[#3B82F6]'
-                                  : 'bg-white border border-[#E5E5E2] text-[#2A2F35] hover:border-[#3B82F6]'
-                              }`}
-                            >{tooth}</button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    {fpdData.tooth_numbers.length > 0 && (
-                      <p className="text-xs text-[#2A2F35] font-medium text-center">
-                        Selected: {fpdData.tooth_numbers.join(', ')}
-                      </p>
-                    )}
-                  </div>
+                  <Label className="text-xs mb-2 block">Select Teeth — click to toggle</Label>
+                  <DentalChart
+                    implants={implants}
+                    fpdRecords={fpdRecords}
+                    selectedTeeth={fpdData.tooth_numbers}
+                    onToothToggle={toggleFpdTooth}
+                    mode="fpd"
+                  />
+                  {fpdData.tooth_numbers.length > 0 && (
+                    <p className="mt-2 text-xs text-[#2A2F35] font-medium text-center">
+                      Selected: {fpdData.tooth_numbers.join(', ')}
+                    </p>
+                  )}
                 </div>
 
                 {/* FPD fields */}
@@ -590,64 +581,16 @@ const PatientDetails = () => {
           </Dialog>
         </div>
 
-        {/* Dental Chart Grid */}
-        <div className="space-y-6">
-          <div>
-            <p className="text-xs text-[#5C6773] mb-2 text-center uppercase tracking-wider">Upper Jaw</p>
-            <div className="overflow-x-auto pb-2">
-              <div className="flex justify-center gap-6 min-w-max">
-                {FDI_CHART.upper.map((quadrant, qIndex) => (
-                  <div key={qIndex} className="flex gap-1.5">
-                    {quadrant.map((tooth) => {
-                      const implant = getToothStatus(tooth);
-                      return (
-                        <button key={tooth} onClick={() => handleToothClick(tooth)} data-testid={`tooth-${tooth}`}
-                          className={`w-11 h-11 rounded-lg border-2 flex items-center justify-center text-sm font-medium transition-all ${
-                            implant
-                              ? 'bg-[#82A098] border-[#82A098] text-white hover:bg-[#6B8A82]'
-                              : 'bg-white border-[#E5E5E2] text-[#2A2F35] hover:border-[#82A098] hover:bg-[#F9F9F8]'
-                          }`}
-                        >{tooth}</button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-[#5C6773] mb-2 text-center uppercase tracking-wider">Lower Jaw</p>
-            <div className="overflow-x-auto pb-2">
-              <div className="flex justify-center gap-6 min-w-max">
-                {FDI_CHART.lower.map((quadrant, qIndex) => (
-                  <div key={qIndex} className="flex gap-1.5">
-                    {quadrant.map((tooth) => {
-                      const implant = getToothStatus(tooth);
-                      return (
-                        <button key={tooth} onClick={() => handleToothClick(tooth)} data-testid={`tooth-${tooth}`}
-                          className={`w-11 h-11 rounded-lg border-2 flex items-center justify-center text-sm font-medium transition-all ${
-                            implant
-                              ? 'bg-[#82A098] border-[#82A098] text-white hover:bg-[#6B8A82]'
-                              : 'bg-white border-[#E5E5E2] text-[#2A2F35] hover:border-[#82A098] hover:bg-[#F9F9F8]'
-                          }`}
-                        >{tooth}</button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-4 text-xs text-[#5C6773]">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-[#E5E5E2] rounded"></div>
-            <span>Healthy</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-[#82A098] border-2 border-[#82A098] rounded"></div>
-            <span>Has Implant</span>
+        {/* FDI Dental Chart — high-fidelity SVG */}
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: 560 }}>
+            <DentalChart
+              implants={implants}
+              fpdRecords={fpdRecords}
+              toothConditions={toothConditions}
+              onToothClick={handleToothClick}
+              mode="implant"
+            />
           </div>
         </div>
 
@@ -760,6 +703,18 @@ const PatientDetails = () => {
           </div>
         </div>
       )}
+
+      {/* ── TOOTH ACTION MODAL: condition + treatment picker ── */}
+      <ToothActionModal
+        toothNumber={selectedTooth}
+        isOpen={isToothModalOpen}
+        onClose={() => setIsToothModalOpen(false)}
+        toothConditions={toothConditions}
+        onConditionChange={handleConditionChange}
+        onImplantLog={(n) => { setIsToothModalOpen(false); openImplantLog(n); }}
+        onCrownLog={(n) => { setIsToothModalOpen(false); openCrownLog(n); }}
+        onCrownOnImplant={(n) => { setIsToothModalOpen(false); openCrownOnImplant(n); }}
+      />
     </div>
   );
 };
