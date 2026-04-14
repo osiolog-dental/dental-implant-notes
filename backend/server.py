@@ -242,6 +242,9 @@ class ProfileUpdate(BaseModel):
     phone: Optional[str] = None
     specialization: Optional[str] = None
     currency: Optional[str] = None
+    name: Optional[str] = None
+    country: Optional[str] = None
+    bio: Optional[str] = None
 
 # Auth Endpoints
 @api_router.post("/auth/register")
@@ -821,6 +824,7 @@ async def get_public_profile(doctor_id: str):
         "college": user.get("college", ""),
         "college_place": user.get("college_place", ""),
         "country": user.get("country", ""),
+        "bio": user.get("bio", ""),
         "profile_picture": user.get("profile_picture"),
         "clinics": user.get("clinics", []),
         "stats": {

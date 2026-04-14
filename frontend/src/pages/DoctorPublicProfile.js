@@ -195,7 +195,9 @@ export default function DoctorPublicProfile() {
     </div>
   );
 
-  const displayName = profile.name.startsWith('Dr') ? profile.name : `Dr. ${profile.name}`;
+  if (!profile) return null;
+
+  const displayName = (profile.name || '').startsWith('Dr') ? profile.name : `Dr. ${profile.name || ''}`;
 
   return (
     <div className="min-h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -212,7 +214,7 @@ export default function DoctorPublicProfile() {
           ) : (
             <div className="w-24 h-24 rounded-full border-4 border-white/40 bg-white/20 flex items-center justify-center shadow-lg">
               <span className="text-3xl font-bold text-white">
-                {profile.name.replace(/^Dr\.?\s*/i, '').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                {(profile.name || '').replace(/^Dr\.?\s*/i, '').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'DR'}
               </span>
             </div>
           )}
