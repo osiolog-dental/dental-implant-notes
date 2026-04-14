@@ -212,6 +212,7 @@ class ImplantCreate(BaseModel):
     isq_value: Optional[float] = None  # Implant Stability Quotient
     follow_up_date: Optional[str] = None
     surgeon_name: Optional[str] = None
+    consultant_surgeon: Optional[str] = None   # visiting/consultant surgeon who performed the surgery
     tag_image: Optional[str] = None   # base64 data URL of the implant package label
     # Progress tracking
     current_stage: int = 1  # 1=Placement, 2=Second Stage/Impressions, 3=Prosthesis Delivery
@@ -235,6 +236,9 @@ class FPDCreate(BaseModel):
     crown_material: str = "Zirconia"  # Metal / Porcelain fused to metal / Zirconia
     clinical_notes: Optional[str] = None
     clinic_id: Optional[str] = None
+    consultant_prosthodontist: Optional[str] = None   # visiting/consultant who did the FPD case
+    lab_name: Optional[str] = None                   # dental lab that fabricated the crowns
+    warranty_image: Optional[str] = None             # base64 or storage path of warranty card photo
 
 class ProfileUpdate(BaseModel):
     college: Optional[str] = None
@@ -778,6 +782,24 @@ async def update_fpd_record(record_id: str, fpd: FPDCreate, request: Request):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="FPD record not found or not yours")
     return {"message": "FPD record updated successfully"}
+
+@api_router.post("/fpd-records/{record_id}/warranty-image")
+async def upload_fpd_warranty_image(record_id: str, file: UploadFile = File(...), request: Request = None):
+    """Upload a warranty card photo for a FPD record."""
+    user = await get_current_user(request)
+    try:
+        obj_id = ObjectId(record_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid record ID")
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
+    path = f"{APP_NAME}/fpd/{record_id}/warranty_{uuid.uuid4()}.{ext}"
+    contents = await file.read()
+    put_object(path, contents, file.content_type or "image/jpeg")
+    await db.fpd_records.update_one(
+        {"_id": obj_id, "doctor_id": user["_id"]},
+        {"$set": {"warranty_image": path}}
+    )
+    return {"warranty_image": path}
 
 @api_router.delete("/fpd-records/{record_id}")
 async def delete_fpd_record(record_id: str, request: Request):

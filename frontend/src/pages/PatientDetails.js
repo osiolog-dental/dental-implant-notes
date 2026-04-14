@@ -47,6 +47,7 @@ const INITIAL_IMPLANT = {
   prosthetic_loading_date: '',
   follow_up_date: '',
   surgeon_name: '',
+  consultant_surgeon: '',
   clinic_id: '',
   implant_outcome: 'Pending',
   osseointegration_success: false,
@@ -65,6 +66,9 @@ const INITIAL_FPD = {
   crown_type: 'Screw Retained',
   crown_material: 'Zirconia',
   clinical_notes: '',
+  consultant_prosthodontist: '',
+  lab_name: '',
+  warranty_image: null,
 };
 
 const PatientDetails = () => {
@@ -81,6 +85,7 @@ const PatientDetails = () => {
   const [fpdData, setFpdData] = useState({ ...INITIAL_FPD });
   const [editingImplantId, setEditingImplantId] = useState(null);
   const [editingFpdId, setEditingFpdId] = useState(null);
+  const [warrantyFile, setWarrantyFile] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -257,6 +262,7 @@ const PatientDetails = () => {
       prosthetic_loading_date: implant.prosthetic_loading_date || '',
       follow_up_date: implant.follow_up_date || '',
       surgeon_name: implant.surgeon_name || '',
+      consultant_surgeon: implant.consultant_surgeon || '',
       clinic_id: implant.clinic_id || '',
       implant_outcome: implant.implant_outcome || 'Pending',
       osseointegration_success: implant.osseointegration_success || false,
@@ -290,16 +296,33 @@ const PatientDetails = () => {
     }
     try {
       const payload = { ...fpdData, patient_id: id };
+      delete payload.warranty_image; // stored via separate upload endpoint
+      let fpdId = editingFpdId;
       if (editingFpdId) {
         await axios.put(`${API_URL}/api/fpd-records/${editingFpdId}`, payload, { withCredentials: true });
         toast.success('FPD record updated');
       } else {
-        await axios.post(`${API_URL}/api/fpd-records`, payload, { withCredentials: true });
+        const res = await axios.post(`${API_URL}/api/fpd-records`, payload, { withCredentials: true });
+        fpdId = res.data?._id;
         toast.success('FPD record added');
+      }
+      // Upload warranty image if selected
+      if (warrantyFile && fpdId) {
+        try {
+          const form = new FormData();
+          form.append('file', warrantyFile);
+          await axios.post(`${API_URL}/api/fpd-records/${fpdId}/warranty-image`, form, {
+            withCredentials: true,
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } catch {
+          toast.warning('FPD saved but warranty image upload failed');
+        }
       }
       setIsFpdOpen(false);
       setFpdData({ ...INITIAL_FPD });
       setEditingFpdId(null);
+      setWarrantyFile(null);
       fetchAll();
     } catch (error) {
       const msg = error?.response?.data?.detail || (editingFpdId ? 'Failed to update FPD record' : 'Failed to add FPD record');
@@ -316,6 +339,9 @@ const PatientDetails = () => {
       crown_type: fpd.crown_type || 'Screw Retained',
       crown_material: fpd.crown_material || 'Zirconia',
       clinical_notes: fpd.clinical_notes || '',
+      consultant_prosthodontist: fpd.consultant_prosthodontist || '',
+      lab_name: fpd.lab_name || '',
+      warranty_image: fpd.warranty_image || null,
     });
     setEditingFpdId(fpd._id);
     setIsFpdOpen(true);
@@ -713,8 +739,14 @@ const PatientDetails = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Surgeon Name</Label>
-                    <Input value={formData.surgeon_name} onChange={(e) => updateField('surgeon_name', e.target.value)} placeholder="Operating surgeon" className="mt-1" />
+                    <Input value={formData.surgeon_name} onChange={(e) => updateField('surgeon_name', e.target.value)} placeholder="In-house surgeon" className="mt-1" />
                   </div>
+                </div>
+
+                {/* Consultant surgeon */}
+                <div>
+                  <Label className="text-xs">Consultant / Visiting Surgeon <span className="text-[#9CA3AF]">(if different from treating doctor)</span></Label>
+                  <Input value={formData.consultant_surgeon || ''} onChange={(e) => updateField('consultant_surgeon', e.target.value)} placeholder="Dr. Name, Specialization" className="mt-1" data-testid="implant-consultant-surgeon" />
                 </div>
 
                 {/* Row 6: Bone Graft, Sinus Lift, Clinic */}
@@ -789,7 +821,7 @@ const PatientDetails = () => {
           {/* FPD Log Sheet Dialog (opened via chart tooth click) */}
           <Dialog open={isFpdOpen} onOpenChange={(open) => {
             setIsFpdOpen(open);
-            if (!open) { setFpdData({ ...INITIAL_FPD }); setEditingFpdId(null); }
+            if (!open) { setFpdData({ ...INITIAL_FPD }); setEditingFpdId(null); setWarrantyFile(null); }
           }}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -867,6 +899,38 @@ const PatientDetails = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Consultant & Lab */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Consultant / Visiting Prosthodontist <span className="text-[#9CA3AF]">(optional)</span></Label>
+                    <Input value={fpdData.consultant_prosthodontist} onChange={(e) => setFpdData({ ...fpdData, consultant_prosthodontist: e.target.value })} placeholder="Dr. Name" className="mt-1" data-testid="fpd-consultant" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Dental Lab <span className="text-[#9CA3AF]">(crown fabrication)</span></Label>
+                    <Input value={fpdData.lab_name} onChange={(e) => setFpdData({ ...fpdData, lab_name: e.target.value })} placeholder="Lab name" className="mt-1" data-testid="fpd-lab-name" />
+                  </div>
+                </div>
+
+                {/* Warranty image */}
+                <div>
+                  <Label className="text-xs">Warranty Card Photo <span className="text-[#9CA3AF]">(optional)</span></Label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#E5E5E2] hover:border-[#82A098] hover:bg-[#F0F8F6] cursor-pointer text-xs text-[#5C6773] transition-colors" data-testid="fpd-warranty-upload-label">
+                      <input type="file" accept="image/*" className="hidden" data-testid="fpd-warranty-input"
+                        onChange={e => { if (e.target.files?.[0]) setWarrantyFile(e.target.files[0]); }} />
+                      📷 {warrantyFile ? warrantyFile.name : 'Upload warranty photo'}
+                    </label>
+                    {/* Show existing warranty image if editing */}
+                    {fpdData.warranty_image && !warrantyFile && (
+                      <a href={`${API_URL}/api/files/${fpdData.warranty_image}`} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-[#82A098] underline">View existing</a>
+                    )}
+                    {warrantyFile && (
+                      <button type="button" onClick={() => setWarrantyFile(null)} className="text-xs text-red-400 hover:text-red-600">✕ Remove</button>
+                    )}
+                  </div>
+                </div>
 
                 <div>
                   <Label className="text-xs">Clinical Notes</Label>
@@ -971,6 +1035,8 @@ const PatientDetails = () => {
                     <div><span className="text-[#5C6773]">Length:</span> <span className="font-medium text-[#2A2F35]">{implant.length_mm ? `${implant.length_mm} mm` : '—'}</span></div>
                     <div><span className="text-[#5C6773]">Torque:</span> <span className="font-medium text-[#2A2F35]">{implant.insertion_torque || 'N/A'} Ncm</span></div>
                     <div><span className="text-[#5C6773]">Connection:</span> <span className="font-medium text-[#2A2F35]">{implant.connection_type}</span></div>
+                    {implant.surgeon_name && <div><span className="text-[#5C6773]">Surgeon:</span> <span className="font-medium text-[#2A2F35]">{implant.surgeon_name}</span></div>}
+                    {implant.consultant_surgeon && <div><span className="text-[#5C6773]">Consultant:</span> <span className="font-medium text-[#C27E70]">{implant.consultant_surgeon}</span></div>}
                   </div>
                   {implant.notes && <p className="mt-2 text-xs text-[#5C6773] italic">{implant.notes}</p>}
                   <ImplantProgressTracker implant={implant} onUpdate={fetchAll} />
@@ -1013,8 +1079,23 @@ const PatientDetails = () => {
                   {fpd.prosthetic_loading_date && (
                     <div><span className="text-[#5C6773]">Loading:</span> <span className="font-medium text-[#2A2F35]">{fpd.prosthetic_loading_date}</span></div>
                   )}
+                  {fpd.consultant_prosthodontist && (
+                    <div><span className="text-[#5C6773]">Consultant:</span> <span className="font-medium text-[#2A2F35]">{fpd.consultant_prosthodontist}</span></div>
+                  )}
+                  {fpd.lab_name && (
+                    <div><span className="text-[#5C6773]">Lab:</span> <span className="font-medium text-[#2A2F35]">{fpd.lab_name}</span></div>
+                  )}
                 </div>
                 {fpd.clinical_notes && <p className="mt-2 text-xs text-[#5C6773] italic">{fpd.clinical_notes}</p>}
+                {fpd.warranty_image && (
+                  <div className="mt-2">
+                    <a href={`${API_URL}/api/files/${fpd.warranty_image}`} target="_blank" rel="noopener noreferrer">
+                      <img src={`${API_URL}/api/files/${fpd.warranty_image}`} alt="Warranty card"
+                        className="h-16 w-auto rounded border border-[#E5E5E2] object-cover hover:opacity-80 transition-opacity cursor-pointer" />
+                    </a>
+                    <p className="text-[10px] text-[#9CA3AF] mt-0.5">Warranty card</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
