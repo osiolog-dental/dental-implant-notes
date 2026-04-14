@@ -1228,6 +1228,179 @@ async def restore_backup(request: Request):
     return {"message": "Restore complete", "inserted": stats}
 
 
+@api_router.post("/bulk-import")
+async def bulk_import(file: UploadFile = File(...), request: Request = None):
+    """
+    Accept an Excel workbook with sheets: Patients, Implants, FPD.
+    Creates records in DB, linking implants and FPD to patients by patient name.
+    Returns counts of created records and any row-level errors.
+    """
+    import openpyxl, io
+    user = await get_current_user(request)
+    uid = user["_id"]
+
+    contents = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Excel file")
+
+    def sheet_rows(sheet_name):
+        if sheet_name not in wb.sheetnames:
+            return []
+        ws = wb[sheet_name]
+        headers = [str(c.value).strip() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if all(v is None for v in row):
+                continue
+            rows.append(dict(zip(headers, row)))
+        return rows
+
+    def val(row, *keys, default=None):
+        for k in keys:
+            v = row.get(k)
+            if v is not None and str(v).strip() != "":
+                return str(v).strip()
+        return default
+
+    def boolval(row, key):
+        v = val(row, key, default="")
+        return str(v).lower() in ("yes", "true", "1", "y")
+
+    errors = []
+    results = {"patients": 0, "implants": 0, "fpd": 0}
+
+    # ── PATIENTS ──
+    patient_name_map = {}  # name (lower) → _id string
+    for i, row in enumerate(sheet_rows("Patients"), start=2):
+        name = val(row, "Patient Name", "name")
+        if not name:
+            errors.append(f"Patients row {i}: Missing patient name — skipped")
+            continue
+        try:
+            age = int(float(val(row, "Age", "age") or 0))
+        except Exception:
+            age = 0
+        doc = {
+            "doctor_id": uid,
+            "name": name,
+            "age": age,
+            "gender": val(row, "Gender", "gender") or "Other",
+            "phone": val(row, "Phone", "phone") or "",
+            "email": val(row, "Email", "email"),
+            "alternate_email": val(row, "Alternate Email", "alternate_email"),
+            "emergency_phone": val(row, "Emergency Phone", "emergency_phone"),
+            "address": val(row, "Address", "address"),
+            "medical_history": val(row, "Medical History", "medical_history"),
+            "created_at": datetime.now(timezone.utc),
+        }
+        result = await db.patients.insert_one(doc)
+        pid = str(result.inserted_id)
+        patient_name_map[name.lower()] = pid
+        results["patients"] += 1
+
+    # Also load existing patients of this doctor into the map (for re-uploads)
+    async for p in db.patients.find({"doctor_id": uid}, {"_id": 1, "name": 1}):
+        key = p["name"].lower()
+        if key not in patient_name_map:
+            patient_name_map[key] = str(p["_id"])
+
+    # ── IMPLANTS ──
+    for i, row in enumerate(sheet_rows("Implants"), start=2):
+        pname = val(row, "Patient Name", "patient_name")
+        if not pname:
+            errors.append(f"Implants row {i}: Missing patient name — skipped")
+            continue
+        pid = patient_name_map.get(pname.lower())
+        if not pid:
+            errors.append(f"Implants row {i}: Patient '{pname}' not found — skipped")
+            continue
+        try:
+            tooth = int(float(val(row, "Tooth Number", "tooth_number") or 0))
+        except Exception:
+            errors.append(f"Implants row {i}: Invalid tooth number — skipped")
+            continue
+        doc = {
+            "doctor_id": uid,
+            "patient_id": pid,
+            "tooth_number": tooth,
+            "implant_type": val(row, "Implant Type") or "Single",
+            "brand": val(row, "Brand") or "",
+            "size": val(row, "Size (Diameter mm)", "size") or "",
+            "length": val(row, "Length (mm)", "length") or "",
+            "diameter_mm": float(val(row, "Size (Diameter mm)", "diameter_mm") or 0) or None,
+            "length_mm": float(val(row, "Length (mm)", "length_mm") or 0) or None,
+            "insertion_torque": float(val(row, "Insertion Torque (Ncm)", "insertion_torque") or 0) or None,
+            "connection_type": val(row, "Connection Type", "connection_type") or "",
+            "surgical_approach": val(row, "Surgical Approach", "surgical_approach") or "Flapless",
+            "arch": val(row, "Arch") or "Upper",
+            "jaw_region": val(row, "Jaw Region") or "Anterior",
+            "implant_system": val(row, "Implant System"),
+            "bone_graft": val(row, "Bone Graft"),
+            "sinus_lift_type": val(row, "Sinus Lift Type"),
+            "is_pterygoid": boolval(row, "Pterygoid"),
+            "is_zygomatic": boolval(row, "Zygomatic"),
+            "is_subperiosteal": boolval(row, "Subperiosteal"),
+            "cover_screw": boolval(row, "Cover Screw"),
+            "healing_abutment": boolval(row, "Healing Abutment"),
+            "membrane_used": boolval(row, "Membrane Used"),
+            "isq_value": float(val(row, "ISQ Value", "isq_value") or 0) or None,
+            "surgery_date": val(row, "Surgery Date", "surgery_date"),
+            "prosthetic_loading_date": val(row, "Prosthetic Loading Date", "prosthetic_loading_date"),
+            "follow_up_date": val(row, "Follow Up Date", "follow_up_date"),
+            "surgeon_name": val(row, "Surgeon Name", "surgeon_name"),
+            "implant_outcome": val(row, "Outcome", "implant_outcome") or "Pending",
+            "osseointegration_success": boolval(row, "Osseointegration Success"),
+            "peri_implant_health": boolval(row, "Peri-Implant Health"),
+            "notes": val(row, "Notes"),
+            "clinical_notes": val(row, "Clinical Notes"),
+            "case_number": val(row, "Case Number"),
+            "current_stage": 1,
+            "osseointegration_days": 90,
+            "clinical_photos": [],
+            "radiographs": [],
+            "created_at": datetime.now(timezone.utc),
+        }
+        result = await db.implants.insert_one(doc)
+        results["implants"] += 1
+
+    # ── FPD ──
+    for i, row in enumerate(sheet_rows("FPD"), start=2):
+        pname = val(row, "Patient Name", "patient_name")
+        if not pname:
+            errors.append(f"FPD row {i}: Missing patient name — skipped")
+            continue
+        pid = patient_name_map.get(pname.lower())
+        if not pid:
+            errors.append(f"FPD row {i}: Patient '{pname}' not found — skipped")
+            continue
+        teeth_raw = val(row, "Tooth Numbers", "tooth_numbers") or ""
+        try:
+            tooth_numbers = [int(t.strip()) for t in str(teeth_raw).split(",") if t.strip().isdigit()]
+        except Exception:
+            tooth_numbers = []
+        if not tooth_numbers:
+            errors.append(f"FPD row {i}: No valid tooth numbers — skipped")
+            continue
+        doc = {
+            "doctor_id": uid,
+            "patient_id": pid,
+            "tooth_numbers": tooth_numbers,
+            "crown_count": val(row, "Crown Count") or "Single",
+            "crown_type": val(row, "Crown Type") or "Screw Retained",
+            "crown_material": val(row, "Crown Material") or "Zirconia",
+            "prosthetic_loading_date": val(row, "Prosthetic Loading Date"),
+            "clinical_notes": val(row, "Clinical Notes"),
+            "connected_implant_ids": [],
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.fpd_records.insert_one(doc)
+        results["fpd"] += 1
+
+    return {"message": "Import complete", "created": results, "errors": errors}
+
+
 app.include_router(api_router)
 
 # Startup event

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
+import BulkImport from '../components/BulkImport';
 import {
   ArrowLeft, User, Envelope, Phone, MapPin, Certificate,
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
@@ -231,6 +232,10 @@ export default function Account() {
           </div>
         </div>
       )}
+
+      {/* Bulk Import */}
+      <BulkImport />
+
     </div>
   );
 }
