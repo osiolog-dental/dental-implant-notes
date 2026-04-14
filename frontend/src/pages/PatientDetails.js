@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
+import { generatePatientPDF } from '../components/PatientReportPDF';
 import ImplantProgressTracker from '../components/ImplantProgressTracker';
 import ImplantTagScanner from '../components/ImplantTagScanner';
 import DentalChart from '../components/DentalChart';
@@ -86,6 +87,8 @@ const PatientDetails = () => {
   const [editPatientData, setEditPatientData] = useState({});
   const [editLog, setEditLog] = useState([]);
   const [showEditLog, setShowEditLog] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState('');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     fetchAll();
@@ -145,6 +148,29 @@ const PatientDetails = () => {
       fetchAll();
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to update patient');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setGeneratingPdf(true);
+    setPdfProgress('Preparing report...');
+    try {
+      // Fetch extra vault photos
+      const extraRes = await axios.get(`${API_URL}/api/patients/${id}/photos`, { withCredentials: true });
+      await generatePatientPDF({
+        patient,
+        implants,
+        fpdRecords,
+        extraPhotos: extraRes.data,
+        clinics,
+        onProgress: (msg) => setPdfProgress(msg),
+      });
+      toast.success('PDF report downloaded');
+    } catch (err) {
+      toast.error('Failed to generate PDF — ' + (err.message || 'unknown error'));
+    } finally {
+      setGeneratingPdf(false);
+      setPdfProgress('');
     }
   };
 
@@ -400,13 +426,24 @@ const PatientDetails = () => {
                   <span>{patient.gender}</span>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-2 shrink-0 flex-wrap">
                 <button
                   data-testid="edit-patient-btn"
                   onClick={openEditPatient}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#5C6773] border border-[#E5E5E2] rounded-lg hover:border-[#82A098] hover:text-[#82A098] transition-colors"
                 >
                   <PencilSimple size={13} weight="bold" /> Edit Details
+                </button>
+                <button
+                  data-testid="export-pdf-btn"
+                  onClick={handleExportPDF}
+                  disabled={generatingPdf}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#C27E70] hover:bg-[#A8685C] rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {generatingPdf
+                    ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <FilePdf size={13} weight="bold" />}
+                  {generatingPdf ? (pdfProgress || 'Building PDF...') : 'Export PDF'}
                 </button>
                 {editLog.length > 0 && (
                   <button
