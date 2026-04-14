@@ -950,6 +950,87 @@ async def get_financial_analytics(request: Request):
         "average_per_implant": total_revenue / len(implants) if len(implants) > 0 else 0
     }
 
+# ── BACKUP / RESTORE ──────────────────────────────────────────────────────────
+
+@api_router.get("/backup/export")
+async def export_backup(request: Request):
+    """Export all doctor-scoped data as a JSON backup."""
+    user = await get_current_user(request)
+    uid = user["_id"]
+
+    patients   = await db.patients.find({"doctor_id": uid}).to_list(10000)
+    implants   = await db.implants.find({"doctor_id": uid}).to_list(10000)
+    fpd_records = await db.fpd_records.find({"doctor_id": uid}).to_list(10000)
+    clinics    = await db.clinics.find({"doctor_id": uid}).to_list(10000)
+    edit_logs  = await db.patient_edit_logs.find({"doctor_id": uid}).to_list(10000)
+
+    def clean(docs):
+        out = []
+        for d in docs:
+            d["_id"] = str(d["_id"])
+            # Stringify any remaining ObjectId / datetime fields
+            for k, v in d.items():
+                if hasattr(v, 'isoformat'):
+                    d[k] = v.isoformat()
+            out.append(d)
+        return out
+
+    backup = {
+        "version": "1.0",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "doctor": {
+            "email": user.get("email"),
+            "name":  user.get("name"),
+        },
+        "patients":    clean(patients),
+        "implants":    clean(implants),
+        "fpd_records": clean(fpd_records),
+        "clinics":     clean(clinics),
+        "edit_logs":   clean(edit_logs),
+    }
+    return backup
+
+
+@api_router.post("/backup/restore")
+async def restore_backup(request: Request):
+    """Restore from a JSON backup. Merges data — does NOT delete existing records."""
+    user = await get_current_user(request)
+    uid = user["_id"]
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    version = payload.get("version")
+    if not version:
+        raise HTTPException(status_code=400, detail="Unrecognised backup format")
+
+    stats = {"patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0}
+
+    async def restore_collection(col_name, items, key_field="name"):
+        count = 0
+        for item in items:
+            item.pop("_id", None)
+            item["doctor_id"] = uid          # reassign to current doctor
+            # Upsert by a natural key to avoid duplicates on repeated restore
+            existing = await db[col_name].find_one({
+                "doctor_id": uid,
+                key_field: item.get(key_field),
+            })
+            if not existing:
+                await db[col_name].insert_one(item)
+                count += 1
+        return count
+
+    stats["patients"]    = await restore_collection("patients",    payload.get("patients", []),    "name")
+    stats["implants"]    = await restore_collection("implants",    payload.get("implants", []),    "tooth_number")
+    stats["fpd_records"] = await restore_collection("fpd_records", payload.get("fpd_records", []), "prosthetic_loading_date")
+    stats["clinics"]     = await restore_collection("clinics",     payload.get("clinics", []),     "name")
+
+    return {"message": "Restore complete", "inserted": stats}
+
+
 app.include_router(api_router)
 
 # Startup event

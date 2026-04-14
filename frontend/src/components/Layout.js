@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -25,7 +25,8 @@ const Layout = () => {
     { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
     { path: '/analytics', label: 'Analytics', icon: ChartLine },
-    { path: '/clinics', label: 'Clinics', icon: Buildings }
+    { path: '/clinics', label: 'Clinics', icon: Buildings },
+    { path: '/backup', label: 'Backup', icon: CloudArrowUp },
   ];
 
   const footerItems = [
