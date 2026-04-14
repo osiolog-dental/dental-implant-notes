@@ -414,6 +414,55 @@ async def get_patient_edit_log(patient_id: str, request: Request):
         log["changed_at"] = log["changed_at"].isoformat()
     return logs
 
+@api_router.post("/patients/{patient_id}/photos")
+async def upload_patient_photo(patient_id: str, file: UploadFile = File(...), caption: str = Query(''), request: Request = None):
+    """Upload an extra photo directly attached to a patient (not implant-specific)."""
+    user = await get_current_user(request)
+    try:
+        obj_id = ObjectId(patient_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid patient ID")
+    patient = await db.patients.find_one({"_id": obj_id, "doctor_id": user["_id"]})
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    path = f"{APP_NAME}/patients/{patient_id}/photos/{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    result = put_object(path, data, file.content_type or "image/jpeg")
+    photo_doc = {
+        "id": str(uuid.uuid4()),
+        "patient_id": patient_id,
+        "doctor_id": user["_id"],
+        "storage_path": result["path"],
+        "caption": caption,
+        "original_filename": file.filename,
+        "content_type": file.content_type,
+        "size": result["size"],
+        "uploaded_at": datetime.now(timezone.utc),
+    }
+    await db.patient_photos.insert_one(photo_doc)
+    photo_doc["_id"] = str(photo_doc.get("_id", ""))
+    photo_doc["uploaded_at"] = photo_doc["uploaded_at"].isoformat()
+    return photo_doc
+
+@api_router.get("/patients/{patient_id}/photos")
+async def get_patient_photos(patient_id: str, request: Request):
+    user = await get_current_user(request)
+    photos = await db.patient_photos.find({"patient_id": patient_id, "doctor_id": user["_id"]}).sort("uploaded_at", -1).to_list(100)
+    for p in photos:
+        p["_id"] = str(p["_id"])
+        if hasattr(p.get("uploaded_at"), "isoformat"):
+            p["uploaded_at"] = p["uploaded_at"].isoformat()
+    return photos
+
+@api_router.delete("/patients/{patient_id}/photos/{photo_id}")
+async def delete_patient_photo(patient_id: str, photo_id: str, request: Request):
+    user = await get_current_user(request)
+    result = await db.patient_photos.delete_one({"id": photo_id, "patient_id": patient_id, "doctor_id": user["_id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return {"message": "Photo deleted"}
+
 @api_router.post("/patients/{patient_id}/profile-picture")
 async def upload_patient_profile_picture(patient_id: str, file: UploadFile = File(...), request: Request = None):
     user = await get_current_user(request)
