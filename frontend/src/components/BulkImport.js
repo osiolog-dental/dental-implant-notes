@@ -52,6 +52,7 @@ const IMPLANT_COLS = [
   { header: 'Osseointegration Success',note: 'Yes / No' },
   { header: 'Peri-Implant Health',     note: 'Yes / No' },
   { header: 'Case Number',             note: 'Your internal case reference' },
+  { header: 'Consultant Surgeon',      note: 'Visiting/consultant surgeon who performed surgery (if different from treating doctor)' },
   { header: 'Clinical Notes',          note: 'Any additional clinical notes' },
   { header: 'Notes',                   note: 'General notes' },
 ];
@@ -61,9 +62,11 @@ const FPD_COLS = [
   { header: 'Tooth Numbers',           note: 'Comma-separated FDI numbers e.g. 13,14,15 (required)' },
   { header: 'Crown Count',             note: 'Single / Multiple' },
   { header: 'Crown Type',              note: 'Screw Retained / Cement Retained' },
-  { header: 'Crown Material',          note: 'Zirconia / Porcelain fused to metal / Metal / PFZ / Emax' },
-  { header: 'Prosthetic Loading Date', note: 'YYYY-MM-DD' },
-  { header: 'Clinical Notes',          note: 'Any clinical observations or adjustments' },
+  { header: 'Crown Material',              note: 'Zirconia / Porcelain fused to metal / Metal / PFZ / Emax' },
+  { header: 'Prosthetic Loading Date',     note: 'YYYY-MM-DD' },
+  { header: 'Consultant Prosthodontist',   note: 'Visiting/consultant prosthodontist who did this case (if different from treating doctor)' },
+  { header: 'Dental Lab',                  note: 'Name of lab that fabricated the crowns' },
+  { header: 'Clinical Notes',              note: 'Any clinical observations or adjustments' },
 ];
 
 /* Sample data rows for each sheet */
@@ -73,13 +76,13 @@ const PATIENT_SAMPLE = [
 ];
 
 const IMPLANT_SAMPLE = [
-  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '2025-01-15', '2025-04-20', '2025-07-15', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Uneventful healing', ''],
-  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '2025-03-10', '', '2025-09-10', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', 'Watch bone graft site'],
+  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '2025-01-15', '2025-04-20', '2025-07-15', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'Uneventful healing', ''],
+  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '2025-03-10', '', '2025-09-10', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', '', 'Watch bone graft site'],
 ];
 
 const FPD_SAMPLE = [
-  ['John Doe', '13,14,15', 'Multiple', 'Screw Retained', 'Zirconia', '2025-05-01', 'Patient satisfied with aesthetics'],
-  ['Priya Sharma', '35', 'Single', 'Cement Retained', 'Porcelain fused to metal', '2025-06-15', ''],
+  ['John Doe', '13,14,15', 'Multiple', 'Screw Retained', 'Zirconia', '2025-05-01', 'Dr. Anita (Prosthodontist)', 'Precision Dental Lab', 'Patient satisfied with aesthetics'],
+  ['Priya Sharma', '35', 'Single', 'Cement Retained', 'Porcelain fused to metal', '2025-06-15', '', 'City Ceramics Lab', ''],
 ];
 
 function downloadTemplate() {
@@ -145,6 +148,9 @@ function downloadTemplate() {
     ['• Dates must be in YYYY-MM-DD format (e.g. 2025-03-15).'],
     ['• Yes/No fields: type Yes or No (not TRUE/FALSE).'],
     ['• FPD Tooth Numbers: comma-separated (e.g. 13,14,15).'],
+    ['• Consultant Surgeon / Prosthodontist: leave blank if not applicable.'],
+    ['• Dental Lab: name of the lab that made the crowns (FPD sheet only).'],
+    ['• Warranty card photos must be uploaded manually from the FPD record after import.'],
     ['• Photos must be uploaded manually from the patient page after import.'],
     ['• You can upload this file multiple times — duplicate patients are NOT re-created.'],
   ];
