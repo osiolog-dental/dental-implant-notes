@@ -86,6 +86,7 @@ const PatientDetails = () => {
   const [editingImplantId, setEditingImplantId] = useState(null);
   const [editingFpdId, setEditingFpdId] = useState(null);
   const [warrantyFile, setWarrantyFile] = useState(null);
+  const [missingConfirm, setMissingConfirm] = useState(null); // { toothNumber, action: 'mark'|'revert' }
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -111,6 +112,9 @@ const PatientDetails = () => {
       setImplants(implantsRes.data);
       setFpdRecords(fpdRes.data);
       setClinics(clinicsRes.data);
+      if (patientRes.data.tooth_conditions) {
+        setToothConditions(patientRes.data.tooth_conditions);
+      }
     } catch (error) {
       toast.error('Failed to fetch patient details');
       navigate('/patients');
@@ -180,13 +184,26 @@ const PatientDetails = () => {
   };
 
   const handleMarkMissing = (toothNumber) => {
-    setToothConditions(prev => {
-      const current = prev[toothNumber]?.condition;
-      return {
-        ...prev,
-        [toothNumber]: { condition: current === 'missing' ? 'healthy' : 'missing' },
-      };
-    });
+    const current = toothConditions[toothNumber]?.condition;
+    setMissingConfirm({ toothNumber, action: current === 'missing' ? 'revert' : 'mark' });
+  };
+
+  const confirmMissingAction = async () => {
+    if (!missingConfirm) return;
+    const { toothNumber, action } = missingConfirm;
+    const newCondition = action === 'mark' ? 'missing' : 'healthy';
+    const updated = { ...toothConditions, [toothNumber]: { condition: newCondition } };
+    setToothConditions(updated);
+    setMissingConfirm(null);
+    try {
+      await axios.patch(`${API_URL}/api/patients/${id}/tooth-conditions`,
+        { tooth_conditions: updated },
+        { withCredentials: true }
+      );
+      toast.success(action === 'mark' ? `Tooth #${toothNumber} marked as missing` : `Tooth #${toothNumber} restored`);
+    } catch {
+      toast.error('Failed to save tooth status');
+    }
   };
 
   const openImplantLog = (toothNumber) => {
@@ -550,6 +567,45 @@ const PatientDetails = () => {
           </div>
         )}
       </div>
+
+      {/* Missing Tooth Confirmation Dialog */}
+      <Dialog open={!!missingConfirm} onOpenChange={(open) => { if (!open) setMissingConfirm(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-[#2A2F35]">
+              {missingConfirm?.action === 'mark' ? '⚠️ Mark tooth as missing?' : '↩️ Restore tooth?'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            {missingConfirm?.action === 'mark' ? (
+              <p className="text-sm text-[#5C6773]">
+                Tooth <span className="font-bold text-[#2A2F35]">#{missingConfirm?.toothNumber}</span> will be marked as missing on the chart. This will be saved to the patient record.
+              </p>
+            ) : (
+              <p className="text-sm text-[#5C6773]">
+                Tooth <span className="font-bold text-[#2A2F35]">#{missingConfirm?.toothNumber}</span> is currently marked missing. Do you want to restore it to healthy status?
+              </p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button
+              data-testid="confirm-missing-btn"
+              onClick={confirmMissingAction}
+              className={`flex-1 text-white ${missingConfirm?.action === 'mark' ? 'bg-red-500 hover:bg-red-600' : 'bg-[#82A098] hover:bg-[#6B8A82]'}`}
+            >
+              {missingConfirm?.action === 'mark' ? 'Yes, mark as missing' : 'Yes, restore tooth'}
+            </Button>
+            <Button
+              data-testid="cancel-missing-btn"
+              variant="outline"
+              onClick={() => setMissingConfirm(null)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Patient Dialog */}
       <Dialog open={isEditPatientOpen} onOpenChange={setIsEditPatientOpen}>

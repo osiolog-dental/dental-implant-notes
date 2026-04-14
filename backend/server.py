@@ -477,6 +477,24 @@ async def get_patient(patient_id: str, request: Request):
     except:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+@api_router.patch("/patients/{patient_id}/tooth-conditions")
+async def save_tooth_conditions(patient_id: str, request: Request):
+    """Save the tooth condition map (missing/healthy) for a patient."""
+    user = await get_current_user(request)
+    try:
+        obj_id = ObjectId(patient_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid patient ID")
+    body = await request.json()
+    conditions = body.get("tooth_conditions", {})
+    result = await db.patients.update_one(
+        {"_id": obj_id, "doctor_id": user["_id"]},
+        {"$set": {"tooth_conditions": conditions}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"message": "Tooth conditions saved"}
+
 @api_router.put("/patients/{patient_id}")
 async def update_patient(patient_id: str, patient: PatientCreate, request: Request):
     user = await get_current_user(request)
