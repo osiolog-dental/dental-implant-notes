@@ -54,13 +54,11 @@ const MedicalVault = () => {
 
   const fetchData = async () => {
     try {
-      const [patientRes, implantsRes, extraRes] = await Promise.all([
+      const [patientRes, implantsRes] = await Promise.all([
         axios.get(`${API_URL}/api/patients/${patientId}`, { withCredentials: true }),
         axios.get(`${API_URL}/api/implants?patient_id=${patientId}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/patients/${patientId}/photos`, { withCredentials: true }),
       ]);
       setPatient(patientRes.data);
-      setExtraPhotos(extraRes.data);
 
       const photos = [];
       const radiographs = [];
@@ -82,6 +80,14 @@ const MedicalVault = () => {
       navigate(`/patients/${patientId}`);
     } finally {
       setLoading(false);
+    }
+
+    // Extra photos — fetch separately so a failure doesn't crash the whole vault
+    try {
+      const extraRes = await axios.get(`${API_URL}/api/patients/${patientId}/photos`, { withCredentials: true });
+      setExtraPhotos(extraRes.data);
+    } catch {
+      // silently ignore — extra photos section just stays empty
     }
   };
 

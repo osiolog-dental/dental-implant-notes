@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowLeft, User, Envelope, Phone, MapPin, Certificate, GraduationCap, Stethoscope, PencilSimple, FloppyDisk } from '@phosphor-icons/react';
+import { QRCodeSVG } from 'qrcode.react';
+import { ArrowLeft, User, Envelope, Phone, MapPin, Certificate, GraduationCap, Stethoscope, PencilSimple, FloppyDisk, ShareNetwork, ArrowSquareOut } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -176,6 +177,60 @@ export default function Account() {
           </p>
         </div>
       </div>
+
+      {/* Share Profile Card */}
+      {user?._id && (() => {
+        const profileUrl = `${window.location.origin}/profile/${user._id}`;
+        return (
+          <div className="bg-white rounded-xl border border-[#E5E5E2] mt-5 overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#E5E5E2] flex items-center gap-2">
+              <ShareNetwork size={18} className="text-[#82A098]" />
+              <h2 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Share Your Profile</h2>
+            </div>
+            <div className="p-6 flex flex-col sm:flex-row items-center gap-6">
+              {/* QR code */}
+              <div className="shrink-0 p-3 bg-white border border-[#E5E5E2] rounded-xl shadow-sm">
+                <QRCodeSVG
+                  value={profileUrl}
+                  size={120}
+                  fgColor="#2A2F35"
+                  bgColor="#FFFFFF"
+                  level="M"
+                  data-testid="account-qr-code"
+                />
+                <p className="text-[10px] text-[#9CA3AF] text-center mt-2">Scan for digital profile</p>
+              </div>
+              {/* Link & actions */}
+              <div className="flex-1 min-w-0 w-full">
+                <p className="text-xs text-[#5C6773] mb-1">Your public profile link</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex-1 bg-[#F9F9F8] border border-[#E5E5E2] rounded-lg px-3 py-2 text-xs text-[#2A2F35] truncate font-mono">
+                    {profileUrl}
+                  </div>
+                  <button
+                    data-testid="copy-profile-link-account"
+                    onClick={() => { navigator.clipboard.writeText(profileUrl); toast.success('Link copied!'); }}
+                    className="shrink-0 px-3 py-2 bg-[#82A098] text-white text-xs font-semibold rounded-lg hover:bg-[#6B8A82] transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="text-xs text-[#9CA3AF] mb-4">
+                  Share this on visiting cards, email signatures, or social media. Anyone with the link can view your professional profile and case statistics.
+                </p>
+                <button
+                  data-testid="view-public-profile-btn"
+                  onClick={() => navigate(`/profile/${user._id}`)}
+                  className="flex items-center gap-2 text-sm font-semibold text-[#82A098] hover:text-[#6B8A82] transition-colors"
+                >
+                  <ArrowSquareOut size={16} />
+                  Preview your public profile
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

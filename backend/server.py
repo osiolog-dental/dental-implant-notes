@@ -338,6 +338,27 @@ async def get_me(request: Request):
 # Subscription plan limits (storage in MB)
 PLAN_STORAGE = { "free": 500, "pro": 5120, "clinic": 20480 }
 
+# ── External Ad Slots (editable here or via DB in future) ──
+EXTERNAL_ADS = [
+    {
+        "id": "ad_001",
+        "image_url": None,                          # None = show text-only placeholder
+        "headline": "Advertise Here",
+        "subtext": "Reach dental professionals using DentalHub. Contact us to place your ad.",
+        "cta_label": "Learn More",
+        "cta_url": None,
+        "bg_color": "#F0F4FF",
+        "border_color": "#BFD0F7",
+        "tag": "Sponsored",
+        "active": True,
+    },
+]
+
+@api_router.get("/ads")
+async def get_ads():
+    """Return active external ads — no auth required so ads load even on public pages."""
+    return [ad for ad in EXTERNAL_ADS if ad.get("active")]
+
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
     user = await get_current_user(request)
@@ -388,6 +409,28 @@ async def upgrade_subscription(request: Request):
         {"$set": {"plan_type": plan, "plan_billing": billing, "plan_end": plan_end}}
     )
     return {"message": f"Upgraded to {plan} ({billing})", "plan_end": plan_end.isoformat()}
+
+@api_router.post("/auth/refresh")
+async def refresh_token(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user_id = payload["sub"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired — please log in again")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    access_token = create_access_token(user_id)
+    response.set_cookie(
+        key="access_token", value=access_token,
+        httponly=True, secure=False, samesite="lax",
+        max_age=900, path="/"
+    )
+    return {"message": "Token refreshed"}
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
@@ -742,6 +785,53 @@ async def delete_fpd_record(record_id: str, request: Request):
     return {"message": "FPD record deleted"}
 
 # Profile Update Endpoint
+@api_router.get("/public/profile/{doctor_id}")
+async def get_public_profile(doctor_id: str):
+    """Public doctor profile — no auth required. Used for shareable link & QR code."""
+    try:
+        obj_id = ObjectId(doctor_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid doctor ID")
+    user = await db.users.find_one({"_id": obj_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    uid = str(user["_id"])
+
+    # Stats
+    patient_count = await db.patients.count_documents({"doctor_id": uid})
+    implants = await db.implants.find({"doctor_id": uid}).to_list(10000)
+    total_implants = len(implants)
+    successful = sum(1 for i in implants if i.get("osseointegration_success") is True)
+    success_rate = round((successful / total_implants) * 100) if total_implants > 0 else None
+    fpd_count = await db.fpd_records.count_documents({"doctor_id": uid})
+
+    # Years active
+    created_at = user.get("created_at")
+    years_active = None
+    if created_at:
+        from datetime import datetime, timezone
+        years_active = max(1, (datetime.now(timezone.utc) - created_at).days // 365)
+
+    return {
+        "id": uid,
+        "name": user.get("name", ""),
+        "specialization": user.get("specialization", ""),
+        "registration_number": user.get("registration_number", ""),
+        "college": user.get("college", ""),
+        "college_place": user.get("college_place", ""),
+        "country": user.get("country", ""),
+        "profile_picture": user.get("profile_picture"),
+        "clinics": user.get("clinics", []),
+        "stats": {
+            "patients": patient_count,
+            "implants": total_implants,
+            "fpd": fpd_count,
+            "success_rate": success_rate,
+            "years_active": years_active,
+        }
+    }
+
 @api_router.put("/auth/profile")
 async def update_profile(profile: ProfileUpdate, request: Request):
     user = await get_current_user(request)

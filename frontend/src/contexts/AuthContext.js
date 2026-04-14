@@ -22,6 +22,44 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
+
+    // Auto-refresh access token on 401 responses
+    let isRefreshing = false;
+    let queue = [];
+
+    const interceptor = axios.interceptors.response.use(
+      res => res,
+      async err => {
+        const original = err.config;
+        const is401 = err.response?.status === 401;
+        const isAuthRoute = original.url?.includes('/api/auth/');
+        if (!is401 || isAuthRoute || original._retry) return Promise.reject(err);
+
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            queue.push({ resolve, reject });
+          }).then(() => axios(original)).catch(e => Promise.reject(e));
+        }
+
+        original._retry = true;
+        isRefreshing = true;
+        try {
+          await axios.post(`${API_URL}/api/auth/refresh`, {}, { withCredentials: true });
+          queue.forEach(p => p.resolve());
+          queue = [];
+          return axios(original);
+        } catch {
+          queue.forEach(p => p.reject());
+          queue = [];
+          setUser(false);
+          return Promise.reject(err);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+    );
+
+    return () => axios.interceptors.response.eject(interceptor);
   }, []);
 
   const checkAuth = async () => {

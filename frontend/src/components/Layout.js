@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
 import AdBanner from './AdBanner';
+import ExternalAdBanner from './ExternalAdBanner';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -146,8 +147,11 @@ const Layout = () => {
         <AdBanner onNavigate={(path) => navigate(path)} />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto pb-20 md:pb-0">
-          <Outlet />
+        <main className="flex-1 overflow-auto pb-20 md:pb-4 flex flex-col">
+          <div className="flex-1">
+            <Outlet />
+          </div>
+          <ExternalAdBanner />
         </main>
       </div>
 

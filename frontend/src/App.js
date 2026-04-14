@@ -13,6 +13,7 @@ import Clinics from './pages/Clinics';
 import Account from './pages/Account';
 import Backup from './pages/Backup';
 import Subscription from './pages/Subscription';
+import DoctorPublicProfile from './pages/DoctorPublicProfile';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -23,6 +24,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/profile/:doctorId" element={<DoctorPublicProfile />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="patients" element={<Patients />} />

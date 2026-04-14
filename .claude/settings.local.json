@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(curl -s -X POST http://localhost:8001/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"doctor@dentalapp.com\",\"password\":\"doctor123\"}')"
+    ]
+  }
+}

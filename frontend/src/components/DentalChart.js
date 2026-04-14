@@ -24,26 +24,31 @@ import { useMemo, useState } from 'react';
 */
 
 /* ── LAYOUT CONSTANTS ── */
-const SLOT   = 54;          // width per tooth slot
-const GAP    = 20;          // midline gap between quadrants
-const LM     = 16;          // left/right margin
-const CROWN_H = 44;         // crown zone height (matches crown PNG ~42px)
-const ROOT_H  = 60;         // root zone height  (matches root PNG ~55px)
-const NUM_H   = 26;         // number box row height
-const PAD     = 8;          // top/bottom padding
+const SLOT    = 62;          // width per tooth slot (wider for spacious look)
+const GAP     = 24;          // midline gap between quadrants
+const LM      = 20;          // left/right margin
+const CROWN_H = 52;          // crown zone height
+const ROOT_H  = 70;          // root zone height
+const NUM_H   = 28;          // number box row height
+const PAD     = 12;          // top padding
+const ARCH_GAP = 16;         // extra gap between upper and lower arch number rows
 
-/* Vertical positions — upper arch, crown touches number row from above */
-const U_ROOT_Y  = PAD;                        // upper root zone top
-const U_CROWN_Y = U_ROOT_Y + ROOT_H;         // upper crown zone top (root above)
-const U_NUM_Y   = U_CROWN_Y + CROWN_H;       // upper number row top
-const DIV_Y     = U_NUM_Y + NUM_H;           // dividing line y
-const L_NUM_Y   = DIV_Y;                     // lower number row top
-const L_CROWN_Y = L_NUM_Y + NUM_H;           // lower crown zone top (crown below numbers)
-const L_ROOT_Y  = L_CROWN_Y + CROWN_H;       // lower root zone top
-const LEGEND_Y  = L_ROOT_Y + ROOT_H + 12;
+/* Vertical positions — upper arch */
+const U_ROOT_Y  = PAD;
+const U_CROWN_Y = U_ROOT_Y + ROOT_H;
+const U_NUM_Y   = U_CROWN_Y + CROWN_H;
+
+/* Dividing line sits between the two number rows with extra gap */
+const DIV_Y     = U_NUM_Y + NUM_H + ARCH_GAP / 2;
+
+/* Lower arch */
+const L_NUM_Y   = DIV_Y + ARCH_GAP / 2;
+const L_CROWN_Y = L_NUM_Y + NUM_H;
+const L_ROOT_Y  = L_CROWN_Y + CROWN_H;
+const LEGEND_Y  = L_ROOT_Y + ROOT_H + 16;
 
 const W = SLOT * 16 + GAP + LM * 2;
-const H = LEGEND_Y + 20;
+const H = LEGEND_Y + 24;
 
 /* Slot X position for any FDI tooth number */
 function slotX(n) {
@@ -105,22 +110,8 @@ export default function DentalChart({
 
   const toggleAction = key => setActionMode(prev => prev === key ? null : key);
 
-  /* FPD bridge bar connecting pontic teeth */
-  const bridgeOverlays = fpdRecords
-    .filter(f => f.tooth_numbers?.length > 1)
-    .map((f, idx) => {
-      const sorted = [...f.tooth_numbers].sort((a, b) => slotX(a) - slotX(b));
-      const up = isUpper(sorted[0]);
-      const x1 = slotX(sorted[0]) + 3;
-      const x2 = slotX(sorted[sorted.length - 1]) + SLOT - 3;
-      // Bridge bar sits at crown/root junction line
-      const barY = up ? U_CROWN_Y : L_CROWN_Y + CROWN_H;
-      return (
-        <rect key={idx} x={x1} y={barY - 4} width={x2 - x1} height={8}
-          rx={3} fill="rgba(100,180,120,0.75)" stroke="#3a9e5a" strokeWidth={1}
-          style={{ pointerEvents: 'none' }} />
-      );
-    });
+  /* FPD bridge overlays — intentionally empty (no bar shown) */
+  const bridgeOverlays = [];
 
   /* Render one tooth slot */
   const renderTooth = n => {
@@ -231,17 +222,10 @@ export default function DentalChart({
           </>
 
         ) : (
-          /* ── NATURAL TOOTH: full tooth PNG, split into root+crown for alignment ── */
+          /* ── NATURAL TOOTH: single full tooth PNG spanning root+crown zone ── */
           <>
-            {/* Root part — anchored to root zone */}
-            <image href={rootSrc}
-              x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H}
-              preserveAspectRatio="xMidYMid meet"
-              opacity={condition === 'healthy' ? 1 : 0.85}
-            />
-            {/* Crown part — flush against number row */}
-            <image href={crownSrc}
-              x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
+            <image href={toothSrc}
+              x={sx + 2} y={slotTop} width={SLOT - 4} height={ROOT_H + CROWN_H}
               preserveAspectRatio="xMidYMid meet"
               opacity={condition === 'healthy' ? 1 : 0.85}
             />
@@ -333,7 +317,7 @@ export default function DentalChart({
             stroke="#D0C8BC" strokeWidth={1} strokeDasharray="4,4" />
 
           {/* Horizontal dividing line between arch number rows */}
-          <line x1={LM} y1={DIV_Y} x2={W - LM} y2={DIV_Y}
+          <line x1={LM} y1={(U_NUM_Y + NUM_H + L_NUM_Y) / 2} x2={W - LM} y2={(U_NUM_Y + NUM_H + L_NUM_Y) / 2}
             stroke="#B0A898" strokeWidth={1.5} />
 
           {/* FPD bridge connectors */}
