@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react';
+import axios from 'axios';
 import { toast } from 'sonner';
-import client from '../api/client';
 import {
   CloudArrowUp, CloudArrowDown, DownloadSimple,
   UploadSimple, GoogleLogo, CheckCircle, ArrowClockwise,
 } from '@phosphor-icons/react';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 /* ── Google OAuth2 config ──
    Fill REACT_APP_GOOGLE_CLIENT_ID in frontend/.env
@@ -12,7 +14,7 @@ import {
 */
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-const BACKUP_FILENAME = 'dentalhub_backup.json';
+const BACKUP_FILENAME = 'osiolog_backup.json';
 
 /* ── Helpers ── */
 function getGoogleToken() {
@@ -127,7 +129,7 @@ export default function Backup() {
   const handleLocalExport = async () => {
     setLoadingExport(true);
     try {
-      const res = await client.get('/api/backup/export');
+      const res = await axios.get(`${API_URL}/api/backup/export`, { withCredentials: true });
       const json = JSON.stringify(res.data, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -149,7 +151,7 @@ export default function Backup() {
     setLoadingDriveUp(true);
     try {
       const token = await getGoogleToken();
-      const res = await client.get('/api/backup/export');
+      const res = await axios.get(`${API_URL}/api/backup/export`, { withCredentials: true });
       const json = JSON.stringify(res.data, null, 2);
       await uploadToDrive(token, json);
       const now = new Date().toLocaleString('en-IN', {
@@ -189,7 +191,7 @@ export default function Backup() {
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target.result);
-        if (!parsed.version) throw new Error('Not a valid DentalHub backup file');
+        if (!parsed.version) throw new Error('Not a valid OSIOLOG backup file');
         setRestorePreview({ data: parsed, source: file.name, modifiedTime: parsed.exported_at });
         toast.success('Backup loaded — review below and confirm restore');
       } catch {
@@ -205,7 +207,10 @@ export default function Backup() {
     if (!restorePreview) return;
     setLoadingRestore(true);
     try {
-      const res = await client.post('/api/backup/restore', restorePreview.data);
+      const res = await axios.post(`${API_URL}/api/backup/restore`, restorePreview.data, {
+        withCredentials: true,
+        headers: { 'Content-Type': 'application/json' },
+      });
       const { inserted } = res.data;
       toast.success(
         `Restore complete — ${inserted.patients} patients, ${inserted.implants} implants, ${inserted.fpd_records} FPD records imported`
