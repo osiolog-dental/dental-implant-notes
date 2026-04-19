@@ -53,11 +53,12 @@ jobs:
             alembic upgrade head
             cd ..
 
-            echo "Updating Firebase project ID in env..."
+            echo "Updating Firebase config in env..."
             sudo grep -q "FIREBASE_PROJECT_ID" /app/.env \
               && sudo sed -i 's/FIREBASE_PROJECT_ID=.*/FIREBASE_PROJECT_ID=osiolog-prod/' /app/.env \
               || echo "FIREBASE_PROJECT_ID=osiolog-prod" | sudo tee -a /app/.env
-            sudo grep "FIREBASE_PROJECT_ID" /app/.env
+            sudo sed -i 's|FIREBASE_SERVICE_ACCOUNT_JSON=.*|FIREBASE_SERVICE_ACCOUNT_JSON=|' /app/.env
+            sudo grep "FIREBASE_PROJECT_ID\|FIREBASE_SERVICE_ACCOUNT" /app/.env
 
             echo "Restarting backend..."
             sudo systemctl restart osioloc-backend
