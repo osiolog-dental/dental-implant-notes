@@ -24,6 +24,8 @@ from app.models import (  # noqa: E402, F401
     case,
     implant,
     fpd,
+    abutment,
+    overdenture,
     audit,
 )
 

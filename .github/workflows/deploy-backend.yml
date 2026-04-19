@@ -34,6 +34,11 @@ jobs:
             pip install -r backend/requirements.txt -q
 
             echo "Running migrations..."
+            # Load env vars (try multiple locations)
+            if [ -f /app/osioloc.env ]; then set -a && source /app/osioloc.env && set +a
+            elif [ -f /app/dental-implant-notes/backend/.env ]; then set -a && source /app/dental-implant-notes/backend/.env && set +a
+            elif [ -f /etc/osioloc.env ]; then set -a && source /etc/osioloc.env && set +a
+            else echo "Warning: no env file found, relying on system env"; fi
             cd backend
             alembic upgrade head
             cd ..
