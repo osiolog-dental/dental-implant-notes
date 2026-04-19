@@ -19,17 +19,21 @@ def _init_firebase() -> firebase_admin.App:
 
     sa = settings.FIREBASE_SERVICE_ACCOUNT_JSON
 
-    # Accept either a file path or an inline JSON string (useful in CI)
-    if sa.startswith("{"):
+    if sa and sa.strip().startswith("{"):
+        # Inline JSON service account string
         cred = credentials.Certificate(json.loads(sa))
+        _app = firebase_admin.initialize_app(cred)
+    elif sa and os.path.exists(sa):
+        # File path to service account JSON
+        _app = firebase_admin.initialize_app(credentials.Certificate(sa))
     else:
-        # Resolve relative paths from the backend/ directory
-        path = sa if os.path.isabs(sa) else os.path.join(
-            os.path.dirname(__file__), "..", "..", sa
+        # No service account available — use project ID only.
+        # Firebase Admin SDK verifies tokens using Google's public JWKS endpoint,
+        # which does not require a service account key.
+        _app = firebase_admin.initialize_app(
+            options={"projectId": settings.FIREBASE_PROJECT_ID}
         )
-        cred = credentials.Certificate(os.path.normpath(path))
 
-    _app = firebase_admin.initialize_app(cred)
     return _app
 
 
