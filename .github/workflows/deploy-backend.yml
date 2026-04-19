@@ -67,4 +67,7 @@ jobs:
             sleep 3
             curl -sf http://localhost:8002/api/health || (echo "Health check failed!" && exit 1)
 
+            echo "Seeding demo user..."
+            cd backend && python3 seed_demo_user.py && cd ..
+
             echo "Deploy complete!"
