@@ -44,36 +44,15 @@ jobs:
           NODE_OPTIONS: --openssl-legacy-provider
         run: npx craco build
 
-      - name: Prepare EC2 directory
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 30s
-          script: |
-            sudo mkdir -p /var/www/osioloc
-            sudo chown ubuntu:ubuntu /var/www/osioloc
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Copy build to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: 'frontend/build/*'
-          target: '/var/www/osioloc'
-          strip_components: 2
-
-      - name: Fix permissions and reload nginx
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 30s
-          script: |
-            sudo chown -R www-data:www-data /var/www/osioloc
-            sudo nginx -t && sudo systemctl reload nginx
-            echo "Deployed to /var/www/osioloc"
-            ls /var/www/osioloc | head -10
+      - name: Deploy via rsync
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /var/www/osioloc && sudo chown ubuntu:ubuntu /var/www/osioloc"
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" frontend/build/ ubuntu@${{ secrets.EC2_HOST }}:/var/www/osioloc/
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "sudo chown -R www-data:www-data /var/www/osioloc && sudo nginx -t && sudo systemctl reload nginx && echo 'Done'"
