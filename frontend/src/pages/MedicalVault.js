@@ -22,7 +22,7 @@ const MedicalVault = () => {
   const [deletingId, setDeletingId] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null); // for upload target
 
-  useEffect(() => { fetchData(); }, [patientId]);
+  useEffect(() => { fetchData(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = async () => {
     try {

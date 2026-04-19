@@ -159,7 +159,7 @@ const PatientDetails = () => {
 
   useEffect(() => {
     fetchAll();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAll = async () => {
     try {
