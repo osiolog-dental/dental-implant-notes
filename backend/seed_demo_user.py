@@ -25,7 +25,7 @@ DEMO_EMAIL = "doctor@dentalapp.com"
 DEMO_NAME = "Demo Doctor"
 ORG_NAME = "Demo Clinic"
 # UID from osiolog-prod Firebase project
-DEMO_FIREBASE_UID = "pCZ2egq7TMYRn9bIDmh5ZzZKI8v2"
+DEMO_FIREBASE_UID = "tWx2h6n5vwO0Isiqe09O7YCUKBm1"
 
 
 async def main() -> None:
