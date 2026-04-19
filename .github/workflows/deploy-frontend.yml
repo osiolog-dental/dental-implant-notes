@@ -44,6 +44,17 @@ jobs:
           NODE_OPTIONS: --openssl-legacy-provider
         run: npx craco build
 
+      - name: Prepare EC2 directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 30s
+          script: |
+            sudo mkdir -p /var/www/osioloc
+            sudo chown ubuntu:ubuntu /var/www/osioloc
+
       - name: Copy build to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -51,37 +62,18 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           source: 'frontend/build/*'
-          target: '/tmp/osiolog-build'
+          target: '/var/www/osioloc'
           strip_components: 2
 
-      - name: Install build and reload nginx
+      - name: Fix permissions and reload nginx
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 60s
+          timeout: 30s
           script: |
-            set -e
-
-            echo "=== Finding nginx frontend root ==="
-            FRONTEND_ROOT=$(sudo nginx -T 2>/dev/null | grep -B2 -A20 "app.osiolog\|server_name.*app" | grep "root" | awk '{print $2}' | tr -d ';' | head -1)
-            echo "Detected root: $FRONTEND_ROOT"
-
-            # If not detected, print full nginx config for debugging
-            if [ -z "$FRONTEND_ROOT" ]; then
-              echo "=== Full nginx config (truncated) ==="
-              sudo nginx -T 2>/dev/null | head -80
-              FRONTEND_ROOT="/var/www/html"
-              echo "Falling back to: $FRONTEND_ROOT"
-            fi
-
-            echo "=== Deploying to $FRONTEND_ROOT ==="
-            sudo mkdir -p $FRONTEND_ROOT
-            sudo rsync -a --delete /tmp/osiolog-build/ $FRONTEND_ROOT/
-            sudo chown -R www-data:www-data $FRONTEND_ROOT
-            rm -rf /tmp/osiolog-build
-
-            echo "=== Reloading nginx ==="
+            sudo chown -R www-data:www-data /var/www/osioloc
             sudo nginx -t && sudo systemctl reload nginx
-            echo "Deploy complete — serving from $FRONTEND_ROOT"
+            echo "Deployed to /var/www/osioloc"
+            ls /var/www/osioloc | head -10
