@@ -61,7 +61,10 @@ jobs:
             sudo grep -q "FIREBASE_SECRET_NAME" /app/.env \
               && sudo sed -i 's|FIREBASE_SECRET_NAME=.*|FIREBASE_SECRET_NAME=osiolog/firebase-service-account|' /app/.env \
               || echo "FIREBASE_SECRET_NAME=osiolog/firebase-service-account" | sudo tee -a /app/.env
-            sudo grep "FIREBASE_PROJECT_ID\|FIREBASE_SERVICE_ACCOUNT\|FIREBASE_SECRET_NAME" /app/.env
+            sudo grep -q "FIREBASE_API_KEY" /app/.env \
+              && sudo sed -i 's|FIREBASE_API_KEY=.*|FIREBASE_API_KEY=AIzaSyDIU1K6wogiRx8KTogouocRrV0-KyAGr_s|' /app/.env \
+              || echo "FIREBASE_API_KEY=AIzaSyDIU1K6wogiRx8KTogouocRrV0-KyAGr_s" | sudo tee -a /app/.env
+            sudo grep "FIREBASE_PROJECT_ID\|FIREBASE_SERVICE_ACCOUNT\|FIREBASE_SECRET_NAME\|FIREBASE_API_KEY" /app/.env
 
             echo "Restarting backend..."
             sudo systemctl restart osioloc-backend

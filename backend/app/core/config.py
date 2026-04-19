@@ -142,6 +142,7 @@ class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str = ""
     FIREBASE_SERVICE_ACCOUNT_JSON: str = ""  # full JSON string or path
     FIREBASE_SECRET_NAME: str = ""           # AWS Secrets Manager secret name for service account JSON
+    FIREBASE_API_KEY: str = ""               # Firebase Web API key (for REST API calls like account deletion)
 
     # AWS / S3
     AWS_ACCESS_KEY_ID: str = ""
