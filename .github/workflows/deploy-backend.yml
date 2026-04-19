@@ -53,6 +53,9 @@ jobs:
             alembic upgrade head
             cd ..
 
+            echo "Updating Firebase project ID in env..."
+            sudo sed -i 's/FIREBASE_PROJECT_ID=.*/FIREBASE_PROJECT_ID=osiolog-prod/' /app/.env
+
             echo "Restarting backend..."
             sudo systemctl restart osioloc-backend
 
