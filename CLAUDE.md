@@ -71,36 +71,50 @@ dental-implant-notes/
 ## Key API Endpoints
 
 ```
-POST /api/auth/register          ← Doctor signup
-POST /api/auth/login             ← Returns JWT in httpOnly cookie
-GET  /api/auth/me                ← Current user from cookie
-POST /api/auth/logout
+POST /api/auth/register          ← Doctor signup (requires name, email in body + Firebase token)
+GET  /api/auth/me                ← Current user (Firebase token → upserts user row)
 
 GET  /api/patients               ← Doctor-scoped patient list
 POST /api/patients
 GET  /api/patients/:id
+PATCH/DELETE /api/patients/:id
+GET  /api/patients/:id/fpd       ← FPD records for a patient
+GET  /api/patients/:id/implants  ← Implants for a patient
+GET  /api/patients/:id/photos    ← Photo vault for a patient
 
-GET  /api/implants               ← Implant logs per patient
-POST /api/implants
+GET  /api/cases                  ← Case list (filterable by patient_id)
+POST /api/cases
+GET/PATCH/DELETE /api/cases/:id
 
-GET  /api/fpd                    ← Fixed Partial Denture logs
-POST /api/fpd
+GET  /api/implants               ← Implant logs (filterable by patient_id)
+POST /api/implants               ← Requires both patient_id AND case_id in body
+GET/PATCH/DELETE /api/implants/:id
 
-POST /api/upload                 ← Photo/radiograph upload → Emergent Storage
-GET  /api/vault/:patient_id      ← Photo vault listing
+GET  /api/fpd-records            ← FPD records list
+POST /api/fpd-records            ← Requires patient_id (case_id optional)
+PUT  /api/fpd-records/:id
 
-GET  /api/analytics/overview
-GET  /api/analytics/financial
+POST /api/cases/:id/images/upload-url   ← Step 1: get presigned S3 PUT URL
+POST /api/cases/:id/images/:id/complete ← Step 2: mark upload done, generate thumbnail
+GET  /api/cases/:id/images              ← List images for a case
+DELETE /api/cases/:id/images/:id        ← Delete image from S3 + DB
+
+GET  /api/dashboard/summary      ← { total_patients, active_cases, cases_this_month, upcoming_followups }
 
 GET  /api/clinics
 POST /api/clinics
+GET/PATCH/DELETE /api/clinics/:id
 
-PATCH /api/profile               ← Update doctor college / place
+PATCH /api/users/me              ← Update doctor profile (college, place, bio, etc.)
+DELETE /api/users/me             ← Delete account (requires auth)
+
+POST /api/notifications/device-token   ← Register FCM token
+DELETE /api/notifications/device-token ← Unregister FCM token
 ```
 
 ---
 
-## Database Schema (MongoDB)
+## Database Schema (PostgreSQL)
 
 ```
 users:     { email, hashed_password, name, phone, country, registration_number,
