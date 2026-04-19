@@ -330,6 +330,66 @@ After completing any task, summarize:
 - Do not install new npm packages or Python libraries without mentioning it to the user and confirming it fits the existing stack.
 - Do not add duplicate routes, duplicate components, or duplicate utility functions — search first.
 
+### 13. All Frontend API Calls MUST Use `client.js` — Never Raw Axios
+
+This is a hard rule with zero exceptions for any file that makes authenticated API calls.
+
+**The only correct way to call the backend from the frontend:**
+```js
+import client from '../api/client';  // adjust relative path as needed
+
+// GET
+const res = await client.get('/api/patients');
+
+// POST
+const res = await client.post('/api/implants', payload);
+
+// PATCH / PUT / DELETE
+await client.patch('/api/users/me', data);
+await client.delete('/api/cases/123');
+```
+
+**Never do this:**
+```js
+// ❌ WRONG — no Firebase token, gets 401 in production
+import axios from 'axios';
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+axios.get(`${API_URL}/api/patients`, { withCredentials: true });
+
+// ❌ WRONG — same problem
+fetch(`${API_URL}/api/patients`, { credentials: 'include' });
+```
+
+**Why:** The backend requires a Firebase Bearer token on every request. `client.js` has an axios interceptor that automatically fetches the current Firebase ID token and attaches it as `Authorization: Bearer <token>` before every request. Raw `axios` and `fetch` have no such interceptor — every call gets 401, which the user sees as "Failed to fetch" or a blank page.
+
+**Before finishing any frontend task, run this check:**
+```bash
+grep -rn "import axios from 'axios'\|withCredentials\|credentials: 'include'" frontend/src/ --include="*.js"
+```
+The only file that should appear is `frontend/src/api/client.js` itself. If any other file appears, fix it before committing.
+
+### 14. Production Environment Checklist — Run Before Every Commit
+
+Before marking any task done, verify these against the **live production app** (`https://app.osiolog.com` / `https://api.osiolog.com`):
+
+**Backend changes:**
+- [ ] `curl https://api.osiolog.com/api/health` returns `{"status":"ok","db":"ok"}`
+- [ ] The new/changed endpoint returns the expected response with a real Firebase token (not localhost)
+- [ ] No unintended 500s on related endpoints
+
+**Frontend changes:**
+- [ ] Run: `grep -rn "import axios from 'axios'\|withCredentials" frontend/src/ --include="*.js"` → only `client.js` appears
+- [ ] Run: `grep -rn "localhost:8002\|localhost:3000" frontend/src/ --include="*.js"` → zero results (no hardcoded local URLs)
+- [ ] Firebase config points to `osiolog-prod` (not `osioloc-prod` or any other project)
+- [ ] All new interactive elements have `data-testid` attributes
+
+**Auth sanity:**
+- [ ] Get a real token: `curl -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyDIU1K6wogiRx8KTogouocRrV0-KyAGr_s" -H "Content-Type: application/json" -d '{"email":"doctor@dentalapp.com","password":"doctor123","returnSecureToken":true}'`
+- [ ] Use that token to hit the new endpoint — confirm 200, not 401/403/500
+
+**CI/CD:**
+- [ ] `gh run list --repo osioloc-dental/dental-implant-notes --limit 3` — latest deploy succeeded
+
 ---
 
 ## Capacitor Multi-Platform Rules (NON-NEGOTIABLE)
