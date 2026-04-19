@@ -45,7 +45,7 @@ class ImplantBase(BaseModel):
 
 
 class ImplantCreate(ImplantBase):
-    case_id: uuid.UUID
+    case_id: uuid.UUID | None = None
     patient_id: uuid.UUID
 
 
@@ -60,7 +60,7 @@ class ImplantUpdate(ImplantBase):
 
 class ImplantRead(ImplantBase):
     id: uuid.UUID
-    case_id: uuid.UUID
+    case_id: uuid.UUID | None = None
     patient_id: uuid.UUID
     created_at: datetime
 

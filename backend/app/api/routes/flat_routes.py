@@ -52,11 +52,11 @@ async def create_implant_flat(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ImplantRead:
-    from app.schemas.implant import ImplantCreate as IC
-    data = IC(case_id=None, **body.model_dump())  # type: ignore[arg-type]
-    implant = Implant(id=uuid.uuid4(), **data.model_dump())
+    data = body.model_dump()
+    implant = Implant(id=uuid.uuid4(), case_id=None, **data)
     db.add(implant)
-    await db.flush()
+    await db.commit()
+    await db.refresh(implant)
     return ImplantRead.model_validate(implant)
 
 
@@ -110,7 +110,8 @@ async def create_fpd_flat(
         lab_name=body.lab_name,
     )
     db.add(fpd)
-    await db.flush()
+    await db.commit()
+    await db.refresh(fpd)
     return FPDRead.model_validate(fpd)
 
 
