@@ -39,9 +39,9 @@ def create_app() -> FastAPI:
         "https://app.osiolog.com",
         "https://osiolog.com",
         "https://www.osiolog.com",
-        "https://dev.osioloc.com",
-        "https://osioloc.com",
-        "https://www.osioloc.com",
+        "https://dev.osiolog.com",
+        "https://osiolog.com",
+        "https://www.osiolog.com",
         # Capacitor mobile apps
         "capacitor://localhost",
         "ionic://localhost",
