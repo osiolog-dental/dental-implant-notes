@@ -100,6 +100,8 @@ frontend/node_modules/.cache/default-development/2.pack_
 .env
 .env.*
 *.env
+!.env.example
+!**/.env.example
 credentials.json
 *.pem
 *.key

@@ -174,10 +174,24 @@ The following features were fully coded but never visually tested (the session w
 
 ## Development Workflow
 
+### First-time setup (after cloning)
+
+```bash
+# 1. Copy the env file — all production values are already filled in
+cp frontend/.env.example frontend/.env.local
+
+# 2. Install frontend dependencies
+cd frontend && npm install
+
+# 3. That's it — the app points to the production AWS backend automatically.
+#    No local Python/backend setup needed unless you're changing backend code.
+```
+
 ### Running locally
 
 ```bash
-# Backend — MUST use --host 0.0.0.0 so Android emulator can reach it via 10.0.2.2
+# Backend — only needed if you are changing backend code
+# Replace the virtualenv path with your own if different
 cd backend
 source /Users/rithvikgolthi/.local/share/virtualenvs/FARM-Stack-Course-master-xwgx4Xfc/bin/activate
 python3 -m uvicorn app.main:app --reload --port 8002 --host 0.0.0.0
