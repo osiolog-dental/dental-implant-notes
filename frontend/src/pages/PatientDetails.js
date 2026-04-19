@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import client from '../api/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
@@ -18,8 +18,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
@@ -164,12 +165,12 @@ const PatientDetails = () => {
   const fetchAll = async () => {
     try {
       const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes] = await Promise.all([
-        axios.get(`${API_URL}/api/patients/${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/implants?patient_id=${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/fpd-records?patient_id=${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/clinics`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/abutment-records?patient_id=${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/overdenture-records?patient_id=${id}`, { withCredentials: true }),
+        client.get(`/api/patients/${id}`),
+        client.get(`/api/implants?patient_id=${id}`),
+        client.get(`/api/fpd-records?patient_id=${id}`),
+        client.get(`/api/clinics`),
+        client.get(`/api/abutment-records?patient_id=${id}`),
+        client.get(`/api/overdenture-records?patient_id=${id}`),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -188,7 +189,7 @@ const PatientDetails = () => {
     }
     // Load edit log separately — don't crash the page if it fails
     try {
-      const logRes = await axios.get(`${API_URL}/api/patients/${id}/edit-log`, { withCredentials: true });
+      const logRes = await client.get(`/api/patients/${id}/edit-log`);
       setEditLog(logRes.data);
     } catch {
       // edit log is optional — silently ignore
@@ -213,10 +214,10 @@ const PatientDetails = () => {
   const handleSavePatient = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API_URL}/api/patients/${id}`, {
+      await client.put(`/api/patients/${id}`, {
         ...editPatientData,
         age: parseInt(editPatientData.age),
-      }, { withCredentials: true });
+      });
       toast.success('Patient details updated');
       setIsEditPatientOpen(false);
       fetchAll();
@@ -292,7 +293,7 @@ const PatientDetails = () => {
       const chartImage = await captureDentalChartImage();
 
       // Fetch extra vault photos
-      const extraRes = await axios.get(`${API_URL}/api/patients/${id}/photos`, { withCredentials: true });
+      const extraRes = await client.get(`/api/patients/${id}/photos`);
       await generatePatientPDF({
         patient,
         implants,
@@ -329,9 +330,8 @@ const PatientDetails = () => {
     setToothConditions(updated);
     setMissingConfirm(null);
     try {
-      await axios.patch(`${API_URL}/api/patients/${id}/tooth-conditions`,
-        { tooth_conditions: updated },
-        { withCredentials: true }
+      await client.patch(`/api/patients/${id}/tooth-conditions`,
+        { tooth_conditions: updated }
       );
       const count = selectedTeeth.length;
       toast.success(action === 'mark'
@@ -386,10 +386,10 @@ const PatientDetails = () => {
     try {
       const payload = { ...abutmentData, patient_id: id, tooth_number: parseInt(abutmentData.tooth_number) };
       if (editingAbutmentId) {
-        await axios.put(`${API_URL}/api/abutment-records/${editingAbutmentId}`, payload, { withCredentials: true });
+        await client.put(`/api/abutment-records/${editingAbutmentId}`, payload);
         toast.success('Abutment record updated');
       } else {
-        await axios.post(`${API_URL}/api/abutment-records`, payload, { withCredentials: true });
+        await client.post(`/api/abutment-records`, payload);
         toast.success('Abutment record added');
       }
       setIsAbutmentOpen(false);
@@ -423,10 +423,10 @@ const PatientDetails = () => {
     try {
       const payload = { ...overdentureData, patient_id: id };
       if (editingOverdentureId) {
-        await axios.put(`${API_URL}/api/overdenture-records/${editingOverdentureId}`, payload, { withCredentials: true });
+        await client.put(`/api/overdenture-records/${editingOverdentureId}`, payload);
         toast.success('Overdenture record updated');
       } else {
-        await axios.post(`${API_URL}/api/overdenture-records`, payload, { withCredentials: true });
+        await client.post(`/api/overdenture-records`, payload);
         toast.success('Overdenture record added');
       }
       setIsOverdentureOpen(false);
@@ -484,10 +484,10 @@ const PatientDetails = () => {
         follow_up_date: formData.follow_up_date || null,
       };
       if (editingImplantId) {
-        await axios.put(`${API_URL}/api/implants/${editingImplantId}`, payload, { withCredentials: true });
+        await client.put(`/api/implants/${editingImplantId}`, payload);
         toast.success('Implant record updated');
       } else {
-        await axios.post(`${API_URL}/api/implants`, payload, { withCredentials: true });
+        await client.post(`/api/implants`, payload);
         toast.success('Implant record added');
       }
       setIsImplantOpen(false);
@@ -560,10 +560,10 @@ const PatientDetails = () => {
       delete payload.warranty_image; // stored via separate upload endpoint
       let fpdId = editingFpdId;
       if (editingFpdId) {
-        await axios.put(`${API_URL}/api/fpd-records/${editingFpdId}`, payload, { withCredentials: true });
+        await client.put(`/api/fpd-records/${editingFpdId}`, payload);
         toast.success('FPD record updated');
       } else {
-        const res = await axios.post(`${API_URL}/api/fpd-records`, payload, { withCredentials: true });
+        const res = await client.post(`/api/fpd-records`, payload);
         fpdId = res.data?._id;
         toast.success('FPD record added');
       }
@@ -572,8 +572,7 @@ const PatientDetails = () => {
         try {
           const form = new FormData();
           form.append('file', warrantyFile);
-          await axios.post(`${API_URL}/api/fpd-records/${fpdId}/warranty-image`, form, {
-            withCredentials: true,
+          await client.post(`/api/fpd-records/${fpdId}/warranty-image`, form, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
         } catch {
@@ -687,8 +686,7 @@ const PatientDetails = () => {
               const form = new FormData();
               form.append('file', file);
               try {
-                const res = await axios.post(`${API_URL}/api/patients/${id}/profile-picture`, form, {
-                  withCredentials: true,
+                const res = await client.post(`/api/patients/${id}/profile-picture`, form, {
                   headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 setPatient(prev => ({ ...prev, profile_picture: res.data.profile_picture }));
