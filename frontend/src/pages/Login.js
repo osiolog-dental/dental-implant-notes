@@ -136,6 +136,11 @@ const Login = () => {
             </button>
           </div>
         </div>
+
+        <p className="text-center text-xs text-[#5C6773] mt-6">
+          By signing in you agree to our{' '}
+          <Link to="/privacy" className="text-[#82A098] underline">Privacy Policy</Link>
+        </p>
       </div>
     </div>
   );
