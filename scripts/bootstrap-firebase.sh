@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-PROJECT_ID="osioloc-prod"
+PROJECT_ID="osiolog-prod"
 APP_DISPLAY_NAME="osioloc-web"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

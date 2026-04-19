@@ -217,7 +217,7 @@ open ios/App/App.xcodeproj   # Run from Xcode
 
 ### Environment variables needed
 - `DATABASE_URL` — PostgreSQL: `postgresql+asyncpg://localhost/osioloc_dev`
-- `FIREBASE_PROJECT_ID` — Firebase project: `osioloc-prod`
+- `FIREBASE_PROJECT_ID` — Firebase project: `osiolog-prod`
 - `FIREBASE_SERVICE_ACCOUNT_JSON` — Path to service account JSON
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`, `AWS_REGION` — S3
 - Frontend `.env.local`: `REACT_APP_FIREBASE_*` keys, `REACT_APP_BACKEND_URL=http://localhost:8002`

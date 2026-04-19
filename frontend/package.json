@@ -72,7 +72,7 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build",
+    "build": "craco build && node scripts/inject-sw-env.js",
     "test": "craco test"
   },
   "browserslist": {

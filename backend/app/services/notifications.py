@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
-from firebase_admin import messaging
+import requests as _requests
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.audit import DeviceToken
 from app.models.implant import Implant
@@ -16,21 +17,87 @@ from app.models.user import User
 
 logger = logging.getLogger("dentalhub.notifications")
 
+_FCM_ENDPOINT = (
+    "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+)
+_FCM_SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
+
+
+def _get_access_token() -> str:
+    """
+    Get a short-lived OAuth2 access token using Application Default Credentials.
+    Works with: gcloud auth application-default login on the server (no key file needed).
+    Falls back to the service account JSON in settings if ADC is unavailable.
+    """
+    import google.auth
+    import google.auth.transport.requests
+
+    sa = settings.FIREBASE_SERVICE_ACCOUNT_JSON
+    if sa and sa.strip().startswith("{"):
+        import json
+        from google.oauth2 import service_account
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(sa), scopes=_FCM_SCOPES
+        )
+    elif sa and __import__("os").path.exists(sa):
+        from google.oauth2 import service_account
+        creds = service_account.Credentials.from_service_account_file(
+            sa, scopes=_FCM_SCOPES
+        )
+    else:
+        creds, _ = google.auth.default(scopes=_FCM_SCOPES)
+
+    creds.refresh(google.auth.transport.requests.Request())
+    return creds.token
+
 
 async def send_fcm_notification(
     token: str, title: str, body: str, data: dict | None = None
 ) -> bool:
-    """Send a single FCM notification. Returns True on success, False on failure."""
-    message = messaging.Message(
-        notification=messaging.Notification(title=title, body=body),
-        data={k: str(v) for k, v in (data or {}).items()},
-        token=token,
-    )
+    """
+    Send a single FCM notification via the HTTP v1 REST API.
+    Uses Application Default Credentials — no service account key file required.
+    On the server: run `gcloud auth application-default login` once to set up ADC.
+    """
+    project_id = settings.FIREBASE_PROJECT_ID
+    if not project_id:
+        logger.error("FIREBASE_PROJECT_ID not configured — cannot send FCM")
+        return False
+
     try:
-        messaging.send(message)
-        return True
-    except messaging.UnregisteredError:
-        logger.warning("FCM token unregistered: %s", token[:20])
+        access_token = _get_access_token()
+    except Exception as exc:
+        logger.error("FCM: failed to get access token: %s", exc)
+        return False
+
+    payload = {
+        "message": {
+            "token": token,
+            "notification": {"title": title, "body": body},
+            "data": {k: str(v) for k, v in (data or {}).items()},
+        }
+    }
+
+    try:
+        resp = _requests.post(
+            _FCM_ENDPOINT.format(project_id=project_id),
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return True
+        # 404 means the device token is no longer valid
+        if resp.status_code == 404 or (
+            resp.status_code == 400
+            and "UNREGISTERED" in resp.text
+        ):
+            logger.warning("FCM token unregistered: %s", token[:20])
+            return False
+        logger.error("FCM send failed %s: %s", resp.status_code, resp.text)
         return False
     except Exception as exc:
         logger.error("FCM send failed: %s", exc)

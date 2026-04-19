@@ -137,7 +137,7 @@ Infrastructure is less than 1% of revenue at every scale if charging ₹799/doct
 
 | Resource | Value |
 |---|---|
-| Firebase project | `osioloc-prod` |
+| Firebase project | `osiolog-prod` |
 | S3 bucket | `osioloc-cases-prod` |
 | AWS region | `ap-south-1` (Mumbai) |
 | IAM app user | `osioloc-backend` |

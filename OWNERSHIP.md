@@ -69,7 +69,7 @@ All infrastructure is registered and owned by Midhilesh Krishna.
 ### Firebase
 | Resource | Detail |
 |---|---|
-| Project ID | osioloc-prod |
+| Project ID | osiolog-prod |
 | Auth methods | Email/password, Google Sign-In |
 | Admin email | admin@osioloc.com |
 

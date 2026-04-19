@@ -42,7 +42,7 @@ jobs:
           REACT_APP_FIREBASE_APP_ID: ${{ secrets.REACT_APP_FIREBASE_APP_ID }}
           REACT_APP_FIREBASE_VAPID_KEY: ${{ secrets.REACT_APP_FIREBASE_VAPID_KEY }}
           NODE_OPTIONS: --openssl-legacy-provider
-        run: npx craco build
+        run: npm run build
 
       - name: Setup SSH key
         run: |
