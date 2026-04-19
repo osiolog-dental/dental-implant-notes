@@ -1,6 +1,6 @@
 {
-  "appId": "com.osioloc.app",
-  "appName": "Osioloc",
+  "appId": "com.osiolog.app",
+  "appName": "Osiolog",
   "webDir": "build",
   "server": {
     "androidScheme": "http",

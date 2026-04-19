@@ -1,36 +1,26 @@
 {
   "project_info": {
-    "project_number": "359547764030",
-    "project_id": "osioloc-prod",
-    "storage_bucket": "osioloc-prod.firebasestorage.app"
+    "project_number": "747033067519",
+    "project_id": "osiolog-prod",
+    "storage_bucket": "osiolog-prod.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:359547764030:android:ed2c4cd9edc4ae2379006f",
+        "mobilesdk_app_id": "1:747033067519:android:21ef0cee6ffdbb1b12b1ca",
         "android_client_info": {
-          "package_name": "com.osioloc.app"
+          "package_name": "com.osiolog.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "359547764030-46dgdihrjfapn9nca75gddm1m9dbammn.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAu6bCG4V3bJvtTjkeF-xregNeOMZS0X8Q"
+          "current_key": "AIzaSyD7jEDCOnsUxCuSlalwwX8OMsZzKI1zibw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "359547764030-46dgdihrjfapn9nca75gddm1m9dbammn.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
