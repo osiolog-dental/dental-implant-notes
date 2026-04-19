@@ -31,9 +31,7 @@ export async function registerForNotifications() {
 export async function unregisterNotifications() {
   if (!_registeredToken) return;
   try {
-    await client.delete('/api/notifications/device-token', {
-      data: { fcm_token: _registeredToken },
-    });
+    await client.delete(`/api/notifications/device-token?fcm_token=${encodeURIComponent(_registeredToken)}`);
   } catch (_) {
     // Ignore — token will expire on backend eventually
   } finally {

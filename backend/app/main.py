@@ -34,7 +34,19 @@ def create_app() -> FastAPI:
     )
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    allowed_origins = [settings.FRONTEND_URL]
+    allowed_origins = [
+        settings.FRONTEND_URL,
+        "https://osiolog.com",
+        "https://www.osiolog.com",
+        "https://dev.osioloc.com",
+        "https://osioloc.com",
+        "https://www.osioloc.com",
+        # Capacitor mobile apps
+        "capacitor://localhost",
+        "ionic://localhost",
+        "http://localhost",
+        "https://localhost",
+    ]
     if settings.ENVIRONMENT == "development":
         allowed_origins += [
             # Web dev server

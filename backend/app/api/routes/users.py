@@ -33,11 +33,11 @@ async def update_me(
     return UserRead.model_validate(current_user)
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/me", status_code=status.HTTP_200_OK)
 async def delete_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+) -> dict:
     """
     Permanently delete the current doctor's account.
     Required by Apple App Store and Google Play Store policies.
@@ -73,3 +73,5 @@ async def delete_me(
     if org:
         await db.delete(org)
         await db.flush()
+
+    return {"detail": "Account deleted"}
