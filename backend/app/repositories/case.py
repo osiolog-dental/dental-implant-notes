@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import Case
@@ -62,7 +62,10 @@ class CaseRepository:
         return case
 
     async def delete(self, case: Case) -> None:
-        await self.db.delete(case)
+        # Use a direct SQL DELETE so PostgreSQL's ondelete=CASCADE handles
+        # child rows (case_images, implants, fpd_records) without SQLAlchemy
+        # trying to lazy-load those relationships in async context.
+        await self.db.execute(delete(Case).where(Case.id == case.id))
         await self.db.flush()
 
     async def dashboard_summary(self, org_id: uuid.UUID) -> dict:
