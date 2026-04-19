@@ -21,8 +21,8 @@ class ProstheticFPD(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
@@ -36,7 +36,11 @@ class ProstheticFPD(Base):
     )
     crown_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     material: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    crown_material: Mapped[str | None] = mapped_column(String(255), nullable=True)
     clinical_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consultant_prosthodontist: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lab_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    warranty_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

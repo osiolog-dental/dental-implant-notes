@@ -64,6 +64,17 @@ def download_object(s3_key: str) -> bytes:
     return response["Body"].read()
 
 
+def upload_object(s3_key: str, data: bytes, content_type: str) -> None:
+    """Upload raw bytes directly to S3 (used for server-side uploads)."""
+    client = _client()
+    client.put_object(
+        Bucket=settings.AWS_S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=data,
+        ContentType=content_type,
+    )
+
+
 def delete_object(s3_key: str) -> None:
     """Delete a single object from S3. Silently ignores if key does not exist."""
     client = _client()

@@ -32,6 +32,8 @@ class Patient(Base):
     gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    alternate_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    emergency_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     medical_history: Mapped[str | None] = mapped_column(Text, nullable=True)
     tooth_conditions: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
@@ -46,3 +48,5 @@ class Patient(Base):
     cases: Mapped[list["Case"]] = relationship("Case", back_populates="patient")  # noqa: F821
     implants: Mapped[list["Implant"]] = relationship("Implant", back_populates="patient")  # noqa: F821
     fpd_records: Mapped[list["ProstheticFPD"]] = relationship("ProstheticFPD", back_populates="patient")  # noqa: F821
+    abutments: Mapped[list["Abutment"]] = relationship("Abutment", back_populates="patient")  # noqa: F821
+    overdentures: Mapped[list["Overdenture"]] = relationship("Overdenture", back_populates="patient")  # noqa: F821

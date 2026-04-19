@@ -22,8 +22,8 @@ class Implant(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
@@ -58,6 +58,10 @@ class Implant(Base):
     healing_abutment: Mapped[str | None] = mapped_column(String(255), nullable=True)
     membrane_used: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Diameter / length (friend's frontend uses these names)
+    diameter_mm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    length_mm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+
     # Measurements & outcomes
     isq_value: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     implant_outcome: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -71,9 +75,14 @@ class Implant(Base):
 
     # People
     surgeon_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    consultant_surgeon: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    clinical_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Tag / image
+    tag_image: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
