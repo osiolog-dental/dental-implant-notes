@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Clock, PencilSimple, CheckCircle } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import client from '../api/client';
 
 const STAGES = [
   { id: 1, label: 'Implant Placement' },
@@ -42,11 +40,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       return;
     }
     try {
-      await axios.patch(
-        `${API_URL}/api/implants/${implant._id}/stage`,
-        { osseointegration_days: days },
-        { withCredentials: true }
-      );
+      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, { osseointegration_days: days });
       toast.success('Osseointegration period updated');
       setEditingDays(false);
       onUpdate();
@@ -66,7 +60,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       const payload = { current_stage: nextStage };
       if (nextStage === 2) payload.stage_2_date = todayStr;
       if (nextStage === 3) payload.stage_3_date = todayStr;
-      await axios.patch(`${API_URL}/api/implants/${implant._id}/stage`, payload, { withCredentials: true });
+      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, payload);
       toast.success(`Moved to Stage ${nextStage}: ${STAGES[nextStage - 1].label}`);
       onUpdate();
     } catch {
@@ -84,7 +78,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       const payload = { current_stage: prevStage };
       if (currentStage === 3) payload.stage_3_date = null;
       if (currentStage === 2) payload.stage_2_date = null;
-      await axios.patch(`${API_URL}/api/implants/${implant._id}/stage`, payload, { withCredentials: true });
+      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, payload);
       toast.success(`Reverted to Stage ${prevStage}: ${STAGES[prevStage - 1].label}`);
       onUpdate();
     } catch {

@@ -1,0 +1,48 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 300s
+          script: |
+            set -e
+            cd /app/dental-implant-notes
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            source /app/venv/bin/activate
+            pip install -r backend/requirements.txt -q
+
+            echo "Running migrations..."
+            cd backend
+            alembic upgrade head
+            cd ..
+
+            echo "Restarting backend..."
+            sudo systemctl restart osioloc-backend
+
+            echo "Waiting for health check..."
+            sleep 3
+            curl -sf http://localhost:8002/api/health || (echo "Health check failed!" && exit 1)
+
+            echo "Deploy complete!"

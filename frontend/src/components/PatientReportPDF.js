@@ -13,7 +13,7 @@
 
 import jsPDF from 'jspdf';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
 
 /* ── Colours matching DentalHub design ── */
 const C = {

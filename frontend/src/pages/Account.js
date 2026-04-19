@@ -1,24 +1,27 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
 import { toast } from 'sonner';
+import client from '../api/client';
+import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import BulkImport from '../components/BulkImport';
 import {
   ArrowLeft, User, Envelope, Phone, MapPin, Certificate,
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
-  ShareNetwork, ArrowSquareOut, X,
+  ShareNetwork, ArrowSquareOut, X, Warning,
 } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-
 export default function Account() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -45,7 +48,7 @@ export default function Account() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await axios.put(`${API_URL}/api/auth/profile`, form, { withCredentials: true });
+      await client.patch('/api/users/me', form);
       toast.success('Profile updated');
       setEditing(false);
       window.location.reload();
@@ -67,6 +70,23 @@ export default function Account() {
       bio: user?.bio || '',
     });
     setEditing(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeleting(true);
+    try {
+      await client.delete('/api/users/me');
+      await logout();
+      navigate('/login');
+      toast.success('Your account has been deleted.');
+    } catch {
+      toast.error('Failed to delete account. Please try again.');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    }
   };
 
   const Field = ({ label, value, icon: Icon }) => (
@@ -235,6 +255,70 @@ export default function Account() {
 
       {/* Bulk Import */}
       <BulkImport />
+
+      {/* Danger Zone */}
+      <div className="mt-5 bg-white rounded-xl border border-red-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-red-100 flex items-center gap-2">
+          <Warning size={18} className="text-red-500" />
+          <h2 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Danger Zone</h2>
+        </div>
+        <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[#2A2F35]">Delete Account</p>
+            <p className="text-xs text-[#5C6773] mt-0.5">Permanently delete your account and all patient data. This cannot be undone.</p>
+          </div>
+          <button
+            data-testid="delete-account-btn"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="shrink-0 px-4 py-2 rounded-lg border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors"
+          >
+            Delete Account
+          </button>
+        </div>
+      </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Warning size={20} className="text-red-500" />
+              </div>
+              <h3 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Delete Account?</h3>
+            </div>
+            <p className="text-sm text-[#5C6773] mb-4">
+              This will permanently delete your account, all your patients, implant records, and uploaded images. <strong>This cannot be undone.</strong>
+            </p>
+            <p className="text-xs font-medium text-[#2A2F35] mb-2">Type <span className="font-mono font-bold">DELETE</span> to confirm:</p>
+            <input
+              data-testid="delete-confirm-input"
+              type="text"
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              className="w-full text-sm px-3 py-2 border border-[#E5E5E2] rounded-lg focus:ring-2 focus:ring-red-400 focus:outline-none mb-4 font-mono"
+            />
+            <div className="flex gap-3">
+              <button
+                data-testid="confirm-delete-btn"
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                className="flex-1 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleting ? 'Deleting…' : 'Delete My Account'}
+              </button>
+              <button
+                data-testid="cancel-delete-btn"
+                onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                className="flex-1 py-2 rounded-lg border border-[#E5E5E2] text-[#2A2F35] text-sm font-semibold hover:bg-[#F9F9F8] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

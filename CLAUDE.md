@@ -1,7 +1,7 @@
-# DentalHub — Claude Code Guide
+# Osioloc — Claude Code Guide
 
 ## What This App Is
-**DentalHub** is a full-stack dental implant case management system for dentists and implantologists. It allows doctors to register, manage patients, log detailed implant procedures using the FDI dental chart, track osseointegration timelines, and store patient radiographs/photos.
+**Osioloc** (formerly DentalHub) is a full-stack dental implant case management system for dentists and implantologists. It ships as a web app AND native iOS + Android app via Capacitor.
 
 ---
 
@@ -46,11 +46,12 @@ dental-implant-notes/
 | Icons | `@phosphor-icons/react` |
 | Charts | `recharts` |
 | Forms | `react-hook-form` + `zod` |
-| Backend | FastAPI, Python, Motor (async MongoDB driver) |
-| Database | MongoDB |
-| Auth | JWT — httpOnly cookies; access token 15min, refresh token 7 days |
-| Storage | Emergent Object Storage (via `EMERGENT_LLM_KEY`) for photo uploads |
-| Testing | `pytest` for backend, `test_result.md` protocol for agent coordination |
+| Backend | FastAPI, Python, SQLAlchemy async, Alembic |
+| Database | PostgreSQL (`osioloc_dev` locally) |
+| Auth | Firebase Authentication (email/password + Google) |
+| Storage | AWS S3 (ap-south-1) — presigned URLs, Pillow thumbnails |
+| Mobile | Capacitor 8 → iOS + Android |
+| Testing | `pytest` for backend |
 
 ---
 
@@ -174,32 +175,50 @@ The following features were fully coded but never visually tested (the session w
 ## Development Workflow
 
 ### Running locally
-```bash
-# Backend
-cd backend && uvicorn server:app --reload --port 8001
 
-# Frontend
-cd frontend && yarn start    # runs on port 3000 via CRACO
+```bash
+# Backend — MUST use --host 0.0.0.0 so Android emulator can reach it via 10.0.2.2
+cd backend
+source /Users/rithvikgolthi/.local/share/virtualenvs/FARM-Stack-Course-master-xwgx4Xfc/bin/activate
+python3 -m uvicorn app.main:app --reload --port 8002 --host 0.0.0.0
+
+# Frontend (web)
+cd frontend && NODE_OPTIONS=--openssl-legacy-provider npx craco start
+
+# Android (after web dev server OR after craco build)
+# One-time per emulator boot — sets up localhost tunnel:
+adb reverse tcp:8002 tcp:8002
+# Build + install:
+NODE_OPTIONS=--openssl-legacy-provider npx craco build
+node_modules/.bin/cap sync android
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+cd android && ./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.osioloc.app/.MainActivity
+
+# iOS (simulator)
+node_modules/.bin/cap sync ios
+open ios/App/App.xcodeproj   # Run from Xcode
 ```
 
 ### Environment variables needed
-- `MONGO_URL` — MongoDB connection string
-- `DB_NAME` — Database name
-- `JWT_SECRET` — JWT signing secret
-- `EMERGENT_LLM_KEY` — Emergent Object Storage key (photo uploads)
+- `DATABASE_URL` — PostgreSQL: `postgresql+asyncpg://localhost/osioloc_dev`
+- `FIREBASE_PROJECT_ID` — Firebase project: `osioloc-prod`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` — Path to service account JSON
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`, `AWS_REGION` — S3
+- Frontend `.env.local`: `REACT_APP_FIREBASE_*` keys, `REACT_APP_BACKEND_URL=http://localhost:8002`
 
 ### After any backend code change — REQUIRED
-After completing any change to `backend/server.py` or any other backend file that requires a server restart:
-1. Re-run the backend server: `cd backend && uvicorn server:app --reload --port 8001`
-2. Re-run the frontend if not already running: `cd frontend && yarn start`
-3. Open the app in the browser and verify the affected feature works before reporting the task as complete.
+1. Kill the old uvicorn: `pkill -f "uvicorn app.main:app"`
+2. Restart: `python3 -m uvicorn app.main:app --reload --port 8002 --host 0.0.0.0`
+3. Verify: `curl http://localhost:8002/api/health`
 
-**Do NOT consider a backend task done until the server has been restarted and the app has been opened and verified.**
+**Do NOT consider a backend task done until the server has been restarted and curl returns `{"status":"ok"}`.**
 
 ### Testing protocol
-- Read `test_result.md` before running tests — it tracks task status and agent communication
-- All interactive elements need `data-testid` for the testing agent to find them
-- Backend tests are in `backend_test.py`
+- All interactive elements need `data-testid` for automated testing
+- Backend tests: `pytest backend/tests/`
+- Demo account: `doctor@dentalapp.com` / `doctor123`
 
 ---
 
@@ -239,7 +258,7 @@ Every feature must be complete end-to-end before being called done:
 
 ### 5. UI Verification After Every Change — REQUIRED
 This applies to frontend AND backend changes:
-- Start both servers (backend on `:8001`, frontend on `:3000`).
+- Start both servers (backend on `:8002`, frontend on `:3000`).
 - Navigate to the affected page and click through the feature.
 - Test the happy path (normal use) AND at least one edge case (empty state, invalid input, missing data).
 - Do not report a task complete based on code review alone — visual confirmation is required.
@@ -256,9 +275,9 @@ This applies to frontend AND backend changes:
 - After any edit to this file: check that the FDI chart renders, the implant modal opens, and the photo vault tab loads.
 
 ### 8. Data Safety — Never Destructive Without Confirmation
-- Never drop, wipe, or bulk-delete MongoDB collections or documents without explicit user instruction.
+- Never drop, wipe, or bulk-delete PostgreSQL tables or rows without explicit user instruction.
 - Never reset user accounts or overwrite doctor data during testing.
-- Use the test account (`midhilesh.krishna@gmail.com`) for all dev/test operations — never use or invent other accounts.
+- Use the demo account (`doctor@dentalapp.com`) for all dev/test operations — never use or invent other accounts.
 
 ### 9. Interpret Vague Requests Clinically
 The user is a domain expert in dentistry but not in software. When a request is ambiguous:
@@ -274,10 +293,109 @@ After completing any task, summarize:
 - Do NOT use jargon like "I refactored the state management" — say "I fixed the save button in the implant form so it no longer clears your entries on error."
 
 ### 11. Never Break Auth
-- The JWT cookie flow is the app's security backbone. Never change cookie settings, token expiry, or the `/api/auth/me` route behavior without explicit instruction.
+- Auth is Firebase + PostgreSQL. Never change Firebase config, token verification, or `/api/auth/me` behavior without explicit instruction.
 - After any backend change near auth routes, re-test login → access a protected page → logout → confirm redirect.
+- The `loading` state in AuthContext is critical — it gates ProtectedRoute. Never remove or shortcut it.
 
 ### 12. Keep the Codebase Clean
 - Do not leave `console.log` statements, commented-out dead code, or `TODO` comments in committed code unless they are tracked in the backlog.
 - Do not install new npm packages or Python libraries without mentioning it to the user and confirming it fits the existing stack.
 - Do not add duplicate routes, duplicate components, or duplicate utility functions — search first.
+
+---
+
+## Capacitor Multi-Platform Rules (NON-NEGOTIABLE)
+
+These rules exist because getting Capacitor to work correctly across web, Android, and iOS has specific non-obvious requirements. Violating any of these will cause silent failures.
+
+### C1. Backend URL Routing
+
+| Platform | API URL | Why |
+|---|---|---|
+| Web browser | `http://localhost:8002` | Direct, no special setup |
+| Android emulator | `http://10.0.2.2:8002` | Emulator's alias for host Mac loopback |
+| iOS simulator | `http://localhost:8002` | Simulator shares Mac network |
+| Physical device | `http://<mac-LAN-ip>:8002` | Must be on same Wi-Fi |
+| Production (all) | `https://api.yourdomain.com` | Real server HTTPS URL |
+
+This logic lives in `frontend/src/api/client.js` and is handled automatically via `Capacitor.getPlatform()`. **Never hardcode a URL per platform in page components.**
+
+### C2. Backend Must Bind to `0.0.0.0`
+
+Always start uvicorn with `--host 0.0.0.0` in dev:
+```bash
+python3 -m uvicorn app.main:app --reload --port 8002 --host 0.0.0.0
+```
+Without this, Android emulator connections to `10.0.2.2:8002` are refused.
+
+### C3. CORS Must Include All Capacitor Origins
+
+`backend/app/main.py` allowed origins in dev:
+- `http://localhost:3000` — web dev server
+- `http://localhost` — Capacitor Android (http scheme, no port)
+- `https://localhost` — Capacitor Android (https scheme)
+- `capacitor://localhost` — Capacitor iOS (default scheme)
+- `ionic://localhost` — Capacitor older versions
+
+Never remove these. The Capacitor WebView's `Origin` header is NOT `http://localhost:3000` — it's portless.
+
+### C4. Android HTTP Cleartext
+
+`capacitor.config.json` must have:
+```json
+"server": { "androidScheme": "http", "cleartext": true },
+"android": { "allowMixedContent": true }
+```
+
+`android/app/src/main/res/xml/network_security_config.xml` must allow cleartext for `10.0.2.2` and `localhost`.
+
+`android/app/src/main/AndroidManifest.xml` must have:
+```xml
+android:networkSecurityConfig="@xml/network_security_config"
+android:usesCleartextTraffic="true"
+```
+
+### C5. Auth Loading State Race Condition
+
+`AuthContext.js` **must** set `loading = true` at the start of `login()` and at the start of the `onAuthStateChanged` handler when a Firebase user exists. Without this:
+1. `signInWithEmailAndPassword` resolves → `login()` returns → `navigate('/')` fires
+2. `onAuthStateChanged` hasn't fetched `/api/auth/me` yet
+3. ProtectedRoute sees `user=false, loading=false` → redirects back to `/login`
+4. Login appears to require 2–3 attempts
+
+**Never remove or work around the `setLoading(true)` calls in AuthContext.**
+
+### C6. After Any Capacitor-Affecting Change, Full Rebuild Is Required
+
+Any change to: `capacitor.config.json`, `client.js`, `AuthContext.js`, `network_security_config.xml`, or `AndroidManifest.xml` requires:
+```bash
+NODE_OPTIONS=--openssl-legacy-provider npx craco build
+node_modules/.bin/cap sync android   # or ios
+# Android:
+cd android && ./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+# iOS: re-run from Xcode
+```
+
+**Do not skip the `craco build` step** — `cap sync` copies the existing `build/` folder, it does not re-compile JS.
+
+### C7. WebView Debugging
+
+To inspect the Capacitor Android WebView from Chrome DevTools:
+```bash
+adb forward tcp:9222 localabstract:chrome_devtools_remote
+# Then open: chrome://inspect in Chrome on Mac
+```
+`MainActivity.java` already has `WebView.setWebContentsDebuggingEnabled(true)`.
+
+### C8. iOS Auth Domain
+
+For `signInWithPopup` (Google), `http://localhost` must be in the Firebase Console authorized domains. For email/password login, no domain authorization is needed.
+
+### C9. Physical Device Testing
+
+For physical Android/iOS device testing:
+1. Find Mac's LAN IP: `ipconfig getifaddr en0`
+2. Set `REACT_APP_BACKEND_URL=http://<LAN-ip>:8002` in `frontend/.env.local`
+3. Ensure device and Mac are on same Wi-Fi
+4. Backend must be on `--host 0.0.0.0`

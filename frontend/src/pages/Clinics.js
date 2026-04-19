@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Plus, Buildings, MapPin } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import {
@@ -12,8 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { getClinics, createClinic } from '../api/clinics';
 
 const Clinics = () => {
   const [clinics, setClinics] = useState([]);
@@ -32,10 +30,8 @@ const Clinics = () => {
 
   const fetchClinics = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/clinics`, {
-        withCredentials: true
-      });
-      setClinics(data);
+      const data = await getClinics();
+      setClinics(data.items ?? data);
     } catch (error) {
       toast.error('Failed to fetch clinics');
     } finally {
@@ -46,11 +42,7 @@ const Clinics = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(
-        `${API_URL}/api/clinics`,
-        formData,
-        { withCredentials: true }
-      );
+      await createClinic(formData);
       toast.success('Clinic added successfully');
       setIsDialogOpen(false);
       setFormData({ name: '', address: '', phone: '', email: '' });
@@ -61,8 +53,8 @@ const Clinics = () => {
   };
 
   return (
-    <div className="p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+      <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
           <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
             Clinics
@@ -173,8 +165,8 @@ const Clinics = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {clinics.map((clinic) => (
             <div
-              key={clinic._id}
-              data-testid={`clinic-card-${clinic._id}`}
+              key={clinic.id || clinic._id}
+              data-testid={`clinic-card-${clinic.id || clinic._id}`}
               className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
             >
               <div className="flex items-start gap-4 mb-4">

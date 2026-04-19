@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { Tooth } from '@phosphor-icons/react';
 
+const DEMO_EMAIL = 'doctor@dentalapp.com';
+const DEMO_PASSWORD = 'doctor123';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -11,20 +14,30 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submitLogin = async (nextEmail, nextPassword) => {
     setLoading(true);
 
-    const result = await login(email, password);
-    
+    const result = await login(nextEmail, nextPassword);
+
     if (result.success) {
       toast.success('Welcome back!');
       navigate('/');
     } else {
       toast.error(result.error);
     }
-    
+
     setLoading(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await submitLogin(email, password);
+  };
+
+  const handleDemoLogin = async () => {
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    await submitLogin(DEMO_EMAIL, DEMO_PASSWORD);
   };
 
   return (
@@ -110,8 +123,17 @@ const Login = () => {
 
           <div className="mt-8 p-4 bg-white border border-[#E5E5E2] rounded-xl">
             <p className="text-xs text-[#5C6773] mb-2 font-medium">Demo Credentials:</p>
-            <p className="text-xs text-[#2A2F35]">Email: doctor@dentalapp.com</p>
-            <p className="text-xs text-[#2A2F35]">Password: doctor123</p>
+            <p className="text-xs text-[#2A2F35]">Email: {DEMO_EMAIL}</p>
+            <p className="text-xs text-[#2A2F35]">Password: {DEMO_PASSWORD}</p>
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loading}
+              data-testid="demo-login-button"
+              className="mt-3 w-full py-2.5 bg-[#F0F0EE] hover:bg-[#E5E5E2] text-[#2A2F35] rounded-xl font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Use Demo Account
+            </button>
           </div>
         </div>
       </div>

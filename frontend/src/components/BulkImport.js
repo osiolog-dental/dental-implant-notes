@@ -1,13 +1,11 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   DownloadSimple, UploadSimple, FileXls, CheckCircle,
   WarningCircle, Spinner,
 } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import client from '../api/client';
 
 /* ── Column definitions for each sheet ── */
 const PATIENT_COLS = [
@@ -173,8 +171,7 @@ export default function BulkImport() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await axios.post(`${API_URL}/api/bulk-import`, formData, {
-        withCredentials: true,
+      const res = await client.post('/api/bulk-import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setResult(res.data);

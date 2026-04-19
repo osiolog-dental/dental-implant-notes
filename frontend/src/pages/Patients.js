@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Plus, MagnifyingGlass } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -13,8 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { getPatients, createPatient } from '../api/patients';
 
 const Patients = () => {
   const [patients, setPatients] = useState([]);
@@ -37,10 +35,8 @@ const Patients = () => {
 
   const fetchPatients = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/patients`, {
-        withCredentials: true
-      });
-      setPatients(data);
+      const data = await getPatients();
+      setPatients(data.items ?? data);
     } catch (error) {
       toast.error('Failed to fetch patients');
     } finally {
@@ -51,11 +47,7 @@ const Patients = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(
-        `${API_URL}/api/patients`,
-        { ...formData, age: parseInt(formData.age) },
-        { withCredentials: true }
-      );
+      await createPatient({ ...formData, age: parseInt(formData.age) });
       toast.success('Patient added successfully');
       setIsDialogOpen(false);
       setFormData({
@@ -80,8 +72,8 @@ const Patients = () => {
   );
 
   return (
-    <div className="p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+      <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
           <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
             Patients
@@ -106,7 +98,7 @@ const Patients = () => {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
@@ -132,7 +124,7 @@ const Patients = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="gender">Gender *</Label>
                   <select
@@ -242,22 +234,14 @@ const Patients = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPatients.map((patient) => (
             <Link
-              key={patient._id}
-              to={`/patients/${patient._id}`}
-              data-testid={`patient-card-${patient._id}`}
+              key={patient.id || patient._id}
+              to={`/patients/${patient.id || patient._id}`}
+              data-testid={`patient-card-${patient.id || patient._id}`}
               className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
-                  {patient.profile_picture ? (
-                    <img
-                      src={`${process.env.REACT_APP_BACKEND_URL}/api/files/${patient.profile_picture}`}
-                      alt={patient.name}
-                      className="w-12 h-12 object-cover"
-                    />
-                  ) : (
-                    patient.name.charAt(0)
-                  )}
+                  {patient.name.charAt(0)}
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                   patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :

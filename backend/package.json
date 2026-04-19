@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@capacitor/push-notifications": "^8.0.3"
+  }
+}

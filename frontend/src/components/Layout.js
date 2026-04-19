@@ -1,4 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+
+const SHOW_BETA_FEATURES = false;
 import { useAuth } from '../contexts/AuthContext';
 import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
 import AdBanner from './AdBanner';
@@ -28,15 +30,17 @@ const Layout = () => {
     { path: '/patients', label: 'Patients', icon: Users },
     { path: '/analytics', label: 'Analytics', icon: ChartLine },
     { path: '/clinics', label: 'Clinics', icon: Buildings },
-    { path: '/backup', label: 'Backup', icon: CloudArrowUp },
-    { path: '/subscription', label: 'Subscription', icon: Crown },
+    ...(SHOW_BETA_FEATURES ? [
+      { path: '/backup', label: 'Backup', icon: CloudArrowUp },
+      { path: '/subscription', label: 'Subscription', icon: Crown },
+    ] : []),
   ];
 
   const footerItems = [
-    { path: '/', label: 'Cases', icon: House },
+    { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
-    { path: '/analytics', label: 'Timeline', icon: ClockCounterClockwise },
-    { path: '/clinics', label: 'Search', icon: MagnifyingGlass }
+    { path: '/analytics', label: 'Analytics', icon: ChartLine },
+    { path: '/clinics', label: 'Clinics', icon: Buildings },
   ];
 
   const rawName = user?.name || 'Doctor';
@@ -54,7 +58,7 @@ const Layout = () => {
       {/* Sidebar */}
       <aside className="w-64 bg-[#F0F0EE] border-r border-[#E5E5E2] hidden md:flex md:flex-col relative">
         <div className="p-6">
-          <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">DentalHub</h1>
+          <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">Osioloc</h1>
           <p className="text-xs text-[#5C6773] mt-1">Implant Management</p>
         </div>
         
@@ -86,7 +90,7 @@ const Layout = () => {
         {/* Top Header Bar */}
         <header className="h-14 bg-white border-b border-[#E5E5E2] flex items-center justify-between px-4 md:px-6 shrink-0 z-40" data-testid="top-header">
           <div className="md:hidden">
-            <h1 className="text-lg font-semibold text-[#2A2F35] tracking-tight">DentalHub</h1>
+            <h1 className="text-lg font-semibold text-[#2A2F35] tracking-tight">Osioloc</h1>
           </div>
           <div className="hidden md:block" />
 
@@ -156,8 +160,8 @@ const Layout = () => {
       </div>
 
       {/* Bottom Navigation - Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">
-        <div className="flex items-center justify-around px-2 py-3">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex items-center justify-around px-2 pt-3">
           {footerItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -166,9 +170,9 @@ const Layout = () => {
                 key={item.path}
                 to={item.path}
                 data-testid={`footer-nav-${item.label.toLowerCase()}`}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+                className={`flex flex-col items-center gap-1 min-w-[56px] py-2 rounded-lg transition-all duration-200 ${
                   isActive
-                    ? 'text-[#3B82F6]'
+                    ? 'text-[#82A098]'
                     : 'text-[#5C6773]'
                 }`}
               >

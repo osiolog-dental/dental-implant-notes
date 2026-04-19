@@ -265,10 +265,26 @@ async def register(doctor: DoctorRegister, response: Response):
         "name": doctor.name,
         "phone": doctor.phone,
         "country": doctor.country,
+        "currency": doctor.currency,
         "registration_number": doctor.registration_number,
         "college": doctor.college,
         "specialization": doctor.specialization,
         "profile_picture": doctor.profile_picture,
+        # Extended profile fields — persisted so data is complete for PostgreSQL migration
+        "gender": doctor.gender,
+        "date_of_birth": doctor.date_of_birth,
+        "address_street": doctor.address_street,
+        "address_city": doctor.address_city,
+        "address_state": doctor.address_state,
+        "address_zip": doctor.address_zip,
+        "designation": doctor.designation,
+        "organization": doctor.organization,
+        "years_of_experience": doctor.years_of_experience,
+        "primary_clinic": doctor.primary_clinic,
+        "consulting_clinics": doctor.consulting_clinics,
+        "clinical_focus": doctor.clinical_focus,
+        "education": doctor.education or [],
+        "publications": doctor.publications or [],
         "role": "doctor",
         "created_at": datetime.now(timezone.utc)
     }
@@ -626,6 +642,14 @@ async def get_clinics(request: Request):
 @api_router.post("/implants")
 async def create_implant(implant: ImplantCreate, request: Request):
     user = await get_current_user(request)
+    # Verify the patient exists and belongs to this doctor before creating the implant.
+    # Without this check a doctor could attach clinical records to another doctor's patient.
+    try:
+        patient = await db.patients.find_one({"_id": ObjectId(implant.patient_id), "doctor_id": user["_id"]})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid patient ID")
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     implant_doc = implant.model_dump()
     implant_doc["doctor_id"] = user["_id"]
     implant_doc["created_at"] = datetime.now(timezone.utc)
@@ -761,6 +785,13 @@ async def update_implant(implant_id: str, implant: ImplantCreate, request: Reque
 @api_router.post("/fpd-records")
 async def create_fpd_record(fpd: FPDCreate, request: Request):
     user = await get_current_user(request)
+    # Verify the patient exists and belongs to this doctor before creating the FPD record.
+    try:
+        patient = await db.patients.find_one({"_id": ObjectId(fpd.patient_id), "doctor_id": user["_id"]})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid patient ID")
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     fpd_doc = fpd.model_dump()
     fpd_doc["doctor_id"] = user["_id"]
     fpd_doc["created_at"] = datetime.now(timezone.utc)

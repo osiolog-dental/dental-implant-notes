@@ -1,130 +1,177 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import { toast } from 'sonner';
+import { auth, googleProvider } from '../lib/firebase';
+import client from '../api/client';
+import { registerForNotifications, unregisterNotifications } from '../lib/notifications';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
-function formatApiErrorDetail(detail) {
-  if (detail == null) return 'Something went wrong. Please try again.';
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail))
-    return detail.map((e) => (e && typeof e.msg === 'string' ? e.msg : JSON.stringify(e))).filter(Boolean).join(' ');
-  if (detail && typeof detail.msg === 'string') return detail.msg;
-  return String(detail);
-}
-
 export const AuthProvider = ({ children }) => {
+  // user = null  → still loading
+  // user = false → not logged in
+  // user = { _needsRegistration: true, firebaseUser } → Firebase account exists, DB row missing
+  // user = { id, name, email, ... } → fully registered and logged in
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = process.env.REACT_APP_BACKEND_URL;
-
   useEffect(() => {
-    checkAuth();
-
-    // Auto-refresh access token on 401 responses
-    let isRefreshing = false;
-    let queue = [];
-
-    const interceptor = axios.interceptors.response.use(
-      res => res,
-      async err => {
-        const original = err.config;
-        const is401 = err.response?.status === 401;
-        const isAuthRoute = original.url?.includes('/api/auth/');
-        if (!is401 || isAuthRoute || original._retry) return Promise.reject(err);
-
-        if (isRefreshing) {
-          return new Promise((resolve, reject) => {
-            queue.push({ resolve, reject });
-          }).then(() => axios(original)).catch(e => Promise.reject(e));
-        }
-
-        original._retry = true;
-        isRefreshing = true;
-        try {
-          await axios.post(`${API_URL}/api/auth/refresh`, {}, { withCredentials: true });
-          queue.forEach(p => p.resolve());
-          queue = [];
-          return axios(original);
-        } catch {
-          queue.forEach(p => p.reject());
-          queue = [];
-          setUser(false);
-          return Promise.reject(err);
-        } finally {
-          isRefreshing = false;
-        }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(false);
+        setLoading(false);
+        return;
       }
-    );
-
-    return () => axios.interceptors.response.eject(interceptor);
+      // Firebase says a user is signed in — hold ProtectedRoute in the loading
+      // state until we have resolved the DB-backed profile. Without this,
+      // ProtectedRoute sees (loading=false, user=false) during the async /me
+      // fetch and bounces the browser back to /login mid-sign-in.
+      setLoading(true);
+      try {
+        // Force-refresh the ID token so the backend always sees a fresh one,
+        // even right after a sign-in when Firebase hasn't cached one yet.
+        await firebaseUser.getIdToken(true);
+        const { data } = await client.get('/api/auth/me');
+        setUser(data);
+        // Register for push notifications after profile is loaded — non-blocking
+        registerForNotifications();
+      } catch (err) {
+        if (err.response?.status === 404) {
+          // Firebase account exists but not yet in our DB (e.g. first Google sign-in)
+          setUser({ _needsRegistration: true, firebaseUser });
+        } else if (err.response) {
+          // Real HTTP error from our API — sign out so Firebase and our DB stay in sync.
+          await signOut(auth).catch(() => {});
+          setUser(false);
+          toast.error(err.response.data?.detail || 'Sign-in failed. Please try again.');
+        } else {
+          // No response = network error. On Android the usual culprit is the
+          // backend URL (emulator can't reach Mac's localhost). Sign out so the
+          // user can retry cleanly instead of being left half-authenticated.
+          await signOut(auth).catch(() => {});
+          setUser(false);
+          toast.error('Cannot reach the server. Check that the backend is running.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    });
+    return unsubscribe;
   }, []);
 
-  const checkAuth = async () => {
+  const login = async (email, password) => {
+    // Keep loading true through the whole handoff: signInWithEmailAndPassword →
+    // onAuthStateChanged → /api/auth/me. Login.js calls navigate('/') as soon
+    // as this resolves, so if loading flips to false before /me returns,
+    // ProtectedRoute briefly sees user=false and redirects back to /login.
+    setLoading(true);
     try {
-      const { data } = await axios.get(`${API_URL}/api/auth/me`, {
-        withCredentials: true
-      });
-      setUser(data);
-    } catch (error) {
-      setUser(false);
-    } finally {
+      await signInWithEmailAndPassword(auth, email, password);
+      // Don't set loading=false here — onAuthStateChanged will do it once the
+      // DB profile is loaded.
+      return { success: true };
+    } catch (err) {
       setLoading(false);
+      return { success: false, error: _friendlyError(err) };
     }
   };
 
-  const login = async (email, password) => {
+  const loginWithGoogle = async () => {
+    setLoading(true);
     try {
-      const { data } = await axios.post(
-        `${API_URL}/api/auth/login`,
-        { email, password },
-        { withCredentials: true }
-      );
-      setUser(data);
+      await signInWithPopup(auth, googleProvider);
       return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: formatApiErrorDetail(error.response?.data?.detail) || error.message
-      };
+    } catch (err) {
+      setLoading(false);
+      return { success: false, error: _friendlyError(err) };
     }
   };
 
   const register = async (userData) => {
     try {
-      const { data } = await axios.post(
-        `${API_URL}/api/auth/register`,
-        userData,
-        { withCredentials: true }
+      const { user: fbUser } = await createUserWithEmailAndPassword(
+        auth,
+        userData.email,
+        userData.password
+      );
+      const token = await fbUser.getIdToken();
+      const { data } = await client.post(
+        '/api/auth/register',
+        {
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone || null,
+          country: userData.country || null,
+          registration_number: userData.registration_number || null,
+          college: userData.college || null,
+          specialization: userData.specialization || null,
+          place: userData.place || null,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setUser(data);
       return { success: true };
-    } catch (error) {
+    } catch (err) {
+      if (auth.currentUser) await signOut(auth).catch(() => {});
       return {
         success: false,
-        error: formatApiErrorDetail(error.response?.data?.detail) || error.message
+        error: err.response?.data?.detail || _friendlyError(err),
+      };
+    }
+  };
+
+  const completeGoogleRegistration = async (profileData) => {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const { data } = await client.post(
+        '/api/auth/register',
+        { ...profileData, email: auth.currentUser.email },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUser(data);
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err.response?.data?.detail || _friendlyError(err),
       };
     }
   };
 
   const logout = async () => {
-    try {
-      await axios.post(
-        `${API_URL}/api/auth/logout`,
-        {},
-        { withCredentials: true }
-      );
-      setUser(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    await unregisterNotifications();
+    await signOut(auth);
+    setUser(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, loginWithGoogle, register, completeGoogleRegistration, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
+
+function _friendlyError(err) {
+  const code = err?.code || '';
+  const map = {
+    'auth/user-not-found': 'No account found with this email.',
+    'auth/wrong-password': 'Incorrect password.',
+    'auth/invalid-credential': 'Incorrect email or password.',
+    'auth/email-already-in-use': 'An account with this email already exists.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+    'auth/network-request-failed': 'Network error. Check your connection.',
+  };
+  return map[code] || err?.message || 'Something went wrong. Please try again.';
+}

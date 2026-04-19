@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import client from '../api/client';
 import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Stethoscope, Certificate, GraduationCap, MapPin,
   Buildings, Users, Tooth, CheckCircle, FilePdf,
 } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function DoctorPublicProfile() {
   const { doctorId } = useParams();
@@ -20,7 +18,7 @@ export default function DoctorPublicProfile() {
   const profileUrl = `${window.location.origin}/profile/${doctorId}`;
 
   useEffect(() => {
-    axios.get(`${API_URL}/api/public/profile/${doctorId}`)
+    client.get(`/api/public/profile/${doctorId}`)
       .then(r => setProfile(r.data))
       .catch(e => {
         if (e.response?.status === 404) setNotFound(true);
@@ -42,7 +40,7 @@ export default function DoctorPublicProfile() {
       // Profile photo
       if (profile.profile_picture) {
         try {
-          const res = await fetch(`${API_URL}/api/files/${profile.profile_picture}`, { credentials: 'include' });
+          const res = await fetch(`/api/files/${profile.profile_picture}`);
           const blob = await res.blob();
           const b64 = await new Promise(resolve => {
             const fr = new FileReader();
@@ -207,7 +205,7 @@ export default function DoctorPublicProfile() {
         <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center sm:items-end gap-5">
           {profile.profile_picture ? (
             <img
-              src={`${API_URL}/api/files/${profile.profile_picture}`}
+              src={`/api/files/${profile.profile_picture}`}
               alt={profile.name}
               className="w-24 h-24 rounded-full border-4 border-white/40 object-cover shadow-lg"
             />

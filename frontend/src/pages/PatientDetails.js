@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'sonner';
+import client from '../api/client';
+import { getPatient, updatePatient } from '../api/patients';
+import { getCases, createCase } from '../api/cases';
+import { getImplantsByPatient, createImplant, updateImplant } from '../api/implants';
+import { getFpdByPatient, createFpd, updateFpd } from '../api/fpd';
+import { getClinics } from '../api/clinics';
 import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
 import ImplantProgressTracker from '../components/ImplantProgressTracker';
@@ -17,9 +22,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
@@ -95,6 +97,8 @@ const PatientDetails = () => {
   const [showEditLog, setShowEditLog] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [cases, setCases] = useState([]);
+  const [activeCaseId, setActiveCaseId] = useState(null); // case used for new implants/FPD
 
   useEffect(() => {
     fetchAll();
@@ -102,18 +106,22 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/patients/${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/implants?patient_id=${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/fpd-records?patient_id=${id}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/clinics`, { withCredentials: true }),
+      const [patientData, implantsData, fpdResultData, clinicsData, casesData] = await Promise.all([
+        getPatient(id),
+        getImplantsByPatient(id),
+        getFpdByPatient(id),
+        getClinics(),
+        getCases({ patientId: id }),
       ]);
-      setPatient(patientRes.data);
-      setImplants(implantsRes.data);
-      setFpdRecords(fpdRes.data);
-      setClinics(clinicsRes.data);
-      if (patientRes.data.tooth_conditions) {
-        setToothConditions(patientRes.data.tooth_conditions);
+      setPatient(patientData);
+      setImplants(implantsData.items ?? implantsData);
+      setFpdRecords(fpdResultData.items ?? fpdResultData);
+      setClinics(clinicsData.items ?? clinicsData);
+      const caseList = casesData.items ?? casesData;
+      setCases(caseList);
+      if (caseList.length > 0) setActiveCaseId(caseList[0].id);
+      if (patientData.tooth_conditions) {
+        setToothConditions(patientData.tooth_conditions);
       }
     } catch (error) {
       toast.error('Failed to fetch patient details');
@@ -121,13 +129,7 @@ const PatientDetails = () => {
     } finally {
       setLoading(false);
     }
-    // Load edit log separately — don't crash the page if it fails
-    try {
-      const logRes = await axios.get(`${API_URL}/api/patients/${id}/edit-log`, { withCredentials: true });
-      setEditLog(logRes.data);
-    } catch {
-      // edit log is optional — silently ignore
-    }
+    // Edit log not implemented in new backend yet — silently skip
   };
 
   const openEditPatient = () => {
@@ -148,10 +150,10 @@ const PatientDetails = () => {
   const handleSavePatient = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API_URL}/api/patients/${id}`, {
+      await updatePatient(id, {
         ...editPatientData,
         age: parseInt(editPatientData.age),
-      }, { withCredentials: true });
+      });
       toast.success('Patient details updated');
       setIsEditPatientOpen(false);
       fetchAll();
@@ -164,13 +166,11 @@ const PatientDetails = () => {
     setGeneratingPdf(true);
     setPdfProgress('Preparing report...');
     try {
-      // Fetch extra vault photos
-      const extraRes = await axios.get(`${API_URL}/api/patients/${id}/photos`, { withCredentials: true });
       await generatePatientPDF({
         patient,
         implants,
         fpdRecords,
-        extraPhotos: extraRes.data,
+        extraPhotos: [],
         clinics,
         onProgress: (msg) => setPdfProgress(msg),
       });
@@ -196,10 +196,7 @@ const PatientDetails = () => {
     setToothConditions(updated);
     setMissingConfirm(null);
     try {
-      await axios.patch(`${API_URL}/api/patients/${id}/tooth-conditions`,
-        { tooth_conditions: updated },
-        { withCredentials: true }
-      );
+      await client.patch(`/api/patients/${id}/tooth-conditions`, { tooth_conditions: updated });
       toast.success(action === 'mark' ? `Tooth #${toothNumber} marked as missing` : `Tooth #${toothNumber} restored`);
     } catch {
       toast.error('Failed to save tooth status');
@@ -240,10 +237,17 @@ const PatientDetails = () => {
         follow_up_date: formData.follow_up_date || null,
       };
       if (editingImplantId) {
-        await axios.put(`${API_URL}/api/implants/${editingImplantId}`, payload, { withCredentials: true });
+        await updateImplant(editingImplantId, payload);
         toast.success('Implant record updated');
       } else {
-        await axios.post(`${API_URL}/api/implants`, payload, { withCredentials: true });
+        let caseId = activeCaseId;
+        if (!caseId) {
+          // Auto-create a default case for this patient
+          const newCase = await createCase({ patient_id: id, title: 'Default Case' });
+          caseId = newCase.id;
+          setActiveCaseId(caseId);
+        }
+        await createImplant(caseId, payload);
         toast.success('Implant record added');
       }
       setIsImplantOpen(false);
@@ -289,7 +293,7 @@ const PatientDetails = () => {
       jaw_region: implant.jaw_region || 'Anterior',
       tag_image: implant.tag_image || null,
     });
-    setEditingImplantId(implant._id);
+    setEditingImplantId(implant.id || implant._id);
     setIsImplantOpen(true);
   };
 
@@ -316,25 +320,18 @@ const PatientDetails = () => {
       delete payload.warranty_image; // stored via separate upload endpoint
       let fpdId = editingFpdId;
       if (editingFpdId) {
-        await axios.put(`${API_URL}/api/fpd-records/${editingFpdId}`, payload, { withCredentials: true });
+        await updateFpd(editingFpdId, payload);
         toast.success('FPD record updated');
       } else {
-        const res = await axios.post(`${API_URL}/api/fpd-records`, payload, { withCredentials: true });
-        fpdId = res.data?._id;
-        toast.success('FPD record added');
-      }
-      // Upload warranty image if selected
-      if (warrantyFile && fpdId) {
-        try {
-          const form = new FormData();
-          form.append('file', warrantyFile);
-          await axios.post(`${API_URL}/api/fpd-records/${fpdId}/warranty-image`, form, {
-            withCredentials: true,
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-        } catch {
-          toast.warning('FPD saved but warranty image upload failed');
+        let caseId = activeCaseId;
+        if (!caseId) {
+          const newCase = await createCase({ patient_id: id, title: 'Default Case' });
+          caseId = newCase.id;
+          setActiveCaseId(caseId);
         }
+        const newFpd = await createFpd(caseId, payload);
+        fpdId = newFpd?.id || newFpd?._id;
+        toast.success('FPD record added');
       }
       setIsFpdOpen(false);
       setFpdData({ ...INITIAL_FPD });
@@ -360,7 +357,7 @@ const PatientDetails = () => {
       lab_name: fpd.lab_name || '',
       warranty_image: fpd.warranty_image || null,
     });
-    setEditingFpdId(fpd._id);
+    setEditingFpdId(fpd.id || fpd._id);
     setIsFpdOpen(true);
   };
 
@@ -407,8 +404,8 @@ const PatientDetails = () => {
       </button>
 
       {/* Patient Info */}
-      <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
-        <div className="flex items-start gap-5">
+      <div className="bg-white border border-[#E5E5E2] rounded-xl p-4 md:p-6 shadow-sm mb-6">
+        <div className="flex items-start gap-4 md:gap-5">
           {/* Avatar — click to upload profile picture */}
           <label
             htmlFor="patient-pic-upload"
@@ -416,17 +413,9 @@ const PatientDetails = () => {
             className="relative w-24 h-24 rounded-full shrink-0 cursor-pointer group"
             title="Click to upload patient photo"
           >
-            {patient.profile_picture ? (
-              <img
-                src={`${API_URL}/api/files/${patient.profile_picture}`}
-                alt={patient.name}
-                className="w-24 h-24 rounded-full object-cover border-2 border-[#E5E5E2]"
-              />
-            ) : (
-              <div className="w-24 h-24 rounded-full bg-[#82A098] flex items-center justify-center text-white font-semibold text-3xl">
+            <div className="w-24 h-24 rounded-full bg-[#82A098] flex items-center justify-center text-white font-semibold text-3xl">
                 {patient.name.charAt(0)}
               </div>
-            )}
             <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center transition-all">
               <Camera size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
@@ -443,8 +432,7 @@ const PatientDetails = () => {
               const form = new FormData();
               form.append('file', file);
               try {
-                const res = await axios.post(`${API_URL}/api/patients/${id}/profile-picture`, form, {
-                  withCredentials: true,
+                const res = await client.post(`/api/patients/${id}/profile-picture`, form, {
                   headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 setPatient(prev => ({ ...prev, profile_picture: res.data.profile_picture }));
@@ -614,7 +602,7 @@ const PatientDetails = () => {
             <DialogTitle className="text-xl font-semibold">Edit Patient Details</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSavePatient} className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label className="text-xs">Full Name *</Label>
                 <Input value={editPatientData.name || ''} onChange={e => setEditPatientData(p => ({ ...p, name: e.target.value }))} required data-testid="edit-patient-name" className="mt-1" />
@@ -631,7 +619,7 @@ const PatientDetails = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Primary Phone *</Label>
                 <Input value={editPatientData.phone || ''} onChange={e => setEditPatientData(p => ({ ...p, phone: e.target.value }))} required data-testid="edit-patient-phone" className="mt-1" placeholder="+91 98765 43210" />
@@ -642,7 +630,7 @@ const PatientDetails = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Email</Label>
                 <Input type="email" value={editPatientData.email || ''} onChange={e => setEditPatientData(p => ({ ...p, email: e.target.value }))} data-testid="edit-patient-email" className="mt-1" />
@@ -718,7 +706,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Row 2: Diameter, Length */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Diameter (mm) *</Label>
                     <Input type="number" step="0.1" value={formData.diameter_mm} onChange={(e) => updateField('diameter_mm', e.target.value)} required data-testid="diameter-input" placeholder="e.g. 4.5" className="mt-1" />
@@ -730,7 +718,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Row 3: Torque, ISQ, Connection, Surgical Approach */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                   <div>
                     <Label className="text-xs">Insertion Torque (Ncm)</Label>
                     <Input type="number" step="0.1" value={formData.insertion_torque} onChange={(e) => updateField('insertion_torque', e.target.value)} data-testid="torque-input" placeholder="35" className="mt-1" />
@@ -754,7 +742,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Row 4: Arch, Jaw Region, Implant System, Outcome */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                   <div>
                     <Label className="text-xs">Arch</Label>
                     <select value={formData.arch} onChange={(e) => updateField('arch', e.target.value)} className={`mt-1 ${selectClass}`}>
@@ -780,7 +768,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Row 5: Surgery Date, Follow-up, Prosthetic Loading, Surgeon */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                   <div>
                     <Label className="text-xs">Surgery Date</Label>
                     <Input type="date" value={formData.surgery_date} onChange={(e) => updateField('surgery_date', e.target.value)} className="mt-1" />
@@ -902,7 +890,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* FPD fields */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Prosthetic Loading Date</Label>
                     <Input type="date" value={fpdData.prosthetic_loading_date} onChange={(e) => setFpdData({ ...fpdData, prosthetic_loading_date: e.target.value })} data-testid="fpd-loading-date" className="mt-1" />
@@ -915,7 +903,7 @@ const PatientDetails = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Crown Type</Label>
                     <select value={fpdData.crown_type} onChange={(e) => setFpdData({ ...fpdData, crown_type: e.target.value })} data-testid="fpd-crown-type" className={`mt-1 ${selectClass}`}>
@@ -957,7 +945,7 @@ const PatientDetails = () => {
                 )}
 
                 {/* Consultant & Lab */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Consultant / Visiting Prosthodontist <span className="text-[#9CA3AF]">(optional)</span></Label>
                     <Input value={fpdData.consultant_prosthodontist} onChange={(e) => setFpdData({ ...fpdData, consultant_prosthodontist: e.target.value })} placeholder="Dr. Name" className="mt-1" data-testid="fpd-consultant" />
@@ -979,8 +967,7 @@ const PatientDetails = () => {
                     </label>
                     {/* Show existing warranty image if editing */}
                     {fpdData.warranty_image && !warrantyFile && (
-                      <a href={`${API_URL}/api/files/${fpdData.warranty_image}`} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-[#82A098] underline">View existing</a>
+                      <span className="text-xs text-[#5C6773]">Warranty image on file</span>
                     )}
                     {warrantyFile && (
                       <button type="button" onClick={() => setWarrantyFile(null)} className="text-xs text-red-400 hover:text-red-600">✕ Remove</button>
@@ -1036,23 +1023,24 @@ const PatientDetails = () => {
           </h2>
           <div className="space-y-3">
             {implants.map((implant) => {
+              const implantId = implant.id || implant._id;
               const daysRemaining = getDaysRemaining(implant.osseointegration_date);
               return (
-                <div key={implant._id} data-testid={`implant-record-${implant._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-3">
+                <div key={implantId} data-testid={`implant-record-${implantId}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 bg-[#82A098] rounded-lg flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
                         {implant.tooth_number}
                       </div>
-                      <div>
-                        <h3 className="font-medium text-[#2A2F35] text-sm">{implant.implant_type} Implant</h3>
-                        <p className="text-xs text-[#5C6773]">{implant.brand}{implant.implant_system ? ` - ${implant.implant_system}` : ''}</p>
+                      <div className="min-w-0">
+                        <h3 className="font-medium text-[#2A2F35] text-sm truncate">{implant.implant_type} Implant</h3>
+                        <p className="text-xs text-[#5C6773] truncate">{implant.brand}{implant.implant_system ? ` - ${implant.implant_system}` : ''}</p>
                         {implant.case_number && <p className="text-xs text-[#5C6773]">Case: {implant.case_number}</p>}
                       </div>
                     </div>
-                    <div className="flex items-start gap-3 flex-shrink-0 ml-2">
+                    <div className="flex items-start gap-2 flex-shrink-0">
                       <button
-                        data-testid={`edit-implant-${implant._id}`}
+                        data-testid={`edit-implant-${implantId}`}
                         onClick={() => openEditImplant(implant)}
                         className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#82A098] transition-colors"
                         title="Edit implant record"
@@ -1061,11 +1049,11 @@ const PatientDetails = () => {
                       </button>
                       {/* Tag image thumbnail */}
                       {implant.tag_image ? (
-                        <div className="relative group" data-testid={`tag-thumb-${implant._id}`}>
+                        <div className="relative group" data-testid={`tag-thumb-${implantId}`}>
                           <img
                             src={implant.tag_image}
                             alt="Implant tag"
-                            className="w-14 h-14 object-cover rounded-lg border border-[#E5E5E2] shadow-sm cursor-pointer"
+                            className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-lg border border-[#E5E5E2] shadow-sm cursor-pointer"
                             onClick={() => window.open(implant.tag_image, '_blank')}
                             title="Click to view full tag"
                           />
@@ -1074,19 +1062,22 @@ const PatientDetails = () => {
                           </div>
                         </div>
                       ) : (
-                        <div className="w-14 h-14 rounded-lg border border-dashed border-[#E5E5E2] flex items-center justify-center" title="No tag image">
+                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg border border-dashed border-[#E5E5E2] flex items-center justify-center" title="No tag image">
                           <Tag size={16} className="text-[#E5E5E2]" />
                         </div>
                       )}
                       {daysRemaining > 0 && (
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-[#E8A76C]">{daysRemaining} days</p>
-                          <p className="text-xs text-[#5C6773]">until osseointegration</p>
+                        <div className="text-right hidden sm:block">
+                          <p className="text-sm font-medium text-[#E8A76C]">{daysRemaining}d</p>
+                          <p className="text-xs text-[#5C6773]">osseo</p>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  {daysRemaining > 0 && (
+                    <p className="text-xs font-medium text-[#E8A76C] mb-1 sm:hidden">{daysRemaining} days until osseointegration</p>
+                  )}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 text-xs">
                     <div><span className="text-[#5C6773]">Diameter:</span> <span className="font-medium text-[#2A2F35]">{implant.diameter_mm ? `${implant.diameter_mm} mm` : '—'}</span></div>
                     <div><span className="text-[#5C6773]">Length:</span> <span className="font-medium text-[#2A2F35]">{implant.length_mm ? `${implant.length_mm} mm` : '—'}</span></div>
                     <div><span className="text-[#5C6773]">Torque:</span> <span className="font-medium text-[#2A2F35]">{implant.insertion_torque || 'N/A'} Ncm</span></div>
@@ -1110,25 +1101,27 @@ const PatientDetails = () => {
             FPD Records ({fpdRecords.length})
           </h2>
           <div className="space-y-3">
-            {fpdRecords.map((fpd) => (
-              <div key={fpd._id} data-testid={`fpd-record-${fpd._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#3B82F6] transition-all">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="font-medium text-[#2A2F35] text-sm">
+            {fpdRecords.map((fpd) => {
+              const fpdId = fpd.id || fpd._id;
+              return (
+              <div key={fpdId} data-testid={`fpd-record-${fpdId}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <h3 className="font-medium text-[#2A2F35] text-sm truncate">
                       FPD - Teeth: {fpd.tooth_numbers?.join(', ')}
                     </h3>
                     <p className="text-xs text-[#5C6773]">{fpd.case_number}</p>
                   </div>
                   <button
-                    data-testid={`edit-fpd-${fpd._id}`}
+                    data-testid={`edit-fpd-${fpdId}`}
                     onClick={() => openEditFpd(fpd)}
-                    className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#3B82F6] transition-colors flex-shrink-0"
+                    className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#82A098] transition-colors flex-shrink-0"
                     title="Edit FPD record"
                   >
                     <PencilSimple size={15} weight="bold" />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 text-xs">
                   <div><span className="text-[#5C6773]">Crown:</span> <span className="font-medium text-[#2A2F35]">{fpd.crown_count}</span></div>
                   <div><span className="text-[#5C6773]">Type:</span> <span className="font-medium text-[#2A2F35]">{fpd.crown_type}</span></div>
                   <div><span className="text-[#5C6773]">Material:</span> <span className="font-medium text-[#2A2F35]">{fpd.crown_material}</span></div>
@@ -1145,15 +1138,12 @@ const PatientDetails = () => {
                 {fpd.clinical_notes && <p className="mt-2 text-xs text-[#5C6773] italic">{fpd.clinical_notes}</p>}
                 {fpd.warranty_image && (
                   <div className="mt-2">
-                    <a href={`${API_URL}/api/files/${fpd.warranty_image}`} target="_blank" rel="noopener noreferrer">
-                      <img src={`${API_URL}/api/files/${fpd.warranty_image}`} alt="Warranty card"
-                        className="h-16 w-auto rounded border border-[#E5E5E2] object-cover hover:opacity-80 transition-opacity cursor-pointer" />
-                    </a>
-                    <p className="text-[10px] text-[#9CA3AF] mt-0.5">Warranty card</p>
+                    <p className="text-[10px] text-[#9CA3AF] mt-0.5">Warranty card on file</p>
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

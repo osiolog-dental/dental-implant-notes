@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import {
   CalendarDots, Bell, ArrowRight, CheckCircle,
   XCircle, Warning, Heartbeat, X, Tooth
 } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { getDashboardSummary } from '../api/dashboard';
+import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const getInitials = (name = '') => {
@@ -142,16 +141,15 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [analyticsRes, patientsRes, dueRes, implantsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/analytics/overview`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/patients`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/implants/due-for-second-stage`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/implants`, { withCredentials: true }),
+      const [summary, patientsData] = await Promise.all([
+        getDashboardSummary(),
+        getPatients({ perPage: 100 }),
       ]);
-      setAnalytics(analyticsRes.data);
-      setPatients(patientsRes.data);
-      setDueImplants(dueRes.data);
-      setAllImplants(implantsRes.data);
+      setAnalytics(summary);
+      const patientList = patientsData.items ?? patientsData;
+      setPatients(patientList);
+      setDueImplants([]);
+      setAllImplants([]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -160,7 +158,7 @@ const Dashboard = () => {
   };
 
   // Build patient lookup map
-  const patientMap = patients.reduce((acc, p) => { acc[p._id] = p; return acc; }, {});
+  const patientMap = patients.reduce((acc, p) => { acc[p.id || p._id] = p; return acc; }, {});
 
   // Bucket implants
   const buckets = { active: [], completed: [], guarded: [], failed: [] };
@@ -177,7 +175,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-[#E5E5E2] rounded w-1/4" />
           <div className="h-48 bg-[#E5E5E2] rounded-xl" />
@@ -198,7 +196,7 @@ const Dashboard = () => {
         </h1>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
 
         {/* ── 4 Stat Boxes ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -350,16 +348,16 @@ const Dashboard = () => {
           </div>
 
           {patients.length === 0 ? (
-            <div className="bg-white rounded-xl border border-[#E5E5E2] p-8 text-center">
+            <div className="bg-white rounded-xl border border-[#E5E5E2] p-6 text-center">
               <p className="text-sm text-[#5C6773]">No patients yet. <Link to="/patients" className="text-[#82A098] font-medium">Add your first patient</Link></p>
             </div>
           ) : (
             <div className="space-y-3">
               {patients.slice(0, 5).map((patient, index) => (
                 <Link
-                  key={patient._id}
-                  to={`/patients/${patient._id}`}
-                  data-testid={`patient-queue-${patient._id}`}
+                  key={patient.id || patient._id}
+                  to={`/patients/${patient.id || patient._id}`}
+                  data-testid={`patient-queue-${patient.id || patient._id}`}
                   className="bg-white rounded-xl p-4 border border-[#E5E5E2] hover:border-[#82A098]/50 hover:shadow-md transition-all duration-200 flex items-center gap-4"
                 >
                   <div
@@ -370,7 +368,7 @@ const Dashboard = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[#2A2F35] truncate">{patient.name}</p>
-                    <p className="text-xs text-[#5C6773]">ID #{patient._id.slice(-8).toUpperCase()}</p>
+                    <p className="text-xs text-[#5C6773]">ID #{(patient.id || patient._id || '').slice(-8).toUpperCase()}</p>
                     <div className="flex items-center gap-2 mt-1 text-xs text-[#5C6773]">
                       <CalendarDots size={12} />
                       <span>{fmtDate(patient.created_at)}</span>
@@ -384,7 +382,7 @@ const Dashboard = () => {
         </div>
 
         {/* ── Bottom Stats ── */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 md:gap-4">
           <div className="bg-white rounded-xl p-4 border border-[#E5E5E2]">
             <p className="text-2xl font-bold text-[#2A2F35]">{analytics?.total_implants || 0}</p>
             <p className="text-sm text-[#5C6773]">Total Implants</p>

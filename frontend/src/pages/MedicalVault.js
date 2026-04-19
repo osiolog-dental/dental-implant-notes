@@ -1,159 +1,93 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { ArrowLeft, Upload, Plus, FolderOpen, Image, X, Trash } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-const MAX_EXTRA_PHOTOS = 12;
-
-const PHOTO_VIEWS = [
-  { id: 'front_centric',          label: 'Front - Centric Occlusion' },
-  { id: 'front_protrusive',       label: 'Front - Protrusive' },
-  { id: 'right_centric',          label: 'Right - Centric Occlusion' },
-  { id: 'left_centric',           label: 'Left - Centric Occlusion' },
-  { id: 'front_right_exclusive',  label: 'Front - Right Exclusive' },
-  { id: 'front_left_exclusive',   label: 'Front - Left Exclusive' },
-  { id: 'maxillary_occlusal',     label: 'Maxillary Occlusal' },
-  { id: 'mandibular_occlusal',    label: 'Mandibular Occlusal' },
-];
-
-const RADIOGRAPH_VIEWS = [
-  { id: 'pre_surgical',              label: 'Pre-Surgical' },
-  { id: 'immediate_post_surgical',   label: 'Immediate Post-Surgical' },
-  { id: 'immediate_post_prosthetic', label: 'Immediate Post-Prosthetic' },
-  { id: 'one_year_followup',         label: '1 Year Follow-Up' },
-];
+import { getPatient } from '../api/patients';
+import { getCases } from '../api/cases';
+import { getImages, uploadImage, deleteImage } from '../api/images';
 
 const MedicalVault = () => {
   const { patientId } = useParams();
   const navigate = useNavigate();
-  const extraInputRef = useRef();
+  const fileInputRef = useRef();
 
   const [patient, setPatient] = useState(null);
-  const [allPhotos, setAllPhotos] = useState([]);
-  const [allRadiographs, setAllRadiographs] = useState([]);
-  const [extraPhotos, setExtraPhotos] = useState([]);      // patient-level extra photos
+  const [cases, setCases] = useState([]);
+  const [images, setImages] = useState([]); // flat list of {caseId, ...image}
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [uploadType, setUploadType] = useState('photo');
-  const [uploadDate, setUploadDate] = useState(new Date().toISOString().split('T')[0]);
-  const [uploadingFiles, setUploadingFiles] = useState({});
-  const [uploadingExtra, setUploadingExtra] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [deletingId, setDeletingId] = useState(null);
+  const [selectedCaseId, setSelectedCaseId] = useState(null); // for upload target
 
   useEffect(() => { fetchData(); }, [patientId]);
 
   const fetchData = async () => {
     try {
-      const [patientRes, implantsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/patients/${patientId}`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/implants?patient_id=${patientId}`, { withCredentials: true }),
+      const [patientData, casesData] = await Promise.all([
+        getPatient(patientId),
+        getCases({ patientId }),
       ]);
-      setPatient(patientRes.data);
+      setPatient(patientData);
+      const caseList = casesData.items ?? casesData;
+      setCases(caseList);
 
-      const photos = [];
-      const radiographs = [];
-      implantsRes.data.forEach(implant => {
-        (implant.clinical_photos || []).forEach(photo => {
-          photos.push({ ...photo, implant_id: implant._id, tooth_number: implant.tooth_number, date: photo.uploaded_at || implant.created_at });
-        });
-        (implant.radiographs || []).forEach(radio => {
-          radiographs.push({ ...radio, implant_id: implant._id, tooth_number: implant.tooth_number, date: radio.uploaded_at || implant.created_at });
-        });
-      });
-      setAllPhotos(photos);
-      setAllRadiographs(radiographs);
-
-      if (photos.length > 0) setSelectedItem({ type: 'photo', ...photos[0] });
-      else if (radiographs.length > 0) setSelectedItem({ type: 'radiograph', ...radiographs[0] });
+      // Load images from all cases in parallel
+      if (caseList.length > 0) {
+        const allImagesNested = await Promise.all(
+          caseList.map(c =>
+            getImages(c.id).then(imgs => imgs.map(img => ({ ...img, caseId: c.id, caseTitle: c.title }))).catch(() => [])
+          )
+        );
+        const flat = allImagesNested.flat();
+        setImages(flat);
+        if (flat.length > 0) setSelectedItem(flat[0]);
+        if (caseList[0]) setSelectedCaseId(caseList[0].id);
+      }
     } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to load vault');
       navigate(`/patients/${patientId}`);
     } finally {
       setLoading(false);
     }
-
-    // Extra photos — fetch separately so a failure doesn't crash the whole vault
-    try {
-      const extraRes = await axios.get(`${API_URL}/api/patients/${patientId}/photos`, { withCredentials: true });
-      setExtraPhotos(extraRes.data);
-    } catch {
-      // silently ignore — extra photos section just stays empty
-    }
   };
 
-  const handleFileUpload = async (file, viewType, implantId) => {
-    const uploadKey = `${uploadType}_${viewType}`;
-    setUploadingFiles(prev => ({ ...prev, [uploadKey]: true }));
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const endpoint = uploadType === 'photo' ? 'photos' : 'radiographs';
-      await axios.post(
-        `${API_URL}/api/implants/${implantId}/${endpoint}?view_type=${viewType}`,
-        formData,
-        { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-      toast.success('File uploaded successfully');
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to upload file');
-    } finally {
-      setUploadingFiles(prev => ({ ...prev, [uploadKey]: false }));
-    }
-  };
-
-  /* Upload extra patient photos — up to 12 at a time */
-  const handleExtraUpload = async (files) => {
-    const remaining = MAX_EXTRA_PHOTOS - extraPhotos.length;
-    if (remaining <= 0) {
-      toast.error(`Maximum ${MAX_EXTRA_PHOTOS} extra photos reached`);
+  const handleUpload = async (files) => {
+    if (!selectedCaseId) {
+      toast.error('No case selected for upload');
       return;
     }
-    const toUpload = Array.from(files).slice(0, remaining);
-    if (toUpload.length < files.length) {
-      toast.warning(`Only ${remaining} slot(s) left — uploading first ${toUpload.length} file(s)`);
-    }
-    setUploadingExtra(true);
+    setUploading(true);
+    setUploadProgress(0);
     let uploaded = 0;
-    for (const file of toUpload) {
+    for (const file of Array.from(files)) {
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        await axios.post(
-          `${API_URL}/api/patients/${patientId}/photos?caption=${encodeURIComponent(file.name)}`,
-          formData,
-          { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } }
-        );
+        await uploadImage(selectedCaseId, file, {
+          category: 'general',
+          onProgress: (pct) => setUploadProgress(pct),
+        });
         uploaded++;
       } catch {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
-    if (uploaded > 0) toast.success(`${uploaded} photo${uploaded > 1 ? 's' : ''} added`);
-    setUploadingExtra(false);
+    if (uploaded > 0) toast.success(`${uploaded} file${uploaded > 1 ? 's' : ''} uploaded`);
+    setUploading(false);
+    setUploadProgress(0);
     fetchData();
   };
 
-  /* Delete an extra photo */
-  const handleDeleteExtra = async (photo) => {
-    setDeletingId(photo.id);
+  const handleDelete = async (image) => {
+    setDeletingId(image.id);
     try {
-      await axios.delete(`${API_URL}/api/patients/${patientId}/photos/${photo.id}`, { withCredentials: true });
-      toast.success('Photo deleted');
-      if (selectedItem?.id === photo.id) setSelectedItem(null);
+      await deleteImage(image.caseId, image.id);
+      toast.success('Image deleted');
+      if (selectedItem?.id === image.id) setSelectedItem(null);
       fetchData();
     } catch {
-      toast.error('Failed to delete photo');
+      toast.error('Failed to delete image');
     } finally {
       setDeletingId(null);
     }
@@ -162,16 +96,17 @@ const MedicalVault = () => {
   const groupByDate = (items) => {
     const grouped = {};
     items.forEach(item => {
-      const date = new Date(item.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(item);
+      const d = item.created_at || item.uploaded_at;
+      const label = d
+        ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        : 'Unknown date';
+      if (!grouped[label]) grouped[label] = [];
+      grouped[label].push(item);
     });
     return grouped;
   };
 
-  const photosByDate = groupByDate(allPhotos);
-  const radiographsByDate = groupByDate(allRadiographs);
-  const slotsLeft = MAX_EXTRA_PHOTOS - extraPhotos.length;
+  const imagesByDate = groupByDate(images);
 
   if (loading) {
     return (
@@ -182,10 +117,10 @@ const MedicalVault = () => {
   }
 
   return (
-    <div className="flex h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+    <div className="flex flex-col md:flex-row h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
 
       {/* ── LEFT SIDEBAR ── */}
-      <div className="w-80 bg-white border-r border-[#E5E5E2] flex flex-col">
+      <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-[#E5E5E2] flex flex-col h-[45vh] md:h-full">
 
         {/* Header */}
         <div className="p-4 border-b border-[#E5E5E2]">
@@ -199,179 +134,106 @@ const MedicalVault = () => {
           <p className="text-sm text-[#5C6773] mt-1">{patient?.name}</p>
         </div>
 
-        {/* Upload buttons */}
-        <div className="p-4 space-y-2 border-b border-[#E5E5E2]">
-          <button
-            onClick={() => { setUploadType('photo'); setUploadDialogOpen(true); }}
-            data-testid="add-photos-button"
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] text-white rounded-lg transition-colors"
+        {/* Case selector + Upload */}
+        <div className="p-4 space-y-3 border-b border-[#E5E5E2]">
+          {cases.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-[#5C6773] mb-1">Upload to case</label>
+              <select
+                value={selectedCaseId || ''}
+                onChange={e => setSelectedCaseId(e.target.value)}
+                data-testid="case-selector"
+                className="w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-lg text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none"
+              >
+                {cases.map(c => (
+                  <option key={c.id} value={c.id}>{c.title || `Case ${c.id.slice(-6)}`}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <label
+            data-testid="add-images-button"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+              uploading ? 'bg-[#E5E5E2] cursor-not-allowed' : 'bg-[#82A098] hover:bg-[#6B8A82] text-white'
+            }`}
           >
-            <Plus size={20} weight="bold" />
-            <span className="font-medium">Add New Photos</span>
-          </button>
-          <button
-            onClick={() => { setUploadType('radiograph'); setUploadDialogOpen(true); }}
-            data-testid="add-radiographs-button"
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] text-white rounded-lg transition-colors"
-          >
-            <Plus size={20} weight="bold" />
-            <span className="font-medium">Add New Radiographs</span>
-          </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              className="hidden"
+              disabled={uploading || !selectedCaseId}
+              onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ''; }}
+            />
+            {uploading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                <span className="font-medium text-white">{uploadProgress}%</span>
+              </>
+            ) : (
+              <>
+                <Plus size={20} weight="bold" />
+                <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add Images / PDFs'}</span>
+              </>
+            )}
+          </label>
         </div>
 
         {/* Scrollable thumbnail area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-
-          {/* ── EXTRA PHOTOS SECTION ── */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">
-                Extra Photos
-              </h3>
-              <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
-            </div>
-
-            {/* Grid: existing thumbnails + add button(s) */}
-            <div className="grid grid-cols-3 gap-2">
-              {/* Existing extra photos */}
-              {extraPhotos.map((photo) => (
-                <div key={photo.id} className="relative group aspect-square">
-                  <button
-                    onClick={() => setSelectedItem({ type: 'extra', ...photo, date: photo.uploaded_at, storage_path: photo.storage_path })}
-                    className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedItem?.id === photo.id
-                        ? 'border-[#C27E70] ring-2 ring-[#C27E70]/30'
-                        : 'border-[#E5E5E2] hover:border-[#C27E70]'
-                    }`}
-                    data-testid={`extra-photo-thumb-${photo.id}`}
-                  >
-                    <img
-                      src={`${API_URL}/api/files/${photo.storage_path}`}
-                      alt={photo.caption || 'Extra photo'}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                  {/* Delete button — appears on hover */}
-                  <button
-                    onClick={() => handleDeleteExtra(photo)}
-                    disabled={deletingId === photo.id}
-                    data-testid={`delete-extra-photo-${photo.id}`}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                    title="Delete photo"
-                  >
-                    {deletingId === photo.id
-                      ? <span className="text-[8px] animate-spin">◌</span>
-                      : <X size={10} weight="bold" />}
-                  </button>
-                </div>
-              ))}
-
-              {/* "+" add thumbnail — only shown if slots remain */}
-              {slotsLeft > 0 && (
-                <label
-                  data-testid="add-extra-photo-btn"
-                  className="aspect-square rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] flex flex-col items-center justify-center cursor-pointer transition-all group"
-                  title={`Add up to ${slotsLeft} more photo${slotsLeft !== 1 ? 's' : ''}`}
-                >
-                  <input
-                    ref={extraInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
-                    disabled={uploadingExtra}
-                  />
-                  {uploadingExtra ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#C27E70]" />
-                  ) : (
-                    <>
-                      <Plus size={20} className="text-[#C27E70] mb-1" weight="bold" />
-                      <span className="text-[10px] text-[#9CA3AF] text-center leading-tight px-1">
-                        Add photos<br />({slotsLeft} left)
-                      </span>
-                    </>
-                  )}
-                </label>
-              )}
-
-              {/* Empty placeholder thumbnails to fill the row visually */}
-              {extraPhotos.length === 0 && slotsLeft > 0 && (
-                <div className="col-span-2 flex items-center pl-1">
-                  <p className="text-xs text-[#9CA3AF]">Click + to add up to {MAX_EXTRA_PHOTOS} photos</p>
-                </div>
+          {Object.keys(imagesByDate).length === 0 ? (
+            <div className="text-center py-12">
+              <Image size={48} className="mx-auto text-[#E5E5E2] mb-3" />
+              <p className="text-sm text-[#5C6773]">No images yet</p>
+              {cases.length === 0 && (
+                <p className="text-xs text-[#9CA3AF] mt-1">Create a case first, then upload images here</p>
               )}
             </div>
-          </div>
-
-          {/* ── CLINICAL PHOTOS ── */}
-          {Object.keys(photosByDate).length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Clinical Photos</h3>
-              {Object.entries(photosByDate).map(([date, photos]) => (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen size={16} className="text-[#82A098]" />
-                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                    <span className="text-xs text-[#5C6773]">({photos.length})</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 ml-6">
-                    {photos.map((photo, idx) => (
+          ) : (
+            Object.entries(imagesByDate).map(([date, imgs]) => (
+              <div key={date}>
+                <div className="flex items-center gap-2 mb-2">
+                  <FolderOpen size={16} className="text-[#82A098]" />
+                  <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                  <span className="text-xs text-[#5C6773]">({imgs.length})</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {imgs.map(img => (
+                    <div key={img.id} className="relative group aspect-square">
                       <button
-                        key={idx}
-                        onClick={() => setSelectedItem({ type: 'photo', ...photo })}
-                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedItem?.id === photo.id && selectedItem?.type === 'photo'
+                        onClick={() => setSelectedItem(img)}
+                        data-testid={`image-thumb-${img.id}`}
+                        className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                          selectedItem?.id === img.id
                             ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
                             : 'border-[#E5E5E2] hover:border-[#82A098]'
                         }`}
                       >
-                        <img src={`${API_URL}/api/files/${photo.storage_path}`} alt={photo.view_type} className="w-full h-full object-cover" />
+                        {img.thumbnail_url ? (
+                          <img src={img.thumbnail_url} alt="thumb" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                            <Image size={24} className="text-[#E5E5E2]" />
+                          </div>
+                        )}
                       </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ── RADIOGRAPHS ── */}
-          {Object.keys(radiographsByDate).length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Radiographs</h3>
-              {Object.entries(radiographsByDate).map(([date, radiographs]) => (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen size={16} className="text-[#7B9EBB]" />
-                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                    <span className="text-xs text-[#5C6773]">({radiographs.length})</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 ml-6">
-                    {radiographs.map((radio, idx) => (
                       <button
-                        key={idx}
-                        onClick={() => setSelectedItem({ type: 'radiograph', ...radio })}
-                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedItem?.id === radio.id && selectedItem?.type === 'radiograph'
-                            ? 'border-[#7B9EBB] ring-2 ring-[#7B9EBB]/30'
-                            : 'border-[#E5E5E2] hover:border-[#7B9EBB]'
-                        }`}
+                        onClick={() => handleDelete(img)}
+                        disabled={deletingId === img.id}
+                        data-testid={`delete-image-${img.id}`}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        title="Delete image"
                       >
-                        <img src={`${API_URL}/api/files/${radio.storage_path}`} alt={radio.view_type} className="w-full h-full object-cover" />
+                        {deletingId === img.id
+                          ? <span className="text-[8px] animate-spin">◌</span>
+                          : <X size={10} weight="bold" />}
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {Object.keys(photosByDate).length === 0 && Object.keys(radiographsByDate).length === 0 && extraPhotos.length === 0 && (
-            <div className="text-center py-12">
-              <Image size={48} className="mx-auto text-[#E5E5E2] mb-3" />
-              <p className="text-sm text-[#5C6773]">No photos or radiographs yet</p>
-              <p className="text-xs text-[#5C6773] mt-1">Click above to add files</p>
-            </div>
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -382,46 +244,34 @@ const MedicalVault = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-medium text-[#2A2F35]">
-                {selectedItem ? (
-                  selectedItem.type === 'extra'
-                    ? (selectedItem.caption || 'Extra Photo')
-                    : <>
-                        {selectedItem.type === 'photo' ? 'Clinical Photo' : 'Radiograph'} —{' '}
-                        {selectedItem.view_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </>
-                ) : 'No Image Selected'}
+                {selectedItem ? (selectedItem.category || 'Image') : 'No Image Selected'}
               </h3>
               {selectedItem && (
                 <p className="text-sm text-[#5C6773] mt-1">
-                  {selectedItem.type === 'extra'
-                    ? `Uploaded ${new Date(selectedItem.date).toLocaleDateString()}`
-                    : `Tooth #${selectedItem.tooth_number} • ${new Date(selectedItem.date).toLocaleDateString()}`}
+                  {selectedItem.caseTitle || `Case ${(selectedItem.caseId || '').slice(-6)}`}
+                  {selectedItem.created_at && ` • ${new Date(selectedItem.created_at).toLocaleDateString()}`}
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              {selectedItem?.size && (
-                <span className="text-sm text-[#5C6773]">{Math.round(selectedItem.size / 1024)} KB</span>
-              )}
-              {selectedItem?.type === 'extra' && (
-                <button
-                  onClick={() => handleDeleteExtra(selectedItem)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                  data-testid="delete-selected-extra"
-                >
-                  <Trash size={13} weight="bold" /> Delete
-                </button>
-              )}
-            </div>
+            {selectedItem && (
+              <button
+                onClick={() => handleDelete(selectedItem)}
+                data-testid="delete-selected-image"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash size={13} weight="bold" /> Delete
+              </button>
+            )}
           </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center p-8 bg-[#F0F0EE]">
           {selectedItem ? (
             <img
-              src={`${API_URL}/api/files/${selectedItem.storage_path}`}
-              alt={selectedItem.view_type || selectedItem.caption || 'Photo'}
+              src={selectedItem.url}
+              alt={selectedItem.category || 'Clinical image'}
               className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+              onError={e => { e.target.style.display = 'none'; }}
             />
           ) : (
             <div className="text-center">
@@ -431,64 +281,6 @@ const MedicalVault = () => {
           )}
         </div>
       </div>
-
-      {/* ── UPLOAD DIALOG (implant-linked photos/radiographs) ── */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-semibold" style={{ fontFamily: 'Work Sans, sans-serif' }}>
-              {uploadType === 'photo' ? 'Add Clinical Photos' : 'Add Radiographs'}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="mt-4">
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[#2A2F35] mb-2">Date of Capture</label>
-              <input
-                type="date"
-                value={uploadDate}
-                onChange={(e) => setUploadDate(e.target.value)}
-                className="px-4 py-2 bg-white border border-[#E5E5E2] rounded-lg focus:ring-2 focus:ring-[#82A098] focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {(uploadType === 'photo' ? PHOTO_VIEWS : RADIOGRAPH_VIEWS).map(view => {
-                const uploadKey = `${uploadType}_${view.id}`;
-                const isUploading = uploadingFiles[uploadKey];
-                return (
-                  <div key={view.id} className="border border-[#E5E5E2] rounded-lg p-3">
-                    <p className="text-xs text-[#5C6773] mb-2 min-h-[32px]">{view.label}</p>
-                    <label className="aspect-square bg-[#F9F9F8] border-2 border-dashed border-[#E5E5E2] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[#82A098] hover:bg-white transition-all">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files[0]) handleFileUpload(e.target.files[0], view.id, 'temp_implant_id');
-                        }}
-                        disabled={isUploading}
-                      />
-                      {isUploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#82A098]" />
-                      ) : (
-                        <>
-                          <Upload size={24} className="text-[#5C6773] mb-2" />
-                          <span className="text-xs text-[#5C6773]">Upload</span>
-                        </>
-                      )}
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-
-            <Button onClick={() => setUploadDialogOpen(false)} className="w-full mt-6 bg-[#82A098] hover:bg-[#6B8A82] text-white">
-              Done
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

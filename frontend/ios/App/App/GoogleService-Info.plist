@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>359547764030-8dsbpb8g3j8npv7th2voi5i2mi5a8hi3.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.359547764030-8dsbpb8g3j8npv7th2voi5i2mi5a8hi3</string>
+	<key>API_KEY</key>
+	<string>AIzaSyAW5EZB8rsBumgAcGZumrXF9U43GeNR9yE</string>
+	<key>GCM_SENDER_ID</key>
+	<string>359547764030</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.osioloc.app</string>
+	<key>PROJECT_ID</key>
+	<string>osioloc-prod</string>
+	<key>STORAGE_BUCKET</key>
+	<string>osioloc-prod.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:359547764030:ios:845b32b7ed0f65da79006f</string>
+</dict>
+</plist>

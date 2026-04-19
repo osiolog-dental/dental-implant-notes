@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Capacitor / PWA safe area support */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+}
+
+html, body {
+  /* Prevent rubber-band overscroll showing white background on iOS */
+  overscroll-behavior: none;
+  background-color: #F9F9F8;
+}
+
 body {
     margin: 0;
     font-family:

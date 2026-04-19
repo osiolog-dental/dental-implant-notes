@@ -68,6 +68,11 @@ chainlit.md
 agenthub/agents/youtube/db
 backend/uploads/
 
+# Data files — may contain patient/clinical data
+*.xlsx
+*.xls
+*.csv
+
 # Archive files and large assets
 **/*.zip
 **/*.tar.gz
@@ -99,3 +104,7 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Firebase service account — contains private key, must never be committed
+backend/firebase-service-account.json
+backend/.venv/

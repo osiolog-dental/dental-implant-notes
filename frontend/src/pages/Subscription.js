@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
+import client from '../api/client';
 import {
   CheckCircle, X, Crown, Buildings, User,
   HardDrive, ArrowRight, Star,
 } from '@phosphor-icons/react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 /* ── Plan definitions ── */
 const PLANS = [
@@ -125,7 +124,7 @@ export default function Subscription() {
   const [upgrading, setUpgrading] = useState(null);
 
   useEffect(() => {
-    axios.get(`${API_URL}/api/subscription/status`, { withCredentials: true })
+    client.get('/api/subscription/status')
       .then(r => setStatus(r.data))
       .catch(() => {});
   }, []);
@@ -136,12 +135,9 @@ export default function Subscription() {
     if (planKey === currentPlan) return;
     setUpgrading(planKey);
     try {
-      await axios.post(`${API_URL}/api/subscription/upgrade`,
-        { plan: planKey, billing },
-        { withCredentials: true }
-      );
+      await client.post('/api/subscription/upgrade', { plan: planKey, billing });
       toast.success(`Upgraded to ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan!`);
-      const r = await axios.get(`${API_URL}/api/subscription/status`, { withCredentials: true });
+      const r = await client.get('/api/subscription/status');
       setStatus(r.data);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Upgrade failed');
