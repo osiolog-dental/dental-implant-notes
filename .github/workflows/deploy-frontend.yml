@@ -53,6 +53,6 @@ jobs:
 
       - name: Deploy via rsync
         run: |
-          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /var/www/osioloc && sudo chown ubuntu:ubuntu /var/www/osioloc"
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /var/www/osioloc && sudo chown -R ubuntu:ubuntu /var/www/osioloc"
           rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" frontend/build/ ubuntu@${{ secrets.EC2_HOST }}:/var/www/osioloc/
           ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "sudo chown -R www-data:www-data /var/www/osioloc && sudo nginx -t && sudo systemctl reload nginx && echo 'Done'"
