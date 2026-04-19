@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from typing import Any
 
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -12,7 +14,7 @@ _app: firebase_admin.App | None = None
 
 
 def _init_firebase() -> firebase_admin.App:
-    """Initialise the Firebase Admin SDK once. Subsequent calls return the existing app."""
+    """Initialise the Firebase Admin SDK once."""
     global _app
     if _app is not None:
         return _app
@@ -20,32 +22,22 @@ def _init_firebase() -> firebase_admin.App:
     sa = settings.FIREBASE_SERVICE_ACCOUNT_JSON
 
     if sa and sa.strip().startswith("{"):
-        # Inline JSON service account string
         cred = credentials.Certificate(json.loads(sa))
-        _app = firebase_admin.initialize_app(cred)
     elif sa and os.path.exists(sa):
-        # File path to service account JSON
-        _app = firebase_admin.initialize_app(credentials.Certificate(sa))
+        cred = credentials.Certificate(sa)
     else:
-        # No service account available — use project ID only.
-        # Firebase Admin SDK verifies tokens using Google's public JWKS endpoint,
-        # which does not require a service account key.
-        _app = firebase_admin.initialize_app(
-            options={"projectId": settings.FIREBASE_PROJECT_ID}
-        )
+        # No service account key — use a no-op credential.
+        # verify_id_token() works without a service account: it fetches
+        # Google's public JWKS certs to verify the RS256 signature.
+        cred = credentials.Base()
 
+    _app = firebase_admin.initialize_app(cred, options={"projectId": settings.FIREBASE_PROJECT_ID})
     return _app
 
 
-# Initialise on import
 _init_firebase()
 
 
-def verify_id_token(id_token: str) -> dict:
-    """
-    Verify a Firebase ID token and return the decoded claims.
-
-    Raises firebase_admin.auth.InvalidIdTokenError (or subclasses) on failure.
-    The caller is responsible for converting this to an HTTP 401.
-    """
-    return auth.verify_id_token(id_token)
+def verify_id_token(id_token: str) -> dict[str, Any]:
+    """Verify a Firebase ID token and return decoded claims."""
+    return auth.verify_id_token(id_token, app=_app, check_revoked=False)
