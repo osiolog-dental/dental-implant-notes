@@ -12,9 +12,12 @@ class PatientBase(BaseModel):
     gender: str | None = None
     phone: str | None = None
     email: EmailStr | None = None
+    alternate_email: str | None = None
+    emergency_phone: str | None = None
     address: str | None = None
     medical_history: str | None = None
     tooth_conditions: dict | None = None
+    profile_picture: str | None = None
 
 
 class PatientCreate(PatientBase):
@@ -27,6 +30,8 @@ class PatientUpdate(BaseModel):
     gender: str | None = None
     phone: str | None = None
     email: EmailStr | None = None
+    alternate_email: str | None = None
+    emergency_phone: str | None = None
     address: str | None = None
     medical_history: str | None = None
     tooth_conditions: dict | None = None

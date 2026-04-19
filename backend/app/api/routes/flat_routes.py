@@ -12,6 +12,7 @@ import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -281,5 +282,29 @@ async def upload_patient_profile_picture(
     image_bytes = await file.read()
     await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
 
+    # Store s3_key on the patient record so /api/files/:filename can serve it
+    patient.profile_picture = s3_key
+    db.add(patient)
+    await db.flush()
+
     url = s3_service.generate_download_url(s3_key)
-    return {"profile_picture_url": url}
+    return {"profile_picture_url": url, "profile_picture": s3_key}
+
+
+# ── /api/files/:filename — presigned redirect for image src tags  ─────────────
+
+@router.get("/files/{filename:path}")
+async def serve_file(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+) -> RedirectResponse:
+    """
+    Redirect to a presigned S3 download URL.
+    The frontend uses this as an <img src> for patient photos and warranty cards.
+    `filename` is the S3 key stored in patient.profile_picture or fpd.warranty_image_url.
+    """
+    try:
+        url = s3_service.generate_download_url(filename)
+        return RedirectResponse(url=url, status_code=302)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found")
