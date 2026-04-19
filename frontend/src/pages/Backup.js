@@ -1,12 +1,10 @@
 import { useState, useRef } from 'react';
-import axios from 'axios';
+import client from '../api/client';
 import { toast } from 'sonner';
 import {
   CloudArrowUp, CloudArrowDown, DownloadSimple,
   UploadSimple, GoogleLogo, CheckCircle, ArrowClockwise,
 } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 /* ── Google OAuth2 config ──
    Fill REACT_APP_GOOGLE_CLIENT_ID in frontend/.env
@@ -129,7 +127,7 @@ export default function Backup() {
   const handleLocalExport = async () => {
     setLoadingExport(true);
     try {
-      const res = await axios.get(`${API_URL}/api/backup/export`, { withCredentials: true });
+      const res = await client.get(`/api/backup/export`);
       const json = JSON.stringify(res.data, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -151,7 +149,7 @@ export default function Backup() {
     setLoadingDriveUp(true);
     try {
       const token = await getGoogleToken();
-      const res = await axios.get(`${API_URL}/api/backup/export`, { withCredentials: true });
+      const res = await client.get(`/api/backup/export`);
       const json = JSON.stringify(res.data, null, 2);
       await uploadToDrive(token, json);
       const now = new Date().toLocaleString('en-IN', {
@@ -207,10 +205,7 @@ export default function Backup() {
     if (!restorePreview) return;
     setLoadingRestore(true);
     try {
-      const res = await axios.post(`${API_URL}/api/backup/restore`, restorePreview.data, {
-        withCredentials: true,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const res = await client.post(`/api/backup/restore`, restorePreview.data);
       const { inserted } = res.data;
       toast.success(
         `Restore complete — ${inserted.patients} patients, ${inserted.implants} implants, ${inserted.fpd_records} FPD records imported`

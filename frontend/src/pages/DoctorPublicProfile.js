@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import client from '../api/client';
 import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -20,7 +20,7 @@ export default function DoctorPublicProfile() {
   const profileUrl = `${window.location.origin}/profile/${doctorId}`;
 
   useEffect(() => {
-    axios.get(`${API_URL}/api/public/profile/${doctorId}`)
+    client.get(`/api/public/profile/${doctorId}`)
       .then(r => setProfile(r.data))
       .catch(e => {
         if (e.response?.status === 404) setNotFound(true);
@@ -42,8 +42,8 @@ export default function DoctorPublicProfile() {
       // Profile photo
       if (profile.profile_picture) {
         try {
-          const res = await fetch(`${API_URL}/api/files/${profile.profile_picture}`, { credentials: 'include' });
-          const blob = await res.blob();
+          const res = await client.get(`/api/files/${profile.profile_picture}`, { responseType: 'blob' });
+          const blob = res.data;
           const b64 = await new Promise(resolve => {
             const fr = new FileReader();
             fr.onload = () => resolve(fr.result);

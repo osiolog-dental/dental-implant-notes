@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import client from '../api/client';
 import { X, Megaphone } from '@phosphor-icons/react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 const SESSION_KEY = 'osiolog_extad_dismissed';
 
 export default function ExternalAdBanner() {
@@ -14,7 +13,7 @@ export default function ExternalAdBanner() {
     // Don't show if dismissed this session
     if (sessionStorage.getItem(SESSION_KEY)) return;
 
-    axios.get(`${API_URL}/api/ads`)
+    client.get(`/api/ads`)
       .then(r => {
         if (r.data?.length > 0) {
           setAds(r.data);
