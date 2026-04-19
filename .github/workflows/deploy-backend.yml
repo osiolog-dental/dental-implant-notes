@@ -54,7 +54,10 @@ jobs:
             cd ..
 
             echo "Updating Firebase project ID in env..."
-            sudo sed -i 's/FIREBASE_PROJECT_ID=.*/FIREBASE_PROJECT_ID=osiolog-prod/' /app/.env
+            sudo grep -q "FIREBASE_PROJECT_ID" /app/.env \
+              && sudo sed -i 's/FIREBASE_PROJECT_ID=.*/FIREBASE_PROJECT_ID=osiolog-prod/' /app/.env \
+              || echo "FIREBASE_PROJECT_ID=osiolog-prod" | sudo tee -a /app/.env
+            sudo grep "FIREBASE_PROJECT_ID" /app/.env
 
             echo "Restarting backend..."
             sudo systemctl restart osioloc-backend
