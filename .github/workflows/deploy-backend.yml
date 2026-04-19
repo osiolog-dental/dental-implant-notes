@@ -26,19 +26,29 @@ jobs:
             set -e
             cd /app/dental-implant-notes
 
+            echo "Ensuring correct git remote..."
+            git remote set-url origin https://github.com/osioloc-dental/dental-implant-notes.git
+
             echo "Pulling latest code..."
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "Installing dependencies..."
             source /app/venv/bin/activate
             pip install -r backend/requirements.txt -q
 
-            echo "Running migrations..."
-            # Load env vars (try multiple locations)
-            if [ -f /app/osioloc.env ]; then set -a && source /app/osioloc.env && set +a
-            elif [ -f /app/dental-implant-notes/backend/.env ]; then set -a && source /app/dental-implant-notes/backend/.env && set +a
-            elif [ -f /etc/osioloc.env ]; then set -a && source /etc/osioloc.env && set +a
-            else echo "Warning: no env file found, relying on system env"; fi
+            echo "Running migrations (using env from systemd service file)..."
+            # Source the same env file that the systemd service uses
+            SVCENV=$(sudo systemctl show osioloc-backend --property=EnvironmentFiles 2>/dev/null | grep -oP '(?<=EnvironmentFiles=)[^ ]+' | head -1 || true)
+            if [ -n "$SVCENV" ] && [ -f "$SVCENV" ]; then
+              set -a && source "$SVCENV" && set +a
+              echo "Loaded env from: $SVCENV"
+            else
+              echo "Checking fallback env locations..."
+              for f in /etc/osioloc.env /app/osioloc.env /etc/osioloc/env; do
+                [ -f "$f" ] && { set -a && source "$f" && set +a && echo "Loaded $f" && break; }
+              done
+            fi
             cd backend
             alembic upgrade head
             cd ..
