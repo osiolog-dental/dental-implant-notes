@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
           <h1 className="text-3xl font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>
             Privacy Policy
           </h1>
-          <p className="text-[#5C6773] mt-2 text-sm">Osioloc — Last updated: April 19, 2026</p>
+          <p className="text-[#5C6773] mt-2 text-sm">Osiolog — Last updated: April 19, 2026</p>
         </div>
 
         <div className="space-y-8 text-[#2A2F35]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-lg font-semibold mb-2">1. Who We Are</h2>
             <p className="text-[#5C6773] leading-relaxed">
-              Osioloc ("we", "our", "us") is a dental implant case management platform built for licensed dental professionals in India and worldwide. Our registered domain is <strong>osioloc.com</strong>. For privacy-related queries, contact us at <a href="mailto:admin@osioloc.com" className="text-[#82A098] underline">admin@osioloc.com</a>.
+              Osiolog ("we", "our", "us") is a dental implant case management platform built for licensed dental professionals in India and worldwide. Our registered domain is <strong>osiolog.com</strong>. For privacy-related queries, contact us at <a href="mailto:admin@osiolog.com" className="text-[#82A098] underline">admin@osiolog.com</a>.
             </p>
           </section>
 
@@ -50,7 +50,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-lg font-semibold mb-2">5. Who Can Access Patient Data</h2>
             <p className="text-[#5C6773] leading-relaxed">
-              Patient data is strictly scoped to the treating doctor who created the record. No other doctor or Osioloc staff can access a clinic's patient records. Osioloc engineers may access anonymised logs for debugging purposes only, never clinical records.
+              Patient data is strictly scoped to the treating doctor who created the record. No other doctor or Osiolog staff can access a clinic's patient records. Osiolog engineers may access anonymised logs for debugging purposes only, never clinical records.
             </p>
           </section>
 
@@ -70,7 +70,7 @@ export default function PrivacyPolicy() {
               <li><strong className="text-[#2A2F35]">Portability:</strong> Export your patient and implant data via the app's export feature</li>
             </ul>
             <p className="text-[#5C6773] leading-relaxed mt-3">
-              For any data requests not covered above, email <a href="mailto:admin@osioloc.com" className="text-[#82A098] underline">admin@osioloc.com</a>.
+              For any data requests not covered above, email <a href="mailto:admin@osiolog.com" className="text-[#82A098] underline">admin@osiolog.com</a>.
             </p>
           </section>
 
@@ -85,7 +85,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-lg font-semibold mb-2">9. Children's Privacy</h2>
             <p className="text-[#5C6773] leading-relaxed">
-              Osioloc is intended for use by licensed dental professionals only. We do not knowingly collect data from individuals under 18 years of age.
+              Osiolog is intended for use by licensed dental professionals only. We do not knowingly collect data from individuals under 18 years of age.
             </p>
           </section>
 
@@ -100,8 +100,8 @@ export default function PrivacyPolicy() {
             <h2 className="text-lg font-semibold mb-2">11. Contact</h2>
             <p className="text-[#5C6773] leading-relaxed">
               For any privacy-related questions or requests:<br />
-              <strong className="text-[#2A2F35]">Email:</strong> <a href="mailto:admin@osioloc.com" className="text-[#82A098] underline">admin@osioloc.com</a><br />
-              <strong className="text-[#2A2F35]">Website:</strong> <a href="https://osioloc.com" className="text-[#82A098] underline">osioloc.com</a>
+              <strong className="text-[#2A2F35]">Email:</strong> <a href="mailto:admin@osiolog.com" className="text-[#82A098] underline">admin@osiolog.com</a><br />
+              <strong className="text-[#2A2F35]">Website:</strong> <a href="https://osiolog.com" className="text-[#82A098] underline">osiolog.com</a>
             </p>
           </section>
 

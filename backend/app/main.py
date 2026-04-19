@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     # ── CORS ──────────────────────────────────────────────────────────────────
     allowed_origins = [
         settings.FRONTEND_URL,
+        "https://app.osiolog.com",
         "https://osiolog.com",
         "https://www.osiolog.com",
         "https://dev.osioloc.com",

@@ -69,10 +69,10 @@ export default function DoctorPublicProfile() {
       doc.setFontSize(9);
       doc.text(`Reg. No: ${profile.registration_number || '—'}`, nameX, 38);
 
-      // DentalHub branding
+      // Osiolog branding
       doc.setFontSize(8);
       doc.setTextColor(180, 220, 210);
-      doc.text('DentalHub Professional Profile', W - pad, 48, { align: 'right' });
+      doc.text('Osiolog Professional Profile', W - pad, 48, { align: 'right' });
 
       let y = 64;
 
@@ -168,7 +168,7 @@ export default function DoctorPublicProfile() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(156, 163, 175);
-      doc.text(`Generated via DentalHub • ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, W / 2, 289, { align: 'center' });
+      doc.text(`Generated via Osiolog • ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, W / 2, 289, { align: 'center' });
 
       doc.save(`${displayName.replace(/\s+/g, '_')}_Profile.pdf`);
     } catch (e) {
@@ -326,7 +326,7 @@ export default function DoctorPublicProfile() {
 
         {/* Footer */}
         <p className="text-center text-xs text-[#9CA3AF] pb-8">
-          Powered by <span className="font-semibold text-[#82A098]">DentalHub</span>
+          Powered by <span className="font-semibold text-[#82A098]">Osiolog</span>
         </p>
       </div>
     </div>

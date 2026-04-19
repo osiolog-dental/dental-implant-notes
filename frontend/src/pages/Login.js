@@ -53,7 +53,7 @@ const Login = () => {
         <div className="relative z-10 flex items-center justify-center w-full p-12">
           <div className="text-white">
             <Tooth size={64} weight="fill" />
-            <h1 className="text-5xl font-semibold mt-6" style={{ fontFamily: 'Work Sans, sans-serif' }}>DentalHub</h1>
+            <h1 className="text-5xl font-semibold mt-6" style={{ fontFamily: 'Work Sans, sans-serif' }}>Osiolog</h1>
             <p className="text-xl mt-4 opacity-90">Professional Implant Management System</p>
           </div>
         </div>

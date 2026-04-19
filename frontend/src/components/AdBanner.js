@@ -6,7 +6,7 @@ const ADS = [
     id: 1,
     tag: 'New Feature',
     tagColor: '#82A098',
-    headline: 'Upgrade to DentalHub Pro',
+    headline: 'Upgrade to Osiolog Pro',
     sub: 'Unlock 5 GB storage, unlimited patients, and priority support.',
     cta: 'View Plans',
     ctaLink: '/subscription',

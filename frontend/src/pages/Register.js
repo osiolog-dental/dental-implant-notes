@@ -214,7 +214,7 @@ const Register = () => {
         <div className="relative z-10 flex flex-col justify-between w-full p-10">
           <div className="text-white">
             <Tooth size={48} weight="fill" />
-            <h1 className="text-4xl font-semibold mt-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>DentalHub</h1>
+            <h1 className="text-4xl font-semibold mt-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>Osiolog</h1>
             <p className="text-lg mt-2 opacity-90">Professional Clinical Network</p>
           </div>
           <div className="text-white/80 text-sm space-y-2">

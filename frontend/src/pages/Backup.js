@@ -133,7 +133,7 @@ export default function Backup() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `osioloc_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `osiolog_backup_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Backup downloaded to your device');

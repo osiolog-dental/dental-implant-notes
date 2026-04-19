@@ -15,7 +15,7 @@ import jsPDF from 'jspdf';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8002';
 
-/* ── Colours matching DentalHub design ── */
+/* ── Colours matching Osiolog design ── */
 const C = {
   brand:    [130, 160, 152],   // #82A098 teal
   accent:   [194, 126, 112],   // #C27E70 terracotta
@@ -85,7 +85,7 @@ function footer(doc, pageNum, total, patientName, date) {
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...C.mid);
-  doc.text(`DentalHub — ${patientName}`, 14, pageH - 7);
+  doc.text(`Osiolog — ${patientName}`, 14, pageH - 7);
   doc.text(`Generated ${date}`, 105, pageH - 7, { align: 'center' });
   doc.text(`Page ${pageNum} of ${total}`, 196, pageH - 7, { align: 'right' });
 }
@@ -136,7 +136,7 @@ export async function generatePatientPDF({
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...C.white);
-  doc.text('DentalHub', margin, 12);
+  doc.text('Osiolog', margin, 12);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text('Clinical Patient Report', margin, 19);
@@ -452,5 +452,5 @@ export async function generatePatientPDF({
 
   /* Save */
   const safeName = patientName.replace(/[^a-zA-Z0-9]/g, '_');
-  doc.save(`DentalHub_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`Osiolog_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
