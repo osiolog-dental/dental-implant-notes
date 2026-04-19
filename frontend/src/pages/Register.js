@@ -210,12 +210,13 @@ const Register = () => {
         className="hidden lg:flex lg:w-5/12 xl:w-2/5 bg-cover bg-center relative flex-shrink-0"
         style={{ backgroundImage: 'url(https://images.pexels.com/photos/1029624/pexels-photo-1029624.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940)' }}
       >
-        <div className="absolute inset-0 bg-[#82A098] opacity-25" />
+        <div className="absolute inset-0 bg-[#2A4A44] opacity-55" />
         <div className="relative z-10 flex flex-col justify-between w-full p-10">
-          <div className="text-white">
-            <Tooth size={48} weight="fill" />
-            <h1 className="text-4xl font-semibold mt-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>Osiolog</h1>
-            <p className="text-lg mt-2 opacity-90">Professional Clinical Network</p>
+          <div className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
+            <img src="/tooth_logo.png" alt="OSIOLOG logo" style={{ width: 64, height: 64, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+            <h1 className="text-5xl font-bold mt-4 tracking-wide" style={{ fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.08em' }}>OSIOLOG</h1>
+            <div className="mt-1 h-0.5 w-14 bg-[#C27E70] rounded-full"></div>
+            <p className="text-base mt-3 font-light tracking-widest uppercase opacity-95" style={{ letterSpacing: '0.15em' }}>Dental Implant Management System</p>
           </div>
           <div className="text-white/80 text-sm space-y-2">
             <p className="flex items-center gap-2"><span className="text-[#C27E70]">✓</span> Track implant cases with FDI chart</p>

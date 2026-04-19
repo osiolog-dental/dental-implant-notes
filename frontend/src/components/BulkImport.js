@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 import { toast } from 'sonner';
 import {
   DownloadSimple, UploadSimple, FileXls, CheckCircle,
   WarningCircle, Spinner,
 } from '@phosphor-icons/react';
-import client from '../api/client';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 /* ── Column definitions for each sheet ── */
 const PATIENT_COLS = [
@@ -131,7 +133,7 @@ function downloadTemplate() {
 
   // Instructions sheet
   const instrData = [
-    ['Osiolog — Bulk Import Template'],
+    ['OSIOLOG — Bulk Import Template'],
     [''],
     ['HOW TO USE THIS FILE'],
     ['1. Fill in the "Patients" sheet first — one row per patient.'],
@@ -156,7 +158,7 @@ function downloadTemplate() {
   instrWs['!cols'] = [{ wch: 80 }];
   XLSX.utils.book_append_sheet(wb, instrWs, 'Instructions');
 
-  XLSX.writeFile(wb, 'Osiolog_Import_Template.xlsx');
+  XLSX.writeFile(wb, 'OSIOLOG_Import_Template.xlsx');
 }
 
 export default function BulkImport() {
@@ -171,7 +173,8 @@ export default function BulkImport() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await client.post('/api/bulk-import', formData, {
+      const res = await axios.post(`${API_URL}/api/bulk-import`, formData, {
+        withCredentials: true,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setResult(res.data);
@@ -212,7 +215,7 @@ export default function BulkImport() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#EEF4F3] text-[#82A098] border border-[#C8DCD8] hover:bg-[#DDF0EC] transition-colors"
             >
               <DownloadSimple size={16} weight="bold" />
-              Download Osiolog_Import_Template.xlsx
+              Download OSIOLOG_Import_Template.xlsx
             </button>
           </div>
         </div>

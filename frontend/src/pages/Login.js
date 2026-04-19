@@ -16,16 +16,13 @@ const Login = () => {
 
   const submitLogin = async (nextEmail, nextPassword) => {
     setLoading(true);
-
     const result = await login(nextEmail, nextPassword);
-
     if (result.success) {
       toast.success('Welcome back!');
       navigate('/');
     } else {
       toast.error(result.error);
     }
-
     setLoading(false);
   };
 
@@ -49,12 +46,13 @@ const Login = () => {
           backgroundImage: 'url(https://images.pexels.com/photos/1029624/pexels-photo-1029624.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940)'
         }}
       >
-        <div className="absolute inset-0 bg-[#82A098] opacity-20"></div>
+        <div className="absolute inset-0 bg-[#2A4A44] opacity-55"></div>
         <div className="relative z-10 flex items-center justify-center w-full p-12">
-          <div className="text-white">
-            <Tooth size={64} weight="fill" />
-            <h1 className="text-5xl font-semibold mt-6" style={{ fontFamily: 'Work Sans, sans-serif' }}>Osiolog</h1>
-            <p className="text-xl mt-4 opacity-90">Professional Implant Management System</p>
+          <div className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
+            <img src="/tooth_logo.png" alt="OSIOLOG logo" style={{ width: 80, height: 80, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+            <h1 className="text-6xl font-bold mt-6 tracking-wide" style={{ fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.08em' }}>OSIOLOG</h1>
+            <div className="mt-1 h-0.5 w-16 bg-[#C27E70] rounded-full"></div>
+            <p className="text-lg mt-4 font-light tracking-widest uppercase opacity-95" style={{ letterSpacing: '0.18em' }}>Dental Implant Management System</p>
           </div>
         </div>
       </div>
@@ -135,12 +133,12 @@ const Login = () => {
               Use Demo Account
             </button>
           </div>
-        </div>
 
-        <p className="text-center text-xs text-[#5C6773] mt-6">
-          By signing in you agree to our{' '}
-          <Link to="/privacy" className="text-[#82A098] underline">Privacy Policy</Link>
-        </p>
+          <p className="text-center text-xs text-[#5C6773] mt-6">
+            By signing in you agree to our{' '}
+            <Link to="/privacy" className="text-[#82A098] underline">Privacy Policy</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

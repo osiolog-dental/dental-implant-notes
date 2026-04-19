@@ -6,7 +6,7 @@ const ADS = [
     id: 1,
     tag: 'New Feature',
     tagColor: '#82A098',
-    headline: 'Upgrade to Osiolog Pro',
+    headline: 'Upgrade to OSIOLOG Pro',
     sub: 'Unlock 5 GB storage, unlimited patients, and priority support.',
     cta: 'View Plans',
     ctaLink: '/subscription',
@@ -37,7 +37,7 @@ const ADS = [
   },
 ];
 
-const DISMISS_KEY = 'dentalhub_ad_dismissed';
+const DISMISS_KEY = 'osiolog_ad_dismissed';
 
 export default function AdBanner({ onNavigate }) {
   const [adIdx, setAdIdx] = useState(0);

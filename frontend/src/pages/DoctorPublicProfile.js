@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import client from '../api/client';
+import axios from 'axios';
 import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Stethoscope, Certificate, GraduationCap, MapPin,
   Buildings, Users, Tooth, CheckCircle, FilePdf,
 } from '@phosphor-icons/react';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function DoctorPublicProfile() {
   const { doctorId } = useParams();
@@ -18,7 +20,7 @@ export default function DoctorPublicProfile() {
   const profileUrl = `${window.location.origin}/profile/${doctorId}`;
 
   useEffect(() => {
-    client.get(`/api/public/profile/${doctorId}`)
+    axios.get(`${API_URL}/api/public/profile/${doctorId}`)
       .then(r => setProfile(r.data))
       .catch(e => {
         if (e.response?.status === 404) setNotFound(true);
@@ -40,7 +42,7 @@ export default function DoctorPublicProfile() {
       // Profile photo
       if (profile.profile_picture) {
         try {
-          const res = await fetch(`/api/files/${profile.profile_picture}`);
+          const res = await fetch(`${API_URL}/api/files/${profile.profile_picture}`, { credentials: 'include' });
           const blob = await res.blob();
           const b64 = await new Promise(resolve => {
             const fr = new FileReader();
@@ -69,10 +71,10 @@ export default function DoctorPublicProfile() {
       doc.setFontSize(9);
       doc.text(`Reg. No: ${profile.registration_number || '—'}`, nameX, 38);
 
-      // Osiolog branding
+      // DentalHub branding
       doc.setFontSize(8);
       doc.setTextColor(180, 220, 210);
-      doc.text('Osiolog Professional Profile', W - pad, 48, { align: 'right' });
+      doc.text('OSIOLOG — Dental Implant Management System', W - pad, 48, { align: 'right' });
 
       let y = 64;
 
@@ -168,7 +170,7 @@ export default function DoctorPublicProfile() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(156, 163, 175);
-      doc.text(`Generated via Osiolog • ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, W / 2, 289, { align: 'center' });
+      doc.text(`Generated via OSIOLOG • ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, W / 2, 289, { align: 'center' });
 
       doc.save(`${displayName.replace(/\s+/g, '_')}_Profile.pdf`);
     } catch (e) {
@@ -205,7 +207,7 @@ export default function DoctorPublicProfile() {
         <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center sm:items-end gap-5">
           {profile.profile_picture ? (
             <img
-              src={`/api/files/${profile.profile_picture}`}
+              src={`${API_URL}/api/files/${profile.profile_picture}`}
               alt={profile.name}
               className="w-24 h-24 rounded-full border-4 border-white/40 object-cover shadow-lg"
             />
@@ -326,7 +328,7 @@ export default function DoctorPublicProfile() {
 
         {/* Footer */}
         <p className="text-center text-xs text-[#9CA3AF] pb-8">
-          Powered by <span className="font-semibold text-[#82A098]">Osiolog</span>
+          Powered by <span className="font-semibold text-[#82A098]">OSIOLOG</span>
         </p>
       </div>
     </div>
