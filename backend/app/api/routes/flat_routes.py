@@ -135,7 +135,7 @@ async def create_fpd_flat(
         patient_id=body.patient_id,
         tooth_numbers=body.tooth_numbers,
         prosthetic_loading_date=body.prosthetic_loading_date,
-        crown_count=None,
+        crown_count=body.crown_count,
         connected_implant_ids=body.connected_implant_ids,
         crown_type=body.crown_type,
         material=body.material,
@@ -151,6 +151,7 @@ async def create_fpd_flat(
 
 
 @router.put("/fpd-records/{fpd_id}", response_model=FPDRead)
+@router.patch("/fpd-records/{fpd_id}", response_model=FPDRead)
 async def update_fpd_flat(
     fpd_id: uuid.UUID,
     body: FPDUpdate,
@@ -163,6 +164,20 @@ async def update_fpd_flat(
         raise HTTPException(status_code=404, detail="FPD record not found")
     fpd = await repo.update(fpd, body)
     return FPDRead.model_validate(fpd)
+
+
+@router.delete("/fpd-records/{fpd_id}", status_code=204)
+async def delete_fpd_flat(
+    fpd_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    repo = FPDRepository(db)
+    fpd = await repo.get(fpd_id, current_user.org_id)
+    if not fpd:
+        raise HTTPException(status_code=404, detail="FPD record not found")
+    await db.delete(fpd)
+    await db.commit()
 
 
 @router.post("/fpd-records/{fpd_id}/warranty-image")

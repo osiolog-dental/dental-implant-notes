@@ -10,7 +10,7 @@ from pydantic import BaseModel, model_serializer
 class FPDBase(BaseModel):
     tooth_numbers: list[int] = []
     prosthetic_loading_date: date | None = None
-    crown_count: int | None = None
+    crown_count: str | None = None
     connected_implant_ids: list[uuid.UUID] = []
     crown_type: str | None = None
     material: str | None = None

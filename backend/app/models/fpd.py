@@ -30,7 +30,7 @@ class ProstheticFPD(Base):
 
     tooth_numbers: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False, default=list)
     prosthetic_loading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    crown_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    crown_count: Mapped[str | None] = mapped_column(String(100), nullable=True)
     connected_implant_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list
     )
