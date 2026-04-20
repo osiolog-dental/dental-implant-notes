@@ -3,24 +3,58 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowLeft, Upload, Plus, FolderOpen, Image, X, Trash } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { getPatient } from '../api/patients';
 import { getCases } from '../api/cases';
-import { getImages, uploadImage, deleteImage } from '../api/images';
+import { getImages, uploadImage, deleteImage, clearImageCache } from '../api/images';
+
+const MAX_EXTRA_PHOTOS = 12;
+
+const PHOTO_VIEWS = [
+  { id: 'front_centric',         label: 'Front - Centric Occlusion' },
+  { id: 'front_protrusive',      label: 'Front - Protrusive' },
+  { id: 'right_centric',         label: 'Right - Centric Occlusion' },
+  { id: 'left_centric',          label: 'Left - Centric Occlusion' },
+  { id: 'front_right_exclusive', label: 'Front - Right Exclusive' },
+  { id: 'front_left_exclusive',  label: 'Front - Left Exclusive' },
+  { id: 'maxillary_occlusal',    label: 'Maxillary Occlusal' },
+  { id: 'mandibular_occlusal',   label: 'Mandibular Occlusal' },
+];
+
+const RADIOGRAPH_VIEWS = [
+  { id: 'pre_surgical',              label: 'Pre-Surgical' },
+  { id: 'immediate_post_surgical',   label: 'Immediate Post-Surgical' },
+  { id: 'immediate_post_prosthetic', label: 'Immediate Post-Prosthetic' },
+  { id: 'one_year_followup',         label: '1 Year Follow-Up' },
+];
 
 const MedicalVault = () => {
   const { patientId } = useParams();
   const navigate = useNavigate();
-  const fileInputRef = useRef();
+  const extraInputRef = useRef();
 
   const [patient, setPatient] = useState(null);
   const [cases, setCases] = useState([]);
-  const [images, setImages] = useState([]); // flat list of {caseId, ...image}
+  const [allImages, setAllImages] = useState([]); // flat: [...img, caseId, caseTitle]
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Upload dialog (photo / radiograph named views)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadType, setUploadType] = useState('photo');
+  const [uploadCaseId, setUploadCaseId] = useState(null);
+  const [uploadingFiles, setUploadingFiles] = useState({});
+
+  // Extra photos upload
+  const [uploadingExtra, setUploadingExtra] = useState(false);
+  const [extraCaseId, setExtraCaseId] = useState(null);
+
   const [deletingId, setDeletingId] = useState(null);
-  const [selectedCaseId, setSelectedCaseId] = useState(null); // for upload target
 
   useEffect(() => { fetchData(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -34,17 +68,20 @@ const MedicalVault = () => {
       const caseList = casesData.items ?? casesData;
       setCases(caseList);
 
-      // Load images from all cases in parallel
       if (caseList.length > 0) {
-        const allImagesNested = await Promise.all(
+        if (!uploadCaseId) setUploadCaseId(caseList[0].id);
+        if (!extraCaseId) setExtraCaseId(caseList[0].id);
+
+        const nested = await Promise.all(
           caseList.map(c =>
-            getImages(c.id).then(imgs => imgs.map(img => ({ ...img, caseId: c.id, caseTitle: c.title }))).catch(() => [])
+            getImages(c.id)
+              .then(imgs => imgs.map(img => ({ ...img, caseId: c.id, caseTitle: c.title })))
+              .catch(() => [])
           )
         );
-        const flat = allImagesNested.flat();
-        setImages(flat);
-        if (flat.length > 0) setSelectedItem(flat[0]);
-        if (caseList[0]) setSelectedCaseId(caseList[0].id);
+        const flat = nested.flat();
+        setAllImages(flat);
+        if (flat.length > 0 && !selectedItem) setSelectedItem(flat[0]);
       }
     } catch {
       toast.error('Failed to load vault');
@@ -54,38 +91,61 @@ const MedicalVault = () => {
     }
   };
 
-  const handleUpload = async (files) => {
-    if (!selectedCaseId) {
-      toast.error('No case selected for upload');
-      return;
+  // ── Named-view upload (clinical photos / radiographs) ─────────────────────
+  const handleViewUpload = async (file, viewId) => {
+    if (!uploadCaseId) { toast.error('No case selected'); return; }
+    const key = `${uploadType}_${viewId}`;
+    setUploadingFiles(prev => ({ ...prev, [key]: true }));
+    try {
+      await uploadImage(uploadCaseId, file, { category: `${uploadType}_${viewId}` });
+      toast.success('File uploaded');
+      caseList_invalidateAndRefetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to upload');
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [key]: false }));
     }
-    setUploading(true);
-    setUploadProgress(0);
+  };
+
+  const caseList_invalidateAndRefetch = () => {
+    cases.forEach(c => clearImageCache(c.id));
+    fetchData();
+  };
+
+  // ── Extra photos upload ───────────────────────────────────────────────────
+  const extraPhotos = allImages.filter(img => img.category === 'extra');
+  const slotsLeft = MAX_EXTRA_PHOTOS - extraPhotos.length;
+
+  const handleExtraUpload = async (files) => {
+    if (!extraCaseId) { toast.error('No case selected'); return; }
+    if (slotsLeft <= 0) { toast.error(`Maximum ${MAX_EXTRA_PHOTOS} extra photos reached`); return; }
+    const toUpload = Array.from(files).slice(0, slotsLeft);
+    if (toUpload.length < files.length) {
+      toast.warning(`Only ${slotsLeft} slot(s) left — uploading first ${toUpload.length} file(s)`);
+    }
+    setUploadingExtra(true);
     let uploaded = 0;
-    for (const file of Array.from(files)) {
+    for (const file of toUpload) {
       try {
-        await uploadImage(selectedCaseId, file, {
-          category: 'general',
-          onProgress: (pct) => setUploadProgress(pct),
-        });
+        await uploadImage(extraCaseId, file, { category: 'extra' });
         uploaded++;
       } catch {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
-    if (uploaded > 0) toast.success(`${uploaded} file${uploaded > 1 ? 's' : ''} uploaded`);
-    setUploading(false);
-    setUploadProgress(0);
-    fetchData();
+    if (uploaded > 0) toast.success(`${uploaded} photo${uploaded > 1 ? 's' : ''} added`);
+    setUploadingExtra(false);
+    caseList_invalidateAndRefetch();
   };
 
-  const handleDelete = async (image) => {
-    setDeletingId(image.id);
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const handleDelete = async (img) => {
+    setDeletingId(img.id);
     try {
-      await deleteImage(image.caseId, image.id);
+      await deleteImage(img.caseId, img.id);
       toast.success('Image deleted');
-      if (selectedItem?.id === image.id) setSelectedItem(null);
-      fetchData();
+      if (selectedItem?.id === img.id) setSelectedItem(null);
+      caseList_invalidateAndRefetch();
     } catch {
       toast.error('Failed to delete image');
     } finally {
@@ -93,10 +153,11 @@ const MedicalVault = () => {
     }
   };
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const groupByDate = (items) => {
     const grouped = {};
     items.forEach(item => {
-      const d = item.created_at || item.uploaded_at;
+      const d = item.uploaded_at || item.created_at;
       const label = d
         ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
         : 'Unknown date';
@@ -106,7 +167,18 @@ const MedicalVault = () => {
     return grouped;
   };
 
-  const imagesByDate = groupByDate(images);
+  // Clinical photos = category starts with "photo_"
+  const clinicalPhotos = allImages.filter(img => img.category?.startsWith('photo_'));
+  // Radiographs = category starts with "radiograph_"
+  const radiographs = allImages.filter(img => img.category?.startsWith('radiograph_'));
+  // Fallback: uncategorised / general images (uploaded via old case flow)
+  const generalImages = allImages.filter(
+    img => !img.category || img.category === 'general'
+  );
+
+  const photosByDate     = groupByDate(clinicalPhotos);
+  const radiographsByDate = groupByDate(radiographs);
+  const generalByDate    = groupByDate(generalImages);
 
   if (loading) {
     return (
@@ -120,7 +192,7 @@ const MedicalVault = () => {
     <div className="flex flex-col md:flex-row h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
 
       {/* ── LEFT SIDEBAR ── */}
-      <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-[#E5E5E2] flex flex-col h-[45vh] md:h-full">
+      <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-[#E5E5E2] flex flex-col h-[55vh] md:h-full">
 
         {/* Header */}
         <div className="p-4 border-b border-[#E5E5E2]">
@@ -134,14 +206,14 @@ const MedicalVault = () => {
           <p className="text-sm text-[#5C6773] mt-1">{patient?.name}</p>
         </div>
 
-        {/* Case selector + Upload */}
-        <div className="p-4 space-y-3 border-b border-[#E5E5E2]">
+        {/* Upload buttons */}
+        <div className="p-4 space-y-2 border-b border-[#E5E5E2]">
           {cases.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-[#5C6773] mb-1">Upload to case</label>
               <select
-                value={selectedCaseId || ''}
-                onChange={e => setSelectedCaseId(e.target.value)}
+                value={uploadCaseId || ''}
+                onChange={e => { setUploadCaseId(e.target.value); setExtraCaseId(e.target.value); }}
                 data-testid="case-selector"
                 className="w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-lg text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none"
               >
@@ -151,89 +223,257 @@ const MedicalVault = () => {
               </select>
             </div>
           )}
-          <label
-            data-testid="add-images-button"
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
-              uploading ? 'bg-[#E5E5E2] cursor-not-allowed' : 'bg-[#82A098] hover:bg-[#6B8A82] text-white'
-            }`}
+          <button
+            onClick={() => { setUploadType('photo'); setUploadDialogOpen(true); }}
+            data-testid="add-photos-button"
+            disabled={cases.length === 0}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] disabled:bg-[#E5E5E2] disabled:cursor-not-allowed text-white rounded-lg transition-colors"
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              multiple
-              className="hidden"
-              disabled={uploading || !selectedCaseId}
-              onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ''; }}
-            />
-            {uploading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                <span className="font-medium text-white">{uploadProgress}%</span>
-              </>
-            ) : (
-              <>
-                <Plus size={20} weight="bold" />
-                <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add Images / PDFs'}</span>
-              </>
-            )}
-          </label>
+            <Plus size={20} weight="bold" />
+            <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add New Photos'}</span>
+          </button>
+          <button
+            onClick={() => { setUploadType('radiograph'); setUploadDialogOpen(true); }}
+            data-testid="add-radiographs-button"
+            disabled={cases.length === 0}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] disabled:bg-[#E5E5E2] disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+          >
+            <Plus size={20} weight="bold" />
+            <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add New Radiographs'}</span>
+          </button>
         </div>
 
         {/* Scrollable thumbnail area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {Object.keys(imagesByDate).length === 0 ? (
-            <div className="text-center py-12">
-              <Image size={48} className="mx-auto text-[#E5E5E2] mb-3" />
-              <p className="text-sm text-[#5C6773]">No images yet</p>
-              {cases.length === 0 && (
-                <p className="text-xs text-[#9CA3AF] mt-1">Create a case first, then upload images here</p>
+
+          {/* ── EXTRA PHOTOS SECTION (12-slot grid) ── */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">Extra Photos</h3>
+              <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {extraPhotos.map((photo) => (
+                <div key={photo.id} className="relative group aspect-square">
+                  <button
+                    onClick={() => setSelectedItem(photo)}
+                    data-testid={`extra-photo-thumb-${photo.id}`}
+                    className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedItem?.id === photo.id
+                        ? 'border-[#C27E70] ring-2 ring-[#C27E70]/30'
+                        : 'border-[#E5E5E2] hover:border-[#C27E70]'
+                    }`}
+                  >
+                    {photo.thumbnail_url ? (
+                      <img src={photo.thumbnail_url} alt="extra" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                        <Image size={20} className="text-[#E5E5E2]" />
+                      </div>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(photo)}
+                    disabled={deletingId === photo.id}
+                    data-testid={`delete-extra-photo-${photo.id}`}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  >
+                    {deletingId === photo.id
+                      ? <span className="text-[8px] animate-spin">◌</span>
+                      : <X size={10} weight="bold" />}
+                  </button>
+                </div>
+              ))}
+
+              {/* "+" add slot */}
+              {slotsLeft > 0 && cases.length > 0 && (
+                <label
+                  data-testid="add-extra-photo-btn"
+                  className="aspect-square rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] flex flex-col items-center justify-center cursor-pointer transition-all"
+                  title={`Add up to ${slotsLeft} more photo${slotsLeft !== 1 ? 's' : ''}`}
+                >
+                  <input
+                    ref={extraInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
+                    disabled={uploadingExtra}
+                  />
+                  {uploadingExtra ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#C27E70]" />
+                  ) : (
+                    <>
+                      <Plus size={20} className="text-[#C27E70] mb-1" weight="bold" />
+                      <span className="text-[10px] text-[#9CA3AF] text-center leading-tight px-1">
+                        Add photos<br />({slotsLeft} left)
+                      </span>
+                    </>
+                  )}
+                </label>
+              )}
+
+              {extraPhotos.length === 0 && cases.length === 0 && (
+                <div className="col-span-3">
+                  <p className="text-xs text-[#9CA3AF]">Create a case first to add photos</p>
+                </div>
+              )}
+              {extraPhotos.length === 0 && cases.length > 0 && (
+                <div className="col-span-2 flex items-center pl-1">
+                  <p className="text-xs text-[#9CA3AF]">Click + to add up to {MAX_EXTRA_PHOTOS} photos</p>
+                </div>
               )}
             </div>
-          ) : (
-            Object.entries(imagesByDate).map(([date, imgs]) => (
-              <div key={date}>
-                <div className="flex items-center gap-2 mb-2">
-                  <FolderOpen size={16} className="text-[#82A098]" />
-                  <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                  <span className="text-xs text-[#5C6773]">({imgs.length})</span>
+          </div>
+
+          {/* ── CLINICAL PHOTOS ── */}
+          {Object.keys(photosByDate).length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Clinical Photos</h3>
+              {Object.entries(photosByDate).map(([date, photos]) => (
+                <div key={date} className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderOpen size={16} className="text-[#82A098]" />
+                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                    <span className="text-xs text-[#5C6773]">({photos.length})</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 ml-6">
+                    {photos.map((photo) => (
+                      <div key={photo.id} className="relative group aspect-square">
+                        <button
+                          onClick={() => setSelectedItem(photo)}
+                          data-testid={`photo-thumb-${photo.id}`}
+                          className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedItem?.id === photo.id
+                              ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
+                              : 'border-[#E5E5E2] hover:border-[#82A098]'
+                          }`}
+                        >
+                          {photo.thumbnail_url ? (
+                            <img src={photo.thumbnail_url} alt={photo.category} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                              <Image size={20} className="text-[#E5E5E2]" />
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(photo)}
+                          disabled={deletingId === photo.id}
+                          data-testid={`delete-photo-${photo.id}`}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        >
+                          {deletingId === photo.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {imgs.map(img => (
-                    <div key={img.id} className="relative group aspect-square">
-                      <button
-                        onClick={() => setSelectedItem(img)}
-                        data-testid={`image-thumb-${img.id}`}
-                        className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedItem?.id === img.id
-                            ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
-                            : 'border-[#E5E5E2] hover:border-[#82A098]'
-                        }`}
-                      >
-                        {img.thumbnail_url ? (
-                          <img src={img.thumbnail_url} alt="thumb" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
-                            <Image size={24} className="text-[#E5E5E2]" />
-                          </div>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(img)}
-                        disabled={deletingId === img.id}
-                        data-testid={`delete-image-${img.id}`}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                        title="Delete image"
-                      >
-                        {deletingId === img.id
-                          ? <span className="text-[8px] animate-spin">◌</span>
-                          : <X size={10} weight="bold" />}
-                      </button>
-                    </div>
-                  ))}
+              ))}
+            </div>
+          )}
+
+          {/* ── RADIOGRAPHS ── */}
+          {Object.keys(radiographsByDate).length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Radiographs</h3>
+              {Object.entries(radiographsByDate).map(([date, radios]) => (
+                <div key={date} className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderOpen size={16} className="text-[#7B9EBB]" />
+                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                    <span className="text-xs text-[#5C6773]">({radios.length})</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 ml-6">
+                    {radios.map((radio) => (
+                      <div key={radio.id} className="relative group aspect-square">
+                        <button
+                          onClick={() => setSelectedItem(radio)}
+                          data-testid={`radio-thumb-${radio.id}`}
+                          className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedItem?.id === radio.id
+                              ? 'border-[#7B9EBB] ring-2 ring-[#7B9EBB]/30'
+                              : 'border-[#E5E5E2] hover:border-[#7B9EBB]'
+                          }`}
+                        >
+                          {radio.thumbnail_url ? (
+                            <img src={radio.thumbnail_url} alt={radio.category} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                              <Image size={20} className="text-[#E5E5E2]" />
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(radio)}
+                          disabled={deletingId === radio.id}
+                          data-testid={`delete-radio-${radio.id}`}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        >
+                          {deletingId === radio.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
+          )}
+
+          {/* ── GENERAL / CASE IMAGES (older uploads without named view) ── */}
+          {Object.keys(generalByDate).length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Case Images</h3>
+              {Object.entries(generalByDate).map(([date, imgs]) => (
+                <div key={date} className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderOpen size={16} className="text-[#82A098]" />
+                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                    <span className="text-xs text-[#5C6773]">({imgs.length})</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 ml-6">
+                    {imgs.map((img) => (
+                      <div key={img.id} className="relative group aspect-square">
+                        <button
+                          onClick={() => setSelectedItem(img)}
+                          data-testid={`image-thumb-${img.id}`}
+                          className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedItem?.id === img.id
+                              ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
+                              : 'border-[#E5E5E2] hover:border-[#82A098]'
+                          }`}
+                        >
+                          {img.thumbnail_url ? (
+                            <img src={img.thumbnail_url} alt="image" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                              <Image size={20} className="text-[#E5E5E2]" />
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(img)}
+                          disabled={deletingId === img.id}
+                          data-testid={`delete-image-${img.id}`}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        >
+                          {deletingId === img.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {allImages.length === 0 && (
+            <div className="text-center py-12">
+              <Image size={48} className="mx-auto text-[#E5E5E2] mb-3" />
+              <p className="text-sm text-[#5C6773]">No photos or radiographs yet</p>
+              <p className="text-xs text-[#5C6773] mt-1">Click above to add files</p>
+            </div>
           )}
         </div>
       </div>
@@ -244,12 +484,21 @@ const MedicalVault = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-medium text-[#2A2F35]">
-                {selectedItem ? (selectedItem.category || 'Image') : 'No Image Selected'}
+                {selectedItem ? (
+                  selectedItem.category === 'extra'
+                    ? 'Extra Photo'
+                    : selectedItem.category?.startsWith('photo_')
+                      ? `Clinical Photo — ${selectedItem.category.replace('photo_', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`
+                      : selectedItem.category?.startsWith('radiograph_')
+                        ? `Radiograph — ${selectedItem.category.replace('radiograph_', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`
+                        : (selectedItem.category || 'Image')
+                ) : 'No Image Selected'}
               </h3>
               {selectedItem && (
                 <p className="text-sm text-[#5C6773] mt-1">
                   {selectedItem.caseTitle || `Case ${(selectedItem.caseId || '').slice(-6)}`}
-                  {selectedItem.created_at && ` • ${new Date(selectedItem.created_at).toLocaleDateString()}`}
+                  {(selectedItem.uploaded_at || selectedItem.created_at) &&
+                    ` • ${new Date(selectedItem.uploaded_at || selectedItem.created_at).toLocaleDateString()}`}
                 </p>
               )}
             </div>
@@ -281,6 +530,70 @@ const MedicalVault = () => {
           )}
         </div>
       </div>
+
+      {/* ── UPLOAD DIALOG (named clinical photos / radiographs) ── */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-semibold" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+              {uploadType === 'photo' ? 'Add Clinical Photos' : 'Add Radiographs'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {cases.length > 1 && (
+            <div className="mt-2 mb-4">
+              <label className="block text-sm font-medium text-[#2A2F35] mb-2">Upload to case</label>
+              <select
+                value={uploadCaseId || ''}
+                onChange={e => setUploadCaseId(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-lg text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none"
+              >
+                {cases.map(c => (
+                  <option key={c.id} value={c.id}>{c.title || `Case ${c.id.slice(-6)}`}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {(uploadType === 'photo' ? PHOTO_VIEWS : RADIOGRAPH_VIEWS).map(view => {
+                const key = `${uploadType}_${view.id}`;
+                const isUploading = uploadingFiles[key];
+                return (
+                  <div key={view.id} className="border border-[#E5E5E2] rounded-lg p-3">
+                    <p className="text-xs text-[#5C6773] mb-2 min-h-[32px]">{view.label}</p>
+                    <label className="aspect-square bg-[#F9F9F8] border-2 border-dashed border-[#E5E5E2] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[#82A098] hover:bg-white transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => { if (e.target.files[0]) handleViewUpload(e.target.files[0], view.id); }}
+                        disabled={isUploading}
+                      />
+                      {isUploading ? (
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#82A098]" />
+                      ) : (
+                        <>
+                          <Upload size={24} className="text-[#5C6773] mb-2" />
+                          <span className="text-xs text-[#5C6773]">Upload</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <Button
+              onClick={() => setUploadDialogOpen(false)}
+              data-testid="upload-dialog-done"
+              className="w-full mt-6 bg-[#82A098] hover:bg-[#6B8A82] text-white"
+            >
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
