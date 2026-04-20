@@ -6,7 +6,7 @@ import {
   XCircle, Warning, Heartbeat, X, Tooth
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getDashboardSummary } from '../api/dashboard';
+import { getDashboardSummary, getDueForSecondStage, getAllImplants } from '../api/dashboard';
 import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -142,15 +142,17 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [summary, patientsData] = await Promise.all([
+      const [summary, patientsData, dueData, implantsData] = await Promise.all([
         getDashboardSummary(),
         getPatients({ perPage: 100 }),
+        getDueForSecondStage().catch(() => []),
+        getAllImplants().catch(() => []),
       ]);
       setAnalytics(summary);
       const patientList = patientsData.items ?? patientsData;
       setPatients(patientList);
-      setDueImplants([]);
-      setAllImplants([]);
+      setDueImplants(dueData);
+      setAllImplants(implantsData);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');

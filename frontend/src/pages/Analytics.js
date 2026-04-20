@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendUp, Users, Tooth, CurrencyDollar } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getDashboardSummary } from '../api/dashboard';
+import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
 
 const Analytics = () => {
   const [overview, setOverview] = useState(null);
+  const [financial, setFinancial] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,8 +15,12 @@ const Analytics = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const summary = await getDashboardSummary();
-      setOverview(summary);
+      const [overviewData, financialData] = await Promise.all([
+        getAnalyticsOverview(),
+        getAnalyticsFinancial(),
+      ]);
+      setOverview(overviewData);
+      setFinancial(financialData);
     } catch (error) {
       console.error('Error fetching analytics:', error);
       toast.error('Failed to load analytics');
@@ -40,7 +45,12 @@ const Analytics = () => {
   }
 
   const COLORS = ['#82A098', '#C27E70', '#7B9EBB', '#E8A76C'];
-  const implantTypeData = [];
+
+  const implantTypeData = overview?.implant_types?.map((type, index) => ({
+    name: type._id || 'Unknown',
+    value: type.count,
+    color: COLORS[index % COLORS.length],
+  })) || [];
 
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -73,38 +83,40 @@ const Analytics = () => {
         </div>
 
         <div
-          data-testid="active-cases-card"
+          data-testid="total-implants-card"
           className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm"
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm text-[#5C6773] mb-1">Active Cases</p>
-              <p className="text-3xl font-semibold text-[#2A2F35]">{overview?.active_cases || 0}</p>
+              <p className="text-sm text-[#5C6773] mb-1">Total Implants</p>
+              <p className="text-3xl font-semibold text-[#2A2F35]">{overview?.total_implants || 0}</p>
             </div>
             <div className="w-12 h-12 bg-[#C27E70]/10 rounded-lg flex items-center justify-center">
               <Tooth size={24} weight="fill" className="text-[#C27E70]" />
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm text-[#C27E70]">
-            <span>{overview?.upcoming_followups || 0} upcoming follow-ups</span>
+            <span>{overview?.pending_osseointegration || 0} healing</span>
           </div>
         </div>
 
         <div
-          data-testid="cases-this-month-card"
+          data-testid="revenue-card"
           className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm"
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm text-[#5C6773] mb-1">Cases This Month</p>
-              <p className="text-3xl font-semibold text-[#2A2F35]">{overview?.cases_this_month || 0}</p>
+              <p className="text-sm text-[#5C6773] mb-1">Est. Revenue</p>
+              <p className="text-3xl font-semibold text-[#2A2F35]">
+                ${(financial?.total_revenue || 0).toLocaleString()}
+              </p>
             </div>
             <div className="w-12 h-12 bg-[#7B9EBB]/10 rounded-lg flex items-center justify-center">
               <CurrencyDollar size={24} weight="fill" className="text-[#7B9EBB]" />
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm text-[#7B9EBB]">
-            <span>New cases opened this month</span>
+            <span>Avg: ${Math.round(financial?.average_per_implant || 0)}/implant</span>
           </div>
         </div>
       </div>
@@ -156,6 +168,38 @@ const Analytics = () => {
             </ResponsiveContainer>
           </div>
         )}
+      </div>
+
+      {/* Financial Breakdown */}
+      <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+        <h2 className="text-xl font-medium text-[#2A2F35] mb-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+          Financial Summary
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="border-l-4 border-[#82A098] pl-4">
+            <p className="text-sm text-[#5C6773] mb-1">Total Revenue</p>
+            <p className="text-2xl font-semibold text-[#2A2F35]">
+              ${(financial?.total_revenue || 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="border-l-4 border-[#C27E70] pl-4">
+            <p className="text-sm text-[#5C6773] mb-1">Total Procedures</p>
+            <p className="text-2xl font-semibold text-[#2A2F35]">
+              {financial?.total_implants || 0}
+            </p>
+          </div>
+          <div className="border-l-4 border-[#7B9EBB] pl-4">
+            <p className="text-sm text-[#5C6773] mb-1">Average per Procedure</p>
+            <p className="text-2xl font-semibold text-[#2A2F35]">
+              ${Math.round(financial?.average_per_implant || 0)}
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 p-4 bg-[#F9F9F8] rounded-lg">
+          <p className="text-xs text-[#5C6773] italic">
+            * Revenue estimates are based on average market rates: Single ($1,500), Bridge ($4,500), Full Mouth ($25,000)
+          </p>
+        </div>
       </div>
 
     </div>

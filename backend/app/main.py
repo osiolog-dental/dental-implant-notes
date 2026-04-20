@@ -108,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(clinics.router, prefix="/api")
     app.include_router(patients.router, prefix="/api")
     app.include_router(cases.router, prefix="/api")
+    app.include_router(flat_routes.router, prefix="/api")
     app.include_router(implants.router, prefix="/api")
     app.include_router(fpd.router, prefix="/api")
     app.include_router(dashboard.router, prefix="/api")
@@ -115,7 +116,6 @@ def create_app() -> FastAPI:
     app.include_router(audit.router, prefix="/api")
     app.include_router(abutment.router, prefix="/api")
     app.include_router(overdenture.router, prefix="/api")
-    app.include_router(flat_routes.router, prefix="/api")
 
     return app
 

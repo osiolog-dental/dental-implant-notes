@@ -412,6 +412,147 @@ async def get_public_profile(
     }
 
 
+# ── Analytics  ────────────────────────────────────────────────────────────────
+
+@router.get("/analytics/overview")
+async def analytics_overview(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.clinic import Clinic
+
+    patients_result = await db.execute(
+        select(Patient).where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    total_patients = len(patients_result.scalars().all())
+
+    implants_result = await db.execute(
+        select(Implant)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    all_implants = list(implants_result.scalars().all())
+    total_implants = len(all_implants)
+
+    pending_osseointegration = sum(
+        1 for i in all_implants
+        if i.current_stage == 1 and not i.osseointegration_success
+    )
+
+    clinics_result = await db.execute(
+        select(Clinic).where(Clinic.org_id == current_user.org_id)
+    )
+    total_clinics = len(clinics_result.scalars().all())
+
+    type_counts: dict[str, int] = {}
+    for imp in all_implants:
+        t = imp.implant_type or "Unknown"
+        type_counts[t] = type_counts.get(t, 0) + 1
+    implant_types = [{"_id": t, "count": c} for t, c in type_counts.items()]
+
+    return {
+        "total_patients": total_patients,
+        "total_implants": total_implants,
+        "pending_osseointegration": pending_osseointegration,
+        "total_clinics": total_clinics,
+        "implant_types": implant_types,
+    }
+
+
+@router.get("/analytics/financial")
+async def analytics_financial(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    implants_result = await db.execute(
+        select(Implant)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    all_implants = list(implants_result.scalars().all())
+    total_implants = len(all_implants)
+
+    RATE = {"Single": 1500, "Bridge": 4500, "Full Mouth": 25000}
+    DEFAULT_RATE = 1500
+    total_revenue = sum(
+        RATE.get(i.implant_type or "Single", DEFAULT_RATE)
+        for i in all_implants
+    )
+    average_per_implant = total_revenue / total_implants if total_implants else 0
+
+    return {
+        "total_revenue": total_revenue,
+        "average_per_implant": round(average_per_implant, 2),
+        "total_implants": total_implants,
+    }
+
+
+@router.get("/implants/due-for-second-stage")
+async def implants_due_for_second_stage(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list:
+    from datetime import date as _date
+
+    result = await db.execute(
+        select(Implant, Patient)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+            Implant.surgery_date.isnot(None),
+            Implant.current_stage == 1,
+        )
+    )
+    rows = result.all()
+
+    today = _date.today()
+    due = []
+    for implant, patient in rows:
+        days_elapsed = (today - implant.surgery_date).days
+        if days_elapsed >= implant.osseointegration_days:
+            due.append({
+                "implant_id": str(implant.id),
+                "patient_id": str(patient.id),
+                "patient_name": patient.name,
+                "tooth_number": implant.tooth_number,
+                "brand": implant.brand,
+                "case_number": None,
+                "days_elapsed": days_elapsed,
+                "osseointegration_days": implant.osseointegration_days,
+                "surgery_date": implant.surgery_date.isoformat(),
+            })
+
+    return sorted(due, key=lambda x: x["days_elapsed"], reverse=True)
+
+
+@router.get("/implants/all")
+async def list_all_implants(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ImplantRead]:
+    result = await db.execute(
+        select(Implant)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+        .order_by(Implant.created_at.desc())
+    )
+    implants = result.scalars().all()
+    return [ImplantRead.model_validate(i) for i in implants]
+
+
 # ── Backup export / restore  ───────────────────────────────────────────────────
 
 @router.get("/backup/export")
