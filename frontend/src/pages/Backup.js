@@ -266,8 +266,8 @@ export default function Backup() {
             <button
               data-testid="gdrive-backup-btn"
               onClick={handleDriveBackup}
-              disabled={loadingDriveUp}
-              className={`${btnClass()} bg-[#EA4335] hover:bg-[#C5372C]`}
+              disabled={loadingDriveUp || !GOOGLE_CLIENT_ID}
+              className={`${btnClass()} bg-[#EA4335] hover:bg-[#C5372C] ${!GOOGLE_CLIENT_ID ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {loadingDriveUp
                 ? <ArrowClockwise size={16} className="animate-spin" />
@@ -283,8 +283,8 @@ export default function Backup() {
           )}
           {!GOOGLE_CLIENT_ID && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              <strong>Setup required:</strong> Add <code>REACT_APP_GOOGLE_CLIENT_ID=your_client_id</code> to{' '}
-              <code>frontend/.env</code> and restart the frontend to enable Google Drive backup.
+              <strong>Coming soon:</strong> Google Drive backup will be enabled in the next update.
+              Use <strong>Download to Device</strong> above to save your backup now.
             </div>
           )}
           <p className="text-xs text-[#9CA3AF] mt-2">
@@ -322,8 +322,8 @@ export default function Backup() {
             <button
               data-testid="gdrive-restore-btn"
               onClick={handleDriveRestore}
-              disabled={loadingDriveDl}
-              className={`${btnClass()} bg-[#5C6773] hover:bg-[#3F4A53]`}
+              disabled={loadingDriveDl || !GOOGLE_CLIENT_ID}
+              className={`${btnClass()} bg-[#5C6773] hover:bg-[#3F4A53] ${!GOOGLE_CLIENT_ID ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {loadingDriveDl
                 ? <ArrowClockwise size={16} className="animate-spin" />

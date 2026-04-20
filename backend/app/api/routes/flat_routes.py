@@ -27,6 +27,7 @@ from app.models.user import User
 from app.repositories.fpd import FPDRepository
 from app.repositories.implant import ImplantRepository
 from app.schemas.fpd import FPDFlatCreate, FPDRead, FPDUpdate
+from pydantic import BaseModel
 from app.schemas.implant import ImplantFlatCreate, ImplantRead, ImplantUpdate
 from app.services import s3 as s3_service
 
@@ -72,6 +73,40 @@ async def update_implant_flat(
     if not implant:
         raise HTTPException(status_code=404, detail="Implant not found")
     implant = await repo.update(implant, body)
+    return ImplantRead.model_validate(implant)
+
+
+class StageUpdate(BaseModel):
+    current_stage: int | None = None
+    osseointegration_days: int | None = None
+    stage_2_date: str | None = None
+    stage_3_date: str | None = None
+
+
+@router.patch("/implants/{implant_id}/stage", response_model=ImplantRead)
+async def update_implant_stage(
+    implant_id: uuid.UUID,
+    body: StageUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ImplantRead:
+    repo = ImplantRepository(db)
+    implant = await repo.get(implant_id, current_user.org_id)
+    if not implant:
+        raise HTTPException(status_code=404, detail="Implant not found")
+    if body.current_stage is not None:
+        implant.current_stage = body.current_stage
+    if body.osseointegration_days is not None:
+        implant.osseointegration_days = body.osseointegration_days
+    if body.stage_2_date is not None:
+        from datetime import date
+        implant.stage_2_date = date.fromisoformat(body.stage_2_date) if body.stage_2_date else None
+    if body.stage_3_date is not None:
+        from datetime import date
+        implant.stage_3_date = date.fromisoformat(body.stage_3_date) if body.stage_3_date else None
+    db.add(implant)
+    await db.commit()
+    await db.refresh(implant)
     return ImplantRead.model_validate(implant)
 
 

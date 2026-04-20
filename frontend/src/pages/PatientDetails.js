@@ -700,18 +700,16 @@ const PatientDetails = () => {
 
           {/* Patient details */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-semibold text-[#2A2F35] tracking-tight" data-testid="patient-name">
-                  {patient.name}
-                </h1>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-[#5C6773]">
-                  <span>{patient.age} years</span>
-                  <span>•</span>
-                  <span>{patient.gender}</span>
-                </div>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl md:text-3xl font-semibold text-[#2A2F35] tracking-tight" data-testid="patient-name">
+                {patient.name}
+              </h1>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#5C6773]">
+                <span>{patient.age} years</span>
+                <span>•</span>
+                <span>{patient.gender}</span>
               </div>
-              <div className="flex gap-2 shrink-0 flex-wrap">
+              <div className="flex gap-2 flex-wrap mt-1">
                 <button
                   data-testid="edit-patient-btn"
                   onClick={openEditPatient}

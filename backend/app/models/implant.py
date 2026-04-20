@@ -81,6 +81,12 @@ class Implant(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     clinical_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Treatment stage tracking
+    current_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    osseointegration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=90)
+    stage_2_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    stage_3_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     # Tag / image
     tag_image: Mapped[str | None] = mapped_column(Text, nullable=True)
 

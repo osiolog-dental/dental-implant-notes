@@ -42,6 +42,10 @@ class ImplantBase(BaseModel):
     clinical_notes: str | None = None
     tag_image: str | None = None
     clinic_id: str | None = None
+    current_stage: int | None = None
+    osseointegration_days: int | None = None
+    stage_2_date: date | None = None
+    stage_3_date: date | None = None
 
 
 class ImplantCreate(ImplantBase):
