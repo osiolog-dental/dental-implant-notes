@@ -5,6 +5,7 @@ import {
   CalendarDots, Bell, ArrowRight, CheckCircle,
   XCircle, Warning, Heartbeat, X, Tooth
 } from '@phosphor-icons/react';
+import { toast } from 'sonner';
 import { getDashboardSummary } from '../api/dashboard';
 import { getPatients } from '../api/patients';
 
@@ -152,6 +153,7 @@ const Dashboard = () => {
       setAllImplants([]);
     } catch (error) {
       console.error('Error fetching data:', error);
+      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }

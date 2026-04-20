@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendUp, Users, Tooth, CurrencyDollar } from '@phosphor-icons/react';
+import { toast } from 'sonner';
 import { getDashboardSummary } from '../api/dashboard';
 
 const Analytics = () => {
@@ -17,6 +18,7 @@ const Analytics = () => {
       setOverview(summary);
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      toast.error('Failed to load analytics');
     } finally {
       setLoading(false);
     }
