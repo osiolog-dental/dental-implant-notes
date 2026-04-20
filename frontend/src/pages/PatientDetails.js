@@ -54,6 +54,9 @@ const INITIAL_IMPLANT = {
   osseointegration_success: false,
   peri_implant_health: false,
   clinical_notes: '',
+  notes: '',
+  site_specific_notes: '',
+  complication_remarks: '',
   arch: 'Upper',
   jaw_region: 'Anterior',
   tag_image: null,
@@ -468,8 +471,10 @@ const PatientDetails = () => {
   const handleSubmitImplant = async (e) => {
     e.preventDefault();
     try {
+      // eslint-disable-next-line no-unused-vars
+      const { site_specific_notes, complication_remarks, ...cleanForm } = formData;
       const payload = {
-        ...formData,
+        ...cleanForm,
         patient_id: id,
         tooth_number: parseInt(formData.tooth_number),
         insertion_torque: formData.insertion_torque ? parseFloat(formData.insertion_torque) : null,
@@ -529,6 +534,9 @@ const PatientDetails = () => {
       osseointegration_success: implant.osseointegration_success || false,
       peri_implant_health: implant.peri_implant_health || false,
       clinical_notes: implant.clinical_notes || '',
+      notes: implant.notes || '',
+      site_specific_notes: '',
+      complication_remarks: '',
       arch: implant.arch || 'Upper',
       jaw_region: implant.jaw_region || 'Anterior',
       tag_image: implant.tag_image || null,

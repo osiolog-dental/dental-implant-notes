@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, Plus, FolderOpen, Image, X, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Upload, Plus, FolderOpen, Image, X, Trash, Camera } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -37,6 +37,9 @@ const MedicalVault = () => {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const extraInputRef = useRef();
+  const extraCameraRef = useRef();
+  const viewCameraRef = useRef();
+  const [cameraViewId, setCameraViewId] = useState(null);
 
   const [patient, setPatient] = useState(null);
   const [cases, setCases] = useState([]);
@@ -155,6 +158,32 @@ const MedicalVault = () => {
     if (uploaded > 0) toast.success(`${uploaded} photo${uploaded > 1 ? 's' : ''} added`);
     setUploadingExtra(false);
     caseList_invalidateAndRefetch();
+  };
+
+  const handleExtraCameraCapture = async (e) => {
+    const files = e.target.files;
+    if (files?.length) await handleExtraUpload(files);
+    e.target.value = '';
+  };
+
+  const handleViewCameraCapture = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !cameraViewId) return;
+    e.target.value = '';
+    const cid = uploadCaseId || await ensureCase();
+    if (!cid) return;
+    const key = `${uploadType}_${cameraViewId}`;
+    setUploadingFiles(prev => ({ ...prev, [key]: true }));
+    try {
+      await uploadImage(cid, file, { category: `${uploadType}_${cameraViewId}` });
+      toast.success('Photo captured and uploaded');
+      setCameraViewId(null);
+      caseList_invalidateAndRefetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to upload');
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -290,7 +319,18 @@ const MedicalVault = () => {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">Extra Photos</h3>
-                <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    data-testid="extra-camera-btn"
+                    onClick={() => !uploadingExtra && extraCameraRef.current?.click()}
+                    disabled={uploadingExtra || slotsLeft <= 0}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#C27E70] border border-[#C27E70]/30 rounded-lg hover:bg-[#C27E70]/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Use camera"
+                  >
+                    <Camera size={12} /> Camera
+                  </button>
+                  <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
+                </div>
               </div>
               <input
                 ref={extraInputRef}
@@ -300,6 +340,23 @@ const MedicalVault = () => {
                 className="hidden"
                 onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
                 disabled={uploadingExtra}
+              />
+              <input
+                ref={extraCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleExtraCameraCapture}
+                disabled={uploadingExtra}
+              />
+              <input
+                ref={viewCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleViewCameraCapture}
               />
               <div className="grid grid-cols-3 gap-2">
                 {Array.from({ length: MAX_EXTRA_PHOTOS }).map((_, i) => {
@@ -597,6 +654,7 @@ const MedicalVault = () => {
                 return (
                   <div key={view.id} className="border border-[#E5E5E2] rounded-lg p-3">
                     <p className="text-xs text-[#5C6773] mb-2 min-h-[32px]">{view.label}</p>
+                    {/* Upload from gallery */}
                     <label className="aspect-square bg-[#F9F9F8] border-2 border-dashed border-[#E5E5E2] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[#82A098] hover:bg-white transition-all">
                       <input
                         type="file"
@@ -614,6 +672,18 @@ const MedicalVault = () => {
                         </>
                       )}
                     </label>
+                    {/* Camera capture — only for photos, not radiographs */}
+                    {uploadType === 'photo' && (
+                      <button
+                        type="button"
+                        data-testid={`camera-btn-${view.id}`}
+                        disabled={isUploading}
+                        onClick={() => { setCameraViewId(view.id); viewCameraRef.current?.click(); }}
+                        className="mt-1.5 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-[#82A098] border border-[#82A098]/30 rounded-lg hover:bg-[#82A098]/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Camera size={12} /> Use Camera
+                      </button>
+                    )}
                   </div>
                 );
               })}
