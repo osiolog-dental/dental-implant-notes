@@ -4,7 +4,25 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, field_validator, model_serializer
+
+
+def _empty_to_none_float(v: Any) -> Any:
+    if v == "" or v is False:
+        return None
+    return v
+
+
+def _empty_to_none_date(v: Any) -> Any:
+    if v == "" or v is False:
+        return None
+    return v
+
+
+def _bool_to_none_str(v: Any) -> Any:
+    if isinstance(v, bool):
+        return None
+    return v
 
 
 class ImplantBase(BaseModel):
@@ -26,9 +44,9 @@ class ImplantBase(BaseModel):
     arch: str | None = None
     jaw_region: str | None = None
     implant_system: str | None = None
-    cover_screw: str | None = None
-    healing_abutment: str | None = None
-    membrane_used: str | None = None
+    cover_screw: bool | None = None
+    healing_abutment: bool | None = None
+    membrane_used: bool | None = None
     isq_value: float | None = None
     follow_up_date: date | None = None
     surgeon_name: str | None = None
@@ -46,6 +64,21 @@ class ImplantBase(BaseModel):
     osseointegration_days: int | None = None
     stage_2_date: date | None = None
     stage_3_date: date | None = None
+
+    @field_validator("diameter_mm", "length_mm", "insertion_torque", "isq_value", "length", mode="before")
+    @classmethod
+    def coerce_float(cls, v: Any) -> Any:
+        return _empty_to_none_float(v)
+
+    @field_validator("follow_up_date", "surgery_date", "prosthetic_loading_date", "stage_2_date", "stage_3_date", mode="before")
+    @classmethod
+    def coerce_date(cls, v: Any) -> Any:
+        return _empty_to_none_date(v)
+
+    @field_validator("peri_implant_health", mode="before")
+    @classmethod
+    def coerce_peri_health(cls, v: Any) -> Any:
+        return _bool_to_none_str(v)
 
 
 class ImplantCreate(ImplantBase):

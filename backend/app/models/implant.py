@@ -54,9 +54,9 @@ class Implant(Base):
 
     # Components
     implant_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    cover_screw: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    healing_abutment: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    membrane_used: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cover_screw: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    healing_abutment: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    membrane_used: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # Diameter / length (friend's frontend uses these names)
     diameter_mm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
