@@ -295,13 +295,10 @@ async def upload_patient_profile_picture(
 # ── /api/files/:filename — presigned redirect for image src tags  ─────────────
 
 @router.get("/files/{filename:path}")
-async def serve_file(
-    filename: str,
-    current_user: User = Depends(get_current_user),
-) -> RedirectResponse:
+async def serve_file(filename: str) -> RedirectResponse:
     """
     Redirect to a presigned S3 download URL.
-    The frontend uses this as an <img src> for patient photos and warranty cards.
+    No auth required — the presigned S3 URL is self-authenticating and time-limited.
     `filename` is the S3 key stored in patient.profile_picture or fpd.warranty_image_url.
     """
     try:

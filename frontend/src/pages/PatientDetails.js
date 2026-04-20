@@ -214,7 +214,7 @@ const PatientDetails = () => {
   const handleSavePatient = async (e) => {
     e.preventDefault();
     try {
-      await client.put(`/api/patients/${id}`, {
+      await client.patch(`/api/patients/${id}`, {
         ...editPatientData,
         age: parseInt(editPatientData.age),
       });
@@ -410,7 +410,7 @@ const PatientDetails = () => {
       clinical_notes: rec.clinical_notes || '',
       clinic_id: rec.clinic_id || '',
     });
-    setEditingAbutmentId(rec._id);
+    setEditingAbutmentId(rec.id);
     setIsAbutmentOpen(true);
   };
 
@@ -449,7 +449,7 @@ const PatientDetails = () => {
       clinical_notes: rec.clinical_notes || '',
       clinic_id: rec.clinic_id || '',
     });
-    setEditingOverdentureId(rec._id);
+    setEditingOverdentureId(rec.id);
     setIsOverdentureOpen(true);
   };
 
@@ -484,7 +484,7 @@ const PatientDetails = () => {
         follow_up_date: formData.follow_up_date || null,
       };
       if (editingImplantId) {
-        await client.put(`/api/implants/${editingImplantId}`, payload);
+        await client.patch(`/api/implants/${editingImplantId}`, payload);
         toast.success('Implant record updated');
       } else {
         await client.post(`/api/implants`, payload);
@@ -533,7 +533,7 @@ const PatientDetails = () => {
       jaw_region: implant.jaw_region || 'Anterior',
       tag_image: implant.tag_image || null,
     });
-    setEditingImplantId(implant._id);
+    setEditingImplantId(implant.id);
     setIsImplantOpen(true);
   };
 
@@ -560,11 +560,11 @@ const PatientDetails = () => {
       delete payload.warranty_image; // stored via separate upload endpoint
       let fpdId = editingFpdId;
       if (editingFpdId) {
-        await client.put(`/api/fpd-records/${editingFpdId}`, payload);
+        await client.patch(`/api/fpd-records/${editingFpdId}`, payload);
         toast.success('FPD record updated');
       } else {
         const res = await client.post(`/api/fpd-records`, payload);
-        fpdId = res.data?._id;
+        fpdId = res.data?.id;
         toast.success('FPD record added');
       }
       // Upload warranty image if selected
@@ -603,7 +603,7 @@ const PatientDetails = () => {
       lab_name: fpd.lab_name || '',
       warranty_image: fpd.warranty_image || null,
     });
-    setEditingFpdId(fpd._id);
+    setEditingFpdId(fpd.id);
     setIsFpdOpen(true);
   };
 
@@ -1109,7 +1109,7 @@ const PatientDetails = () => {
                     <Label className="text-xs">Clinic</Label>
                     <select value={formData.clinic_id} onChange={(e) => updateField('clinic_id', e.target.value)} className={`mt-1 ${selectClass}`}>
                       <option value="">Select clinic</option>
-                      {clinics.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                      {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1224,15 +1224,15 @@ const PatientDetails = () => {
                     <Label className="text-xs">Connected Implants</Label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {implants.map(imp => (
-                        <label key={imp._id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#82A098] transition-colors">
+                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#82A098] transition-colors">
                           <input type="checkbox"
-                            checked={fpdData.connected_implant_ids.includes(imp._id)}
+                            checked={fpdData.connected_implant_ids.includes(imp.id)}
                             onChange={(e) => {
                               setFpdData(prev => ({
                                 ...prev,
                                 connected_implant_ids: e.target.checked
-                                  ? [...prev.connected_implant_ids, imp._id]
-                                  : prev.connected_implant_ids.filter(x => x !== imp._id)
+                                  ? [...prev.connected_implant_ids, imp.id]
+                                  : prev.connected_implant_ids.filter(x => x !== imp.id)
                               }));
                             }}
                             className={checkboxClass}
@@ -1325,14 +1325,14 @@ const PatientDetails = () => {
                     <Label className="text-xs">Connected Implant(s)</Label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {implants.map(imp => (
-                        <label key={imp._id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#E8A76C] transition-colors">
+                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#E8A76C] transition-colors">
                           <input type="checkbox"
-                            checked={abutmentData.connected_implant_ids.includes(imp._id)}
+                            checked={abutmentData.connected_implant_ids.includes(imp.id)}
                             onChange={e => setAbutmentData(prev => ({
                               ...prev,
                               connected_implant_ids: e.target.checked
-                                ? [...prev.connected_implant_ids, imp._id]
-                                : prev.connected_implant_ids.filter(x => x !== imp._id)
+                                ? [...prev.connected_implant_ids, imp.id]
+                                : prev.connected_implant_ids.filter(x => x !== imp.id)
                             }))}
                             className={checkboxClass}
                           />
@@ -1347,7 +1347,7 @@ const PatientDetails = () => {
                   <Label className="text-xs">Clinic</Label>
                   <select value={abutmentData.clinic_id} onChange={e => setAbutmentData(p => ({ ...p, clinic_id: e.target.value }))} className={`mt-1 ${selectClass}`}>
                     <option value="">Select clinic</option>
-                    {clinics.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                    {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
 
@@ -1449,14 +1449,14 @@ const PatientDetails = () => {
                     <Label className="text-xs">Connected Implant(s)</Label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {implants.map(imp => (
-                        <label key={imp._id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#7C3AED] transition-colors">
+                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#7C3AED] transition-colors">
                           <input type="checkbox"
-                            checked={overdentureData.connected_implant_ids.includes(imp._id)}
+                            checked={overdentureData.connected_implant_ids.includes(imp.id)}
                             onChange={e => setOverdentureData(prev => ({
                               ...prev,
                               connected_implant_ids: e.target.checked
-                                ? [...prev.connected_implant_ids, imp._id]
-                                : prev.connected_implant_ids.filter(x => x !== imp._id)
+                                ? [...prev.connected_implant_ids, imp.id]
+                                : prev.connected_implant_ids.filter(x => x !== imp.id)
                             }))}
                             className={checkboxClass}
                           />
@@ -1523,7 +1523,7 @@ const PatientDetails = () => {
             {implants.map((implant) => {
               const daysRemaining = getDaysRemaining(implant.osseointegration_date);
               return (
-                <div key={implant._id} data-testid={`implant-record-${implant._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
+                <div key={implant.id} data-testid={`implant-record-${implant.id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-[#82A098] rounded-lg flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
@@ -1537,7 +1537,7 @@ const PatientDetails = () => {
                     </div>
                     <div className="flex items-start gap-3 flex-shrink-0 ml-2">
                       <button
-                        data-testid={`edit-implant-${implant._id}`}
+                        data-testid={`edit-implant-${implant.id}`}
                         onClick={() => openEditImplant(implant)}
                         className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#82A098] transition-colors"
                         title="Edit implant record"
@@ -1546,7 +1546,7 @@ const PatientDetails = () => {
                       </button>
                       {/* Tag image thumbnail */}
                       {implant.tag_image ? (
-                        <div className="relative group" data-testid={`tag-thumb-${implant._id}`}>
+                        <div className="relative group" data-testid={`tag-thumb-${implant.id}`}>
                           <img
                             src={implant.tag_image}
                             alt="Implant tag"
@@ -1596,7 +1596,7 @@ const PatientDetails = () => {
           </h2>
           <div className="space-y-3">
             {fpdRecords.map((fpd) => (
-              <div key={fpd._id} data-testid={`fpd-record-${fpd._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#3B82F6] transition-all">
+              <div key={fpd.id} data-testid={`fpd-record-${fpd.id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#3B82F6] transition-all">
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <h3 className="font-medium text-[#2A2F35] text-sm">
@@ -1605,7 +1605,7 @@ const PatientDetails = () => {
                     <p className="text-xs text-[#5C6773]">{fpd.case_number}</p>
                   </div>
                   <button
-                    data-testid={`edit-fpd-${fpd._id}`}
+                    data-testid={`edit-fpd-${fpd.id}`}
                     onClick={() => openEditFpd(fpd)}
                     className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#3B82F6] transition-colors flex-shrink-0"
                     title="Edit FPD record"
@@ -1651,7 +1651,7 @@ const PatientDetails = () => {
           </h2>
           <div className="space-y-3">
             {abutmentRecords.map((rec) => (
-              <div key={rec._id} data-testid={`abutment-record-${rec._id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#E8A76C] transition-all">
+              <div key={rec.id} data-testid={`abutment-record-${rec.id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#E8A76C] transition-all">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-medium text-sm flex-shrink-0" style={{ backgroundColor: '#E8A76C' }}>
@@ -1663,7 +1663,7 @@ const PatientDetails = () => {
                     </div>
                   </div>
                   <button
-                    data-testid={`edit-abutment-${rec._id}`}
+                    data-testid={`edit-abutment-${rec.id}`}
                     onClick={() => openEditAbutment(rec)}
                     className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#E8A76C] transition-colors flex-shrink-0"
                     title="Edit abutment record"
@@ -1686,7 +1686,7 @@ const PatientDetails = () => {
           </h2>
           <div className="space-y-3">
             {overdentureRecords.map((rec) => (
-              <div key={rec._id} data-testid={`overdenture-record-${rec._id}`} className="border rounded-lg p-4 transition-all" style={{ borderColor: '#C4B5FD' }}>
+              <div key={rec.id} data-testid={`overdenture-record-${rec.id}`} className="border rounded-lg p-4 transition-all" style={{ borderColor: '#C4B5FD' }}>
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <h3 className="font-medium text-[#2A2F35] text-sm">
@@ -1695,7 +1695,7 @@ const PatientDetails = () => {
                     <p className="text-xs text-[#5C6773]">Teeth: {rec.tooth_numbers?.join(', ')}</p>
                   </div>
                   <button
-                    data-testid={`edit-overdenture-${rec._id}`}
+                    data-testid={`edit-overdenture-${rec.id}`}
                     onClick={() => openEditOverdenture(rec)}
                     className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] transition-colors flex-shrink-0"
                     title="Edit overdenture record"

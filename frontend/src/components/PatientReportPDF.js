@@ -12,8 +12,7 @@
  */
 
 import jsPDF from 'jspdf';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import client from '../api/client';
 
 /* ── Colours matching DentalHub design ── */
 const C = {
@@ -26,11 +25,11 @@ const C = {
   bg:       [249, 249, 248],   // #F9F9F8
 };
 
-/* Convert any accessible URL to base64 data-URL via fetch + FileReader */
+/* Convert any accessible URL to base64 data-URL via client (Firebase token attached) */
 async function toBase64(url) {
   try {
-    const res = await fetch(url, { credentials: 'include' });
-    const blob = await res.blob();
+    const res = await client.get(url, { responseType: 'blob' });
+    const blob = res.data;
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -149,7 +148,7 @@ export async function generatePatientPDF({
   let profileB64 = null;
   if (patient.profile_picture) {
     onProgress?.('Loading profile photo...');
-    profileB64 = await toBase64(`${API_URL}/api/files/${patient.profile_picture}`);
+    profileB64 = await toBase64(`/api/files/${patient.profile_picture}`);
   }
 
   const photoSize = 28;
@@ -434,7 +433,7 @@ export async function generatePatientPDF({
   );
   await renderImageGrid(
     allPhotos, 'Clinical Photos', 2, 60,
-    p => `${API_URL}/api/files/${p.storage_path}`,
+    p => `/api/files/${p.storage_path}`,
     p => `${p.view_type?.replace(/_/g, ' ') || ''}  —  Tooth #${p.tooth_number}`,
     'Loading photo'
   );
@@ -447,7 +446,7 @@ export async function generatePatientPDF({
   );
   await renderImageGrid(
     allRadiographs, 'Radiographs', 2, 70,
-    r => `${API_URL}/api/files/${r.storage_path}`,
+    r => `/api/files/${r.storage_path}`,
     r => `${r.view_type?.replace(/_/g, ' ') || ''}  —  Tooth #${r.tooth_number}`,
     'Loading radiograph'
   );
@@ -457,7 +456,7 @@ export async function generatePatientPDF({
   ════════════════════════════════════════ */
   await renderImageGrid(
     extraPhotos, 'Additional Photos', 3, 50,
-    p => `${API_URL}/api/files/${p.storage_path}`,
+    p => `/api/files/${p.storage_path}`,
     p => p.caption || p.original_filename || 'Photo',
     'Loading extra photo'
   );
