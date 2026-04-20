@@ -52,7 +52,7 @@ const INITIAL_IMPLANT = {
   clinic_id: '',
   implant_outcome: 'Pending',
   osseointegration_success: false,
-  peri_implant_health: false,
+  peri_implant_health: '',
   clinical_notes: '',
   notes: '',
   site_specific_notes: '',
@@ -487,6 +487,7 @@ const PatientDetails = () => {
         implant_system: formData.implant_system || null,
         surgeon_name: formData.surgeon_name || null,
         follow_up_date: formData.follow_up_date || null,
+        peri_implant_health: formData.peri_implant_health || null,
       };
       if (editingImplantId) {
         await client.patch(`/api/implants/${editingImplantId}`, payload);
@@ -532,7 +533,7 @@ const PatientDetails = () => {
       clinic_id: implant.clinic_id || '',
       implant_outcome: implant.implant_outcome || 'Pending',
       osseointegration_success: implant.osseointegration_success || false,
-      peri_implant_health: implant.peri_implant_health || false,
+      peri_implant_health: implant.peri_implant_health || '',
       clinical_notes: implant.clinical_notes || '',
       notes: implant.notes || '',
       site_specific_notes: '',
@@ -1124,13 +1125,24 @@ const PatientDetails = () => {
                     ['is_zygomatic', 'Zygomatic'],
                     ['is_subperiosteal', 'Sub-periosteal'],
                     ['osseointegration_success', 'Osseointegration Success'],
-                    ['peri_implant_health', 'Peri-implant Health'],
                   ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-1.5 text-sm text-[#2A2F35]">
                       <input type="checkbox" checked={formData[key]} onChange={(e) => updateField(key, e.target.checked)} className={checkboxClass} data-testid={`${key}-checkbox`} />
                       {label}
                     </label>
                   ))}
+                </div>
+
+                {/* Peri-implant Health — string select, not checkbox */}
+                <div>
+                  <Label className="text-xs">Peri-implant Health</Label>
+                  <select value={formData.peri_implant_health} onChange={(e) => updateField('peri_implant_health', e.target.value)} className={`mt-1 ${selectClass}`} data-testid="peri-implant-health-select">
+                    <option value="">Not assessed</option>
+                    <option value="Healthy">Healthy</option>
+                    <option value="Mild Inflammation">Mild Inflammation</option>
+                    <option value="Moderate Inflammation">Moderate Inflammation</option>
+                    <option value="Severe (Peri-implantitis)">Severe (Peri-implantitis)</option>
+                  </select>
                 </div>
 
                 {/* Notes */}

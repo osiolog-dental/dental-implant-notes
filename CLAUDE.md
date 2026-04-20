@@ -388,7 +388,7 @@ Before marking any task done, verify these against the **live production app** (
 - [ ] Use that token to hit the new endpoint — confirm 200, not 401/403/500
 
 **CI/CD:**
-- [ ] `gh run list --repo osioloc-dental/dental-implant-notes --limit 3` — latest deploy succeeded
+- [ ] `gh run list --repo osiolog-dental/dental-implant-notes --limit 3` — latest deploy succeeded
 
 ---
 
