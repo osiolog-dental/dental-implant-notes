@@ -32,6 +32,7 @@ export default function Account() {
     college: user?.college || '',
     college_place: user?.college_place || '',
     bio: user?.bio || '',
+    place: user?.place || '',
   });
 
   const rawName = user?.name || 'Doctor';
@@ -71,6 +72,7 @@ export default function Account() {
       college: user?.college || '',
       college_place: user?.college_place || '',
       bio: user?.bio || '',
+      place: user?.place || '',
     });
     setEditing(false);
   };
@@ -143,12 +145,11 @@ export default function Account() {
             <Field label="Specialization"     value={user?.specialization}      icon={Stethoscope} />
             <Field label="College / University" value={user?.college}           icon={GraduationCap} />
             <Field label="College City"       value={user?.college_place}       icon={MapPin} />
-            {user?.bio && (
-              <div className="px-6 py-4">
-                <p className="text-xs text-[#5C6773] mb-1">About / Bio</p>
-                <p className="text-sm text-[#2A2F35]">{user.bio}</p>
-              </div>
-            )}
+            <Field label="Practice Location"  value={user?.place}               icon={MapPin} />
+            <div className="px-6 py-4">
+              <p className="text-xs text-[#5C6773] mb-1">About / Bio</p>
+              <p className="text-sm text-[#2A2F35]">{user?.bio || '—'}</p>
+            </div>
             <div className="px-6 py-4 bg-[#F9F9F8]">
               <p className="text-xs text-[#5C6773]">
                 Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
@@ -166,6 +167,7 @@ export default function Account() {
               { label: 'Specialization',      key: 'specialization',      placeholder: 'Implantology' },
               { label: 'College / University',key: 'college',             placeholder: 'College name' },
               { label: 'College City',        key: 'college_place',       placeholder: 'City / Place' },
+              { label: 'Practice Location',   key: 'place',               placeholder: 'City where you practice' },
             ].map(({ label, key, placeholder }) => (
               <div key={key}>
                 <label className="block text-xs font-medium text-[#5C6773] mb-1">{label}</label>

@@ -188,6 +188,7 @@ const Register = () => {
 
     const payload = {
       ...formData,
+      college: education[0]?.institution || formData.college || '',
       education: education.filter(e => e.institution || e.degree_type),
       publications: publications.filter(p => p.title || p.journal),
     };

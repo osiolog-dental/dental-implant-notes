@@ -55,6 +55,7 @@ const MedicalVault = () => {
   const [extraCaseId, setExtraCaseId] = useState(null);
 
   const [deletingId, setDeletingId] = useState(null);
+  const [activeTab, setActiveTab] = useState('extra');
 
   useEffect(() => { fetchData(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -259,110 +260,64 @@ const MedicalVault = () => {
           </button>
         </div>
 
-        {/* Scrollable thumbnail area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Tab bar */}
+        <div className="flex border-b border-[#E5E5E2] px-2">
+          {[
+            { id: 'extra', label: 'Extra Photos' },
+            { id: 'clinical', label: 'Clinical' },
+            { id: 'radiograph', label: 'Radiographs' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              data-testid={`vault-tab-${tab.id}`}
+              className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-[#82A098] text-[#82A098]'
+                  : 'border-transparent text-[#5C6773] hover:text-[#2A2F35]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* ── EXTRA PHOTOS SECTION (12-slot grid) ── */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">Extra Photos</h3>
-              <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {extraPhotos.map((photo) => (
-                <div key={photo.id} className="relative group aspect-square">
-                  <button
-                    onClick={() => setSelectedItem(photo)}
-                    data-testid={`extra-photo-thumb-${photo.id}`}
-                    className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedItem?.id === photo.id
-                        ? 'border-[#C27E70] ring-2 ring-[#C27E70]/30'
-                        : 'border-[#E5E5E2] hover:border-[#C27E70]'
-                    }`}
-                  >
-                    {photo.thumbnail_url ? (
-                      <img src={photo.thumbnail_url} alt="extra" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
-                        <Image size={20} className="text-[#E5E5E2]" />
-                      </div>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(photo)}
-                    disabled={deletingId === photo.id}
-                    data-testid={`delete-extra-photo-${photo.id}`}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                  >
-                    {deletingId === photo.id
-                      ? <span className="text-[8px] animate-spin">◌</span>
-                      : <X size={10} weight="bold" />}
-                  </button>
-                </div>
-              ))}
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto p-4">
 
-              {/* "+" add slot */}
-              {slotsLeft > 0 && (
-                <label
-                  data-testid="add-extra-photo-btn"
-                  className="aspect-square rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] flex flex-col items-center justify-center cursor-pointer transition-all"
-                  title={`Add up to ${slotsLeft} more photo${slotsLeft !== 1 ? 's' : ''}`}
-                >
-                  <input
-                    ref={extraInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
-                    disabled={uploadingExtra}
-                  />
-                  {uploadingExtra ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#C27E70]" />
-                  ) : (
-                    <>
-                      <Plus size={20} className="text-[#C27E70] mb-1" weight="bold" />
-                      <span className="text-[10px] text-[#9CA3AF] text-center leading-tight px-1">
-                        Add photos<br />({slotsLeft} left)
-                      </span>
-                    </>
-                  )}
-                </label>
-              )}
-
-              {extraPhotos.length === 0 && (
-                <div className="col-span-2 flex items-center pl-1">
-                  <p className="text-xs text-[#9CA3AF]">Click + to add up to {MAX_EXTRA_PHOTOS} photos</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── CLINICAL PHOTOS ── */}
-          {Object.keys(photosByDate).length > 0 && (
+          {/* ── EXTRA PHOTOS TAB (12-slot template) ── */}
+          {activeTab === 'extra' && (
             <div>
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Clinical Photos</h3>
-              {Object.entries(photosByDate).map(([date, photos]) => (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen size={16} className="text-[#82A098]" />
-                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                    <span className="text-xs text-[#5C6773]">({photos.length})</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 ml-6">
-                    {photos.map((photo) => (
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">Extra Photos</h3>
+                <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
+              </div>
+              <input
+                ref={extraInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
+                disabled={uploadingExtra}
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: MAX_EXTRA_PHOTOS }).map((_, i) => {
+                  const photo = extraPhotos[i];
+                  if (photo) {
+                    return (
                       <div key={photo.id} className="relative group aspect-square">
                         <button
                           onClick={() => setSelectedItem(photo)}
-                          data-testid={`photo-thumb-${photo.id}`}
+                          data-testid={`extra-photo-thumb-${photo.id}`}
                           className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
                             selectedItem?.id === photo.id
-                              ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
-                              : 'border-[#E5E5E2] hover:border-[#82A098]'
+                              ? 'border-[#C27E70] ring-2 ring-[#C27E70]/30'
+                              : 'border-[#E5E5E2] hover:border-[#C27E70]'
                           }`}
                         >
                           {photo.thumbnail_url ? (
-                            <img src={photo.thumbnail_url} alt={photo.category} className="w-full h-full object-cover" />
+                            <img src={photo.thumbnail_url} alt="extra" className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
                               <Image size={20} className="text-[#E5E5E2]" />
@@ -372,120 +327,188 @@ const MedicalVault = () => {
                         <button
                           onClick={() => handleDelete(photo)}
                           disabled={deletingId === photo.id}
-                          data-testid={`delete-photo-${photo.id}`}
+                          data-testid={`delete-extra-photo-${photo.id}`}
                           className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
                         >
-                          {deletingId === photo.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                          {deletingId === photo.id
+                            ? <span className="text-[8px] animate-spin">◌</span>
+                            : <X size={10} weight="bold" />}
                         </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                    );
+                  }
+                  return (
+                    <button
+                      key={`empty-slot-${i}`}
+                      onClick={() => !uploadingExtra && extraInputRef.current?.click()}
+                      disabled={uploadingExtra}
+                      data-testid={`extra-slot-empty-${i}`}
+                      className="aspect-square rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] flex items-center justify-center cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      {uploadingExtra && i === extraPhotos.length ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#C27E70]" />
+                      ) : (
+                        <Plus size={16} className="text-[#E5E5E2]" weight="bold" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* ── RADIOGRAPHS ── */}
-          {Object.keys(radiographsByDate).length > 0 && (
+          {/* ── CLINICAL PHOTOS TAB ── */}
+          {activeTab === 'clinical' && (
+            <div>
+              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Clinical Photos</h3>
+              {Object.keys(photosByDate).length === 0 && Object.keys(generalByDate).length === 0 ? (
+                <div className="text-center py-10">
+                  <Image size={40} className="mx-auto text-[#E5E5E2] mb-3" />
+                  <p className="text-sm text-[#5C6773]">No clinical photos yet</p>
+                  <p className="text-xs text-[#9CA3AF] mt-1">Click "Add New Photos" above to upload</p>
+                </div>
+              ) : (
+                <>
+                  {Object.entries(photosByDate).map(([date, photos]) => (
+                    <div key={date} className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderOpen size={16} className="text-[#82A098]" />
+                        <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                        <span className="text-xs text-[#5C6773]">({photos.length})</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 ml-6">
+                        {photos.map((photo) => (
+                          <div key={photo.id} className="relative group aspect-square">
+                            <button
+                              onClick={() => setSelectedItem(photo)}
+                              data-testid={`photo-thumb-${photo.id}`}
+                              className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                                selectedItem?.id === photo.id
+                                  ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
+                                  : 'border-[#E5E5E2] hover:border-[#82A098]'
+                              }`}
+                            >
+                              {photo.thumbnail_url ? (
+                                <img src={photo.thumbnail_url} alt={photo.category} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                                  <Image size={20} className="text-[#E5E5E2]" />
+                                </div>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(photo)}
+                              disabled={deletingId === photo.id}
+                              data-testid={`delete-photo-${photo.id}`}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                            >
+                              {deletingId === photo.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.entries(generalByDate).map(([date, imgs]) => (
+                    <div key={`gen-${date}`} className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderOpen size={16} className="text-[#82A098]" />
+                        <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                        <span className="text-xs text-[#5C6773]">({imgs.length})</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 ml-6">
+                        {imgs.map((img) => (
+                          <div key={img.id} className="relative group aspect-square">
+                            <button
+                              onClick={() => setSelectedItem(img)}
+                              data-testid={`image-thumb-${img.id}`}
+                              className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                                selectedItem?.id === img.id
+                                  ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
+                                  : 'border-[#E5E5E2] hover:border-[#82A098]'
+                              }`}
+                            >
+                              {img.thumbnail_url ? (
+                                <img src={img.thumbnail_url} alt="image" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                                  <Image size={20} className="text-[#E5E5E2]" />
+                                </div>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(img)}
+                              disabled={deletingId === img.id}
+                              data-testid={`delete-image-${img.id}`}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                            >
+                              {deletingId === img.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── RADIOGRAPHS TAB ── */}
+          {activeTab === 'radiograph' && (
             <div>
               <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Radiographs</h3>
-              {Object.entries(radiographsByDate).map(([date, radios]) => (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen size={16} className="text-[#7B9EBB]" />
-                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                    <span className="text-xs text-[#5C6773]">({radios.length})</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 ml-6">
-                    {radios.map((radio) => (
-                      <div key={radio.id} className="relative group aspect-square">
-                        <button
-                          onClick={() => setSelectedItem(radio)}
-                          data-testid={`radio-thumb-${radio.id}`}
-                          className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
-                            selectedItem?.id === radio.id
-                              ? 'border-[#7B9EBB] ring-2 ring-[#7B9EBB]/30'
-                              : 'border-[#E5E5E2] hover:border-[#7B9EBB]'
-                          }`}
-                        >
-                          {radio.thumbnail_url ? (
-                            <img src={radio.thumbnail_url} alt={radio.category} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
-                              <Image size={20} className="text-[#E5E5E2]" />
-                            </div>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(radio)}
-                          disabled={deletingId === radio.id}
-                          data-testid={`delete-radio-${radio.id}`}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                        >
-                          {deletingId === radio.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+              {Object.keys(radiographsByDate).length === 0 ? (
+                <div className="text-center py-10">
+                  <Image size={40} className="mx-auto text-[#E5E5E2] mb-3" />
+                  <p className="text-sm text-[#5C6773]">No radiographs yet</p>
+                  <p className="text-xs text-[#9CA3AF] mt-1">Click "Add New Radiographs" above to upload</p>
                 </div>
-              ))}
+              ) : (
+                Object.entries(radiographsByDate).map(([date, radios]) => (
+                  <div key={date} className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FolderOpen size={16} className="text-[#7B9EBB]" />
+                      <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
+                      <span className="text-xs text-[#5C6773]">({radios.length})</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 ml-6">
+                      {radios.map((radio) => (
+                        <div key={radio.id} className="relative group aspect-square">
+                          <button
+                            onClick={() => setSelectedItem(radio)}
+                            data-testid={`radio-thumb-${radio.id}`}
+                            className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
+                              selectedItem?.id === radio.id
+                                ? 'border-[#7B9EBB] ring-2 ring-[#7B9EBB]/30'
+                                : 'border-[#E5E5E2] hover:border-[#7B9EBB]'
+                            }`}
+                          >
+                            {radio.thumbnail_url ? (
+                              <img src={radio.thumbnail_url} alt={radio.category} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
+                                <Image size={20} className="text-[#E5E5E2]" />
+                              </div>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(radio)}
+                            disabled={deletingId === radio.id}
+                            data-testid={`delete-radio-${radio.id}`}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                          >
+                            {deletingId === radio.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
-          {/* ── GENERAL / CASE IMAGES (older uploads without named view) ── */}
-          {Object.keys(generalByDate).length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider mb-3">Case Images</h3>
-              {Object.entries(generalByDate).map(([date, imgs]) => (
-                <div key={date} className="mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen size={16} className="text-[#82A098]" />
-                    <span className="text-sm font-medium text-[#2A2F35]">{date}</span>
-                    <span className="text-xs text-[#5C6773]">({imgs.length})</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 ml-6">
-                    {imgs.map((img) => (
-                      <div key={img.id} className="relative group aspect-square">
-                        <button
-                          onClick={() => setSelectedItem(img)}
-                          data-testid={`image-thumb-${img.id}`}
-                          className={`w-full h-full rounded-lg overflow-hidden border-2 transition-all ${
-                            selectedItem?.id === img.id
-                              ? 'border-[#82A098] ring-2 ring-[#82A098]/30'
-                              : 'border-[#E5E5E2] hover:border-[#82A098]'
-                          }`}
-                        >
-                          {img.thumbnail_url ? (
-                            <img src={img.thumbnail_url} alt="image" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-[#F9F9F8] flex items-center justify-center">
-                              <Image size={20} className="text-[#E5E5E2]" />
-                            </div>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(img)}
-                          disabled={deletingId === img.id}
-                          data-testid={`delete-image-${img.id}`}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                        >
-                          {deletingId === img.id ? <span className="text-[8px] animate-spin">◌</span> : <X size={10} weight="bold" />}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {allImages.length === 0 && (
-            <div className="text-center py-12">
-              <Image size={48} className="mx-auto text-[#E5E5E2] mb-3" />
-              <p className="text-sm text-[#5C6773]">No photos or radiographs yet</p>
-              <p className="text-xs text-[#5C6773] mt-1">Click above to add files</p>
-            </div>
-          )}
         </div>
       </div>
 
