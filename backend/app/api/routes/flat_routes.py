@@ -180,18 +180,19 @@ async def patch_fpd_flat(
     return FPDRead.model_validate(fpd)
 
 
-@router.delete("/fpd-records/{fpd_id}", status_code=204)
+@router.delete("/fpd-records/{fpd_id}")
 async def delete_fpd_flat(
     fpd_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+) -> dict:
     repo = FPDRepository(db)
     fpd = await repo.get(fpd_id, current_user.org_id)
     if not fpd:
         raise HTTPException(status_code=404, detail="FPD record not found")
     await db.delete(fpd)
     await db.commit()
+    return {"deleted": True}
 
 
 @router.post("/fpd-records/{fpd_id}/warranty-image")
