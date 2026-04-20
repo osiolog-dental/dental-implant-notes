@@ -151,8 +151,22 @@ async def create_fpd_flat(
 
 
 @router.put("/fpd-records/{fpd_id}", response_model=FPDRead)
-@router.patch("/fpd-records/{fpd_id}", response_model=FPDRead)
 async def update_fpd_flat(
+    fpd_id: uuid.UUID,
+    body: FPDUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FPDRead:
+    repo = FPDRepository(db)
+    fpd = await repo.get(fpd_id, current_user.org_id)
+    if not fpd:
+        raise HTTPException(status_code=404, detail="FPD record not found")
+    fpd = await repo.update(fpd, body)
+    return FPDRead.model_validate(fpd)
+
+
+@router.patch("/fpd-records/{fpd_id}", response_model=FPDRead)
+async def patch_fpd_flat(
     fpd_id: uuid.UUID,
     body: FPDUpdate,
     current_user: User = Depends(get_current_user),
