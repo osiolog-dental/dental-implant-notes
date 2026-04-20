@@ -8,8 +8,6 @@ import {
   Buildings, Users, Tooth, CheckCircle, FilePdf,
 } from '@phosphor-icons/react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-
 export default function DoctorPublicProfile() {
   const { doctorId } = useParams();
   const [profile, setProfile] = useState(null);
@@ -20,10 +18,12 @@ export default function DoctorPublicProfile() {
   const profileUrl = `${window.location.origin}/profile/${doctorId}`;
 
   useEffect(() => {
+    // Public endpoint — no auth required, but client.js handles auth gracefully if logged in
     client.get(`/api/public/profile/${doctorId}`)
       .then(r => setProfile(r.data))
       .catch(e => {
         if (e.response?.status === 404) setNotFound(true);
+        else setNotFound(true);
       })
       .finally(() => setLoading(false));
   }, [doctorId]);
@@ -207,7 +207,7 @@ export default function DoctorPublicProfile() {
         <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center sm:items-end gap-5">
           {profile.profile_picture ? (
             <img
-              src={`${API_URL}/api/files/${profile.profile_picture}`}
+              src={profile.profile_picture}
               alt={profile.name}
               className="w-24 h-24 rounded-full border-4 border-white/40 object-cover shadow-lg"
             />

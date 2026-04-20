@@ -1,7 +1,5 @@
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-
-const SHOW_BETA_FEATURES = false;
 import { AuthProvider } from './contexts/AuthContext';
 import { Toaster } from 'sonner';
 import Login from './pages/Login';
@@ -37,8 +35,8 @@ function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="clinics" element={<Clinics />} />
             <Route path="account" element={<Account />} />
-            {SHOW_BETA_FEATURES && <Route path="backup" element={<Backup />} />}
-            {SHOW_BETA_FEATURES && <Route path="subscription" element={<Subscription />} />}
+            <Route path="backup" element={<Backup />} />
+            <Route path="subscription" element={<Subscription />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

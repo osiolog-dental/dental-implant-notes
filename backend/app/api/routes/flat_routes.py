@@ -309,3 +309,181 @@ async def serve_file(
         return RedirectResponse(url=url, status_code=302)
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")
+
+
+# ── Public doctor profile (no auth required)  ─────────────────────────────────
+
+@router.get("/public/profile/{doctor_id}")
+async def get_public_profile(
+    doctor_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.case import Case
+    from app.models.implant import Implant as ImplantModel
+    from app.models.fpd import ProstheticFPD as FPDModel
+    from app.models.clinic import Clinic
+
+    user_result = await db.execute(
+        select(User).where(User.id == doctor_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    # Stats
+    patients_result = await db.execute(
+        select(Patient).where(Patient.org_id == user.org_id, Patient.deleted_at.is_(None))
+    )
+    patients = patients_result.scalars().all()
+    patient_count = len(patients)
+
+    implants_result = await db.execute(
+        select(ImplantModel).where(ImplantModel.org_id == user.org_id)
+    )
+    implant_count = len(implants_result.scalars().all())
+
+    fpd_result = await db.execute(
+        select(FPDModel).where(FPDModel.org_id == user.org_id)
+    )
+    fpd_count = len(fpd_result.scalars().all())
+
+    clinics_result = await db.execute(
+        select(Clinic).where(Clinic.org_id == user.org_id)
+    )
+    clinics = [{"name": c.name, "address": c.address} for c in clinics_result.scalars().all()]
+
+    profile_picture_url = None
+    if user.profile_picture_key:
+        try:
+            profile_picture_url = s3_service.generate_download_url(user.profile_picture_key)
+        except Exception:
+            pass
+
+    return {
+        "id": str(user.id),
+        "name": user.name,
+        "email": user.email,
+        "specialization": user.specialization,
+        "registration_number": user.registration_number,
+        "college": user.college,
+        "college_place": user.college_place,
+        "country": user.country,
+        "bio": user.bio,
+        "profile_picture": profile_picture_url,
+        "clinics": clinics,
+        "stats": {
+            "patients": patient_count,
+            "implants": implant_count,
+            "fpd": fpd_count,
+            "success_rate": None,
+        },
+    }
+
+
+# ── Backup export / restore  ───────────────────────────────────────────────────
+
+@router.get("/backup/export")
+async def export_backup(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.case import Case
+    from app.models.implant import Implant as ImplantModel
+    from app.models.fpd import ProstheticFPD as FPDModel
+    from app.models.clinic import Clinic
+    from datetime import timezone
+    import datetime as _dt
+
+    patients_result = await db.execute(
+        select(Patient).where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    patients_rows = patients_result.scalars().all()
+
+    implants_result = await db.execute(
+        select(ImplantModel).where(ImplantModel.org_id == current_user.org_id)
+    )
+    implants_rows = implants_result.scalars().all()
+
+    fpd_result = await db.execute(
+        select(FPDModel).where(FPDModel.org_id == current_user.org_id)
+    )
+    fpd_rows = fpd_result.scalars().all()
+
+    clinics_result = await db.execute(
+        select(Clinic).where(Clinic.org_id == current_user.org_id)
+    )
+    clinics_rows = clinics_result.scalars().all()
+
+    def _row(obj):
+        return {c.name: str(getattr(obj, c.name)) if getattr(obj, c.name) is not None else None
+                for c in obj.__table__.columns}
+
+    return {
+        "version": "2.0",
+        "exported_at": _dt.datetime.now(timezone.utc).isoformat(),
+        "patients": [_row(p) for p in patients_rows],
+        "implants": [_row(i) for i in implants_rows],
+        "fpd_records": [_row(f) for f in fpd_rows],
+        "clinics": [_row(c) for c in clinics_rows],
+    }
+
+
+@router.post("/backup/restore")
+async def restore_backup(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if payload.get("version") not in ("2.0",):
+        raise HTTPException(status_code=400, detail="Unsupported backup version")
+
+    from app.models.clinic import Clinic
+    from app.models.implant import Implant as ImplantModel
+    from app.models.fpd import ProstheticFPD as FPDModel
+
+    inserted = {"patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0}
+
+    for raw in payload.get("patients", []):
+        pid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        existing = await db.get(Patient, pid)
+        if not existing:
+            p = Patient(
+                id=pid,
+                org_id=current_user.org_id,
+                doctor_id=current_user.id,
+                name=raw.get("name", "Unknown"),
+                age=int(raw["age"]) if raw.get("age") else None,
+                gender=raw.get("gender"),
+                phone=raw.get("phone"),
+                email=raw.get("email"),
+                address=raw.get("address"),
+                medical_history=raw.get("medical_history"),
+            )
+            db.add(p)
+            inserted["patients"] += 1
+
+    await db.flush()
+    return {"inserted": inserted}
+
+
+# ── Subscription status  ───────────────────────────────────────────────────────
+
+@router.get("/subscription/status")
+async def subscription_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    return {
+        "plan": "free",
+        "used_mb": 0,
+        "limit_mb": 500,
+        "plan_end": None,
+    }
+
+
+@router.post("/subscription/upgrade")
+async def subscription_upgrade(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    raise HTTPException(status_code=402, detail="Payment integration coming soon. Contact support to upgrade.")

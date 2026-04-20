@@ -112,10 +112,12 @@ export const AuthProvider = ({ children }) => {
           country: userData.country || null,
           registration_number: userData.registration_number || null,
           college: userData.college || null,
+          college_place: userData.college_place || null,
           specialization: userData.specialization || null,
-          place: userData.place || null,
+          place: userData.address_city || userData.place || null,
+          bio: userData.bio || null,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setUser(data);
       return { success: true };

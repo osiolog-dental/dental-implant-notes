@@ -22,10 +22,12 @@ export default function Account() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [retainData, setRetainData] = useState(true);
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
     country: user?.country || '',
+    registration_number: user?.registration_number || '',
     specialization: user?.specialization || '',
     college: user?.college || '',
     college_place: user?.college_place || '',
@@ -64,6 +66,7 @@ export default function Account() {
       name: user?.name || '',
       phone: user?.phone || '',
       country: user?.country || '',
+      registration_number: user?.registration_number || '',
       specialization: user?.specialization || '',
       college: user?.college || '',
       college_place: user?.college_place || '',
@@ -138,7 +141,8 @@ export default function Account() {
             <Field label="Country"            value={user?.country}             icon={MapPin} />
             <Field label="Registration No."   value={user?.registration_number} icon={Certificate} />
             <Field label="Specialization"     value={user?.specialization}      icon={Stethoscope} />
-            <Field label="College"            value={[user?.college, user?.college_place].filter(Boolean).join(' • ')} icon={GraduationCap} />
+            <Field label="College / University" value={user?.college}           icon={GraduationCap} />
+            <Field label="College City"       value={user?.college_place}       icon={MapPin} />
             {user?.bio && (
               <div className="px-6 py-4">
                 <p className="text-xs text-[#5C6773] mb-1">About / Bio</p>
@@ -155,12 +159,13 @@ export default function Account() {
           /* Edit mode */
           <div className="p-6 space-y-4">
             {[
-              { label: 'Full Name',       key: 'name',           placeholder: 'Dr. Your Name' },
-              { label: 'Phone',           key: 'phone',          placeholder: '+91 98765 43210' },
-              { label: 'Country',         key: 'country',        placeholder: 'India' },
-              { label: 'Specialization',  key: 'specialization', placeholder: 'Implantology' },
-              { label: 'College',         key: 'college',        placeholder: 'College name' },
-              { label: 'College City',    key: 'college_place',  placeholder: 'City / Place' },
+              { label: 'Full Name',           key: 'name',                placeholder: 'Dr. Your Name' },
+              { label: 'Phone',               key: 'phone',               placeholder: '+91 98765 43210' },
+              { label: 'Country',             key: 'country',             placeholder: 'India' },
+              { label: 'Registration No.',    key: 'registration_number', placeholder: 'e.g. DCI12345' },
+              { label: 'Specialization',      key: 'specialization',      placeholder: 'Implantology' },
+              { label: 'College / University',key: 'college',             placeholder: 'College name' },
+              { label: 'College City',        key: 'college_place',       placeholder: 'City / Place' },
             ].map(({ label, key, placeholder }) => (
               <div key={key}>
                 <label className="block text-xs font-medium text-[#5C6773] mb-1">{label}</label>
@@ -288,8 +293,26 @@ export default function Account() {
               <h3 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Delete Account?</h3>
             </div>
             <p className="text-sm text-[#5C6773] mb-4">
-              This will permanently delete your account, all your patients, implant records, and uploaded images. <strong>This cannot be undone.</strong>
+              This will delete your account and sign you out. <strong>This cannot be undone.</strong>
             </p>
+
+            {/* 30-day retain option */}
+            <div className="mb-4 p-3 bg-[#F9F9F8] rounded-lg border border-[#E5E5E2]">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={retainData}
+                  onChange={e => setRetainData(e.target.checked)}
+                  data-testid="retain-data-checkbox"
+                  className="mt-0.5 accent-[#82A098]"
+                />
+                <div>
+                  <p className="text-sm font-medium text-[#2A2F35]">Retain my data for 30 days</p>
+                  <p className="text-xs text-[#5C6773] mt-0.5">Your patient records and photos will be kept for 30 days before permanent deletion. Contact support within this window to restore your account.</p>
+                </div>
+              </label>
+            </div>
+
             <p className="text-xs font-medium text-[#2A2F35] mb-2">Type <span className="font-mono font-bold">DELETE</span> to confirm:</p>
             <input
               data-testid="delete-confirm-input"
