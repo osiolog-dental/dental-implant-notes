@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { getPatient } from '../api/patients';
-import { getCases } from '../api/cases';
+import { getCases, createCase } from '../api/cases';
 import { getImages, uploadImage, deleteImage, clearImageCache } from '../api/images';
 
 const MAX_EXTRA_PHOTOS = 12;
@@ -91,13 +91,30 @@ const MedicalVault = () => {
     }
   };
 
+  // ── Auto-create a General case if patient has none ───────────────────────
+  const ensureCase = async () => {
+    if (cases.length > 0) return uploadCaseId || cases[0].id;
+    try {
+      const newCase = await createCase({ patient_id: patientId, title: 'General', status: 'active' });
+      const cid = newCase.id;
+      setCases([newCase]);
+      setUploadCaseId(cid);
+      setExtraCaseId(cid);
+      return cid;
+    } catch {
+      toast.error('Could not create a case for this patient');
+      return null;
+    }
+  };
+
   // ── Named-view upload (clinical photos / radiographs) ─────────────────────
   const handleViewUpload = async (file, viewId) => {
-    if (!uploadCaseId) { toast.error('No case selected'); return; }
+    const cid = uploadCaseId || await ensureCase();
+    if (!cid) return;
     const key = `${uploadType}_${viewId}`;
     setUploadingFiles(prev => ({ ...prev, [key]: true }));
     try {
-      await uploadImage(uploadCaseId, file, { category: `${uploadType}_${viewId}` });
+      await uploadImage(cid, file, { category: `${uploadType}_${viewId}` });
       toast.success('File uploaded');
       caseList_invalidateAndRefetch();
     } catch (err) {
@@ -117,7 +134,8 @@ const MedicalVault = () => {
   const slotsLeft = MAX_EXTRA_PHOTOS - extraPhotos.length;
 
   const handleExtraUpload = async (files) => {
-    if (!extraCaseId) { toast.error('No case selected'); return; }
+    const cid = extraCaseId || await ensureCase();
+    if (!cid) return;
     if (slotsLeft <= 0) { toast.error(`Maximum ${MAX_EXTRA_PHOTOS} extra photos reached`); return; }
     const toUpload = Array.from(files).slice(0, slotsLeft);
     if (toUpload.length < files.length) {
@@ -127,7 +145,7 @@ const MedicalVault = () => {
     let uploaded = 0;
     for (const file of toUpload) {
       try {
-        await uploadImage(extraCaseId, file, { category: 'extra' });
+        await uploadImage(cid, file, { category: 'extra' });
         uploaded++;
       } catch {
         toast.error(`Failed to upload ${file.name}`);
@@ -226,20 +244,18 @@ const MedicalVault = () => {
           <button
             onClick={() => { setUploadType('photo'); setUploadDialogOpen(true); }}
             data-testid="add-photos-button"
-            disabled={cases.length === 0}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] disabled:bg-[#E5E5E2] disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] text-white rounded-lg transition-colors"
           >
             <Plus size={20} weight="bold" />
-            <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add New Photos'}</span>
+            <span className="font-medium">Add New Photos</span>
           </button>
           <button
             onClick={() => { setUploadType('radiograph'); setUploadDialogOpen(true); }}
             data-testid="add-radiographs-button"
-            disabled={cases.length === 0}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] disabled:bg-[#E5E5E2] disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] text-white rounded-lg transition-colors"
           >
             <Plus size={20} weight="bold" />
-            <span className="font-medium">{cases.length === 0 ? 'No cases yet' : 'Add New Radiographs'}</span>
+            <span className="font-medium">Add New Radiographs</span>
           </button>
         </div>
 
@@ -286,7 +302,7 @@ const MedicalVault = () => {
               ))}
 
               {/* "+" add slot */}
-              {slotsLeft > 0 && cases.length > 0 && (
+              {slotsLeft > 0 && (
                 <label
                   data-testid="add-extra-photo-btn"
                   className="aspect-square rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] flex flex-col items-center justify-center cursor-pointer transition-all"
@@ -314,12 +330,7 @@ const MedicalVault = () => {
                 </label>
               )}
 
-              {extraPhotos.length === 0 && cases.length === 0 && (
-                <div className="col-span-3">
-                  <p className="text-xs text-[#9CA3AF]">Create a case first to add photos</p>
-                </div>
-              )}
-              {extraPhotos.length === 0 && cases.length > 0 && (
+              {extraPhotos.length === 0 && (
                 <div className="col-span-2 flex items-center pl-1">
                   <p className="text-xs text-[#9CA3AF]">Click + to add up to {MAX_EXTRA_PHOTOS} photos</p>
                 </div>
@@ -540,7 +551,7 @@ const MedicalVault = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {cases.length > 1 && (
+          {cases.length > 1 && uploadCaseId && (
             <div className="mt-2 mb-4">
               <label className="block text-sm font-medium text-[#2A2F35] mb-2">Upload to case</label>
               <select
