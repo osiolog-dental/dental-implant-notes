@@ -573,12 +573,16 @@ async def export_backup(
     patients_rows = patients_result.scalars().all()
 
     implants_result = await db.execute(
-        select(ImplantModel).where(ImplantModel.org_id == current_user.org_id)
+        select(ImplantModel)
+        .join(Patient, ImplantModel.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
     )
     implants_rows = implants_result.scalars().all()
 
     fpd_result = await db.execute(
-        select(FPDModel).where(FPDModel.org_id == current_user.org_id)
+        select(FPDModel)
+        .join(Patient, FPDModel.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
     )
     fpd_rows = fpd_result.scalars().all()
 
