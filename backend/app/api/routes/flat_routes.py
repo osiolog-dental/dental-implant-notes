@@ -423,12 +423,16 @@ async def get_public_profile(
     patient_count = len(patients)
 
     implants_result = await db.execute(
-        select(ImplantModel).where(ImplantModel.org_id == user.org_id)
+        select(ImplantModel)
+        .join(Patient, ImplantModel.patient_id == Patient.id)
+        .where(Patient.org_id == user.org_id, Patient.deleted_at.is_(None))
     )
     implant_count = len(implants_result.scalars().all())
 
     fpd_result = await db.execute(
-        select(FPDModel).where(FPDModel.org_id == user.org_id)
+        select(FPDModel)
+        .join(Patient, FPDModel.patient_id == Patient.id)
+        .where(Patient.org_id == user.org_id, Patient.deleted_at.is_(None))
     )
     fpd_count = len(fpd_result.scalars().all())
 

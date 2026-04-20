@@ -787,20 +787,12 @@ const PatientDetails = () => {
             ) : (
               <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
                 {editLog.map((entry, i) => (
-                  <div key={i} className="text-xs text-[#5C6773]">
-                    <span className="font-medium text-[#2A2F35]">
-                      {new Date(entry.changed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <div className="mt-1 space-y-0.5 pl-2 border-l-2 border-[#E5E5E2]">
-                      {entry.changes.map((c, j) => (
-                        <div key={j}>
-                          <span className="capitalize">{c.field.replace(/_/g, ' ')}</span>
-                          {': '}
-                          <span className="line-through text-[#9CA3AF]">{c.old || '—'}</span>
-                          {' → '}
-                          <span className="text-[#2A2F35] font-medium">{c.new || '—'}</span>
-                        </div>
-                      ))}
+                  <div key={i} className="text-xs text-[#5C6773] flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#C27E70] mt-1 shrink-0" />
+                    <div>
+                      <span className="font-medium text-[#2A2F35] capitalize">{entry.action}</span>
+                      {' · '}
+                      <span>{new Date(entry.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 ))}
