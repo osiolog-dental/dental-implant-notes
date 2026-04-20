@@ -3,8 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -31,6 +31,20 @@ class User(Base):
     place: Mapped[str | None] = mapped_column(String(255), nullable=True)
     college_place: Mapped[str | None] = mapped_column(String(255), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    date_of_birth: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    organization: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    years_of_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    address_street: Mapped[str | None] = mapped_column(Text, nullable=True)
+    address_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    address_state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    address_zip: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    primary_clinic: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    consulting_clinics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    clinical_focus: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    publications: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

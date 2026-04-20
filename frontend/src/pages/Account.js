@@ -9,7 +9,8 @@ import {
   User, Envelope, Phone, MapPin, Certificate,
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
   ShareNetwork, ArrowSquareOut, X, Warning, Camera, CurrencyDollar,
-  Briefcase, Buildings, Clock,
+  Briefcase, Buildings, Clock, Plus, Trash, House, CalendarBlank,
+  GenderIntersex, Newspaper,
 } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
@@ -188,17 +189,34 @@ export default function Account() {
   const [cropSrc, setCropSrc] = useState(null);
   const picInputRef = useRef(null);
 
+  const emptyEdu = () => ({ degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
+  const emptyPub = () => ({ title: '', journal: '', year: '', doi: '' });
+
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
+    gender: user?.gender || '',
+    date_of_birth: user?.date_of_birth || '',
     country: user?.country || '',
+    address_street: user?.address_street || '',
+    address_city: user?.address_city || '',
+    address_state: user?.address_state || '',
+    address_zip: user?.address_zip || '',
     registration_number: user?.registration_number || '',
+    designation: user?.designation || '',
+    organization: user?.organization || '',
     specialization: user?.specialization || '',
+    years_of_experience: user?.years_of_experience || '',
+    primary_clinic: user?.primary_clinic || '',
+    consulting_clinics: user?.consulting_clinics || '',
+    clinical_focus: user?.clinical_focus || '',
     college: user?.college || '',
     college_place: user?.college_place || '',
-    bio: user?.bio || '',
     place: user?.place || '',
+    bio: user?.bio || '',
   });
+  const [education, setEducation] = useState(user?.education?.length ? user.education : [emptyEdu()]);
+  const [publications, setPublications] = useState(user?.publications?.length ? user.publications : [emptyPub()]);
 
   const rawName = user?.name || 'Doctor';
   const displayName = rawName.startsWith('Dr.') || rawName.startsWith('Dr ') ? rawName : `Dr. ${rawName}`;
@@ -210,7 +228,13 @@ export default function Account() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await client.patch('/api/users/me', form);
+      const payload = {
+        ...form,
+        years_of_experience: form.years_of_experience ? parseInt(form.years_of_experience) : null,
+        education: education.filter(e => e.institution || e.degree_type),
+        publications: publications.filter(p => p.title || p.journal),
+      };
+      await client.patch('/api/users/me', payload);
       toast.success('Profile updated');
       setEditing(false);
       window.location.reload();
@@ -225,14 +249,28 @@ export default function Account() {
     setForm({
       name: user?.name || '',
       phone: user?.phone || '',
+      gender: user?.gender || '',
+      date_of_birth: user?.date_of_birth || '',
       country: user?.country || '',
+      address_street: user?.address_street || '',
+      address_city: user?.address_city || '',
+      address_state: user?.address_state || '',
+      address_zip: user?.address_zip || '',
       registration_number: user?.registration_number || '',
+      designation: user?.designation || '',
+      organization: user?.organization || '',
       specialization: user?.specialization || '',
+      years_of_experience: user?.years_of_experience || '',
+      primary_clinic: user?.primary_clinic || '',
+      consulting_clinics: user?.consulting_clinics || '',
+      clinical_focus: user?.clinical_focus || '',
       college: user?.college || '',
       college_place: user?.college_place || '',
-      bio: user?.bio || '',
       place: user?.place || '',
+      bio: user?.bio || '',
     });
+    setEducation(user?.education?.length ? user.education : [emptyEdu()]);
+    setPublications(user?.publications?.length ? user.publications : [emptyPub()]);
     setEditing(false);
   };
 
@@ -370,6 +408,8 @@ export default function Account() {
             <Field label="Full Name"              value={user?.name}                icon={User} />
             <Field label="Email"                  value={user?.email}               icon={Envelope} />
             <Field label="Phone"                  value={user?.phone}               icon={Phone} />
+            <Field label="Gender"                 value={user?.gender}              icon={GenderIntersex} />
+            <Field label="Date of Birth"          value={user?.date_of_birth}       icon={CalendarBlank} />
             <Field label="Country"                value={user?.country}             icon={MapPin} />
             {user?.country && (
               <Field
@@ -378,14 +418,57 @@ export default function Account() {
                 icon={CurrencyDollar}
               />
             )}
-            <Field label="Registration No."       value={user?.registration_number} icon={Certificate} />
-            <Field label="Designation / Job Title" value={user?.designation}        icon={Briefcase} />
-            <Field label="Organisation"           value={user?.organization}        icon={Buildings} />
-            <Field label="Years of Experience"    value={user?.years_of_experience ? `${user.years_of_experience} years` : null} icon={Clock} />
-            <Field label="Specialization"         value={user?.specialization}      icon={Stethoscope} />
-            <Field label="College / University"   value={user?.college}             icon={GraduationCap} />
-            <Field label="College City"           value={user?.college_place}       icon={MapPin} />
-            <Field label="Practice City"          value={user?.place}               icon={MapPin} />
+            {(user?.address_street || user?.address_city) && (
+              <Field
+                label="Address"
+                value={[user?.address_street, user?.address_city, user?.address_state, user?.address_zip].filter(Boolean).join(', ')}
+                icon={House}
+              />
+            )}
+            <Field label="Registration No."        value={user?.registration_number} icon={Certificate} />
+            <Field label="Designation / Job Title" value={user?.designation}         icon={Briefcase} />
+            <Field label="Organisation"            value={user?.organization}        icon={Buildings} />
+            <Field label="Years of Experience"     value={user?.years_of_experience ? `${user.years_of_experience} years` : null} icon={Clock} />
+            <Field label="Specialization"          value={user?.specialization}      icon={Stethoscope} />
+            <Field label="Primary Clinic"          value={user?.primary_clinic}      icon={Buildings} />
+            <Field label="Clinical Focus"          value={user?.clinical_focus}      icon={Stethoscope} />
+            <Field label="College / University"    value={user?.college}             icon={GraduationCap} />
+            <Field label="College City"            value={user?.college_place}       icon={MapPin} />
+            <Field label="Practice City"           value={user?.place}               icon={MapPin} />
+            {user?.consulting_clinics && (
+              <div className="px-6 py-4">
+                <p className="text-xs text-[#5C6773] mb-1">Consulting Hospitals / Clinics</p>
+                <p className="text-sm text-[#2A2F35] whitespace-pre-line">{user.consulting_clinics}</p>
+              </div>
+            )}
+            {user?.education?.length > 0 && (
+              <div className="px-6 py-4">
+                <p className="text-xs text-[#5C6773] mb-2">Education</p>
+                <div className="space-y-1.5">
+                  {user.education.map((e, i) => (
+                    <div key={i} className="text-sm text-[#2A2F35]">
+                      {e.degree_type && <span className="font-medium">{e.degree_type}</span>}
+                      {e.institution && <span className="text-[#5C6773]"> — {e.institution}</span>}
+                      {e.passing_year && <span className="text-[#9CA3AF]"> ({e.passing_year})</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {user?.publications?.length > 0 && (
+              <div className="px-6 py-4">
+                <p className="text-xs text-[#5C6773] mb-2">Publications</p>
+                <div className="space-y-1.5">
+                  {user.publications.map((p, i) => (
+                    <div key={i} className="text-sm text-[#2A2F35]">
+                      {p.title && <span className="font-medium">{p.title}</span>}
+                      {p.journal && <span className="text-[#5C6773]"> — {p.journal}</span>}
+                      {p.year && <span className="text-[#9CA3AF]"> ({p.year})</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="px-6 py-4">
               <p className="text-xs text-[#5C6773] mb-1">About / Bio</p>
               <p className="text-sm text-[#2A2F35]">{user?.bio || '—'}</p>
@@ -398,13 +481,29 @@ export default function Account() {
           </div>
         ) : (
           /* Edit mode */
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-5">
 
-            {/* Section: Personal */}
+            {/* ── Personal ── */}
             <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider">Personal</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <EditField label="Full Name"    fieldKey="name"    placeholder="Dr. Your Name" />
-              <EditField label="Phone"        fieldKey="phone"   placeholder="+91 98765 43210" />
+              <EditField label="Full Name"      fieldKey="name"          placeholder="Dr. Your Name" />
+              <EditField label="Phone"          fieldKey="phone"         placeholder="+91 98765 43210" />
+              <div>
+                <label className="block text-xs font-medium text-[#5C6773] mb-1">Gender</label>
+                <select
+                  value={form.gender}
+                  onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
+                  data-testid="edit-gender"
+                  className="w-full text-sm px-3 py-2 border border-[#E5E5E2] rounded-lg focus:ring-2 focus:ring-[#82A098] focus:outline-none bg-white"
+                >
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+              </div>
+              <EditField label="Date of Birth" fieldKey="date_of_birth" placeholder="" type="date" />
             </div>
 
             {/* Country */}
@@ -421,22 +520,144 @@ export default function Account() {
               </select>
             </div>
 
-            {/* Section: Professional */}
-            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Professional</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <EditField label="Specialization"         fieldKey="specialization"      placeholder="Implantology" />
-              <EditField label="Registration No."       fieldKey="registration_number" placeholder="e.g. DCI12345" />
+            {/* Address */}
+            <div className="space-y-2">
+              <EditField label="Street Address" fieldKey="address_street" placeholder="123 Main Street, Suite 4" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <EditField label="City"              fieldKey="address_city"  placeholder="City" />
+                <EditField label="State / Province"  fieldKey="address_state" placeholder="State" />
+                <EditField label="Zip / Postal Code" fieldKey="address_zip"   placeholder="000000" />
+              </div>
             </div>
 
-            {/* Section: Education */}
+            {/* ── Professional ── */}
+            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Professional</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <EditField label="Designation / Job Title"    fieldKey="designation"        placeholder="e.g. Senior Implantologist" />
+              <EditField label="Organisation / Hospital"    fieldKey="organization"       placeholder="Hospital or practice name" />
+              <EditField label="Specialization"             fieldKey="specialization"     placeholder="e.g. Implantology" />
+              <EditField label="Years of Experience"        fieldKey="years_of_experience" placeholder="e.g. 8" type="number" />
+              <div className="sm:col-span-2">
+                <EditField label="Registration Number"      fieldKey="registration_number" placeholder="e.g. DCI12345" />
+              </div>
+            </div>
+
+            {/* ── Clinic & Associations ── */}
+            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Clinic &amp; Associations</p>
+            <div className="space-y-3">
+              <EditField label="Primary Clinic"             fieldKey="primary_clinic"     placeholder="Your main clinic or practice" />
+              <div>
+                <label className="block text-xs font-medium text-[#5C6773] mb-1">Consulting Hospitals / Clinics</label>
+                <textarea
+                  value={form.consulting_clinics}
+                  onChange={e => setForm(f => ({ ...f, consulting_clinics: e.target.value }))}
+                  placeholder="List any hospitals or clinics you consult at, one per line"
+                  data-testid="edit-consulting_clinics"
+                  rows={3}
+                  className="w-full text-sm px-3 py-2 border border-[#E5E5E2] rounded-lg focus:ring-2 focus:ring-[#82A098] focus:outline-none resize-none"
+                />
+              </div>
+              <EditField label="Area of Clinical Focus"     fieldKey="clinical_focus"     placeholder="e.g. Full-arch rehabilitation, Sinus lifts" />
+            </div>
+
+            {/* ── Education ── */}
             <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Education</p>
+            <div className="space-y-3">
+              {education.map((edu, idx) => (
+                <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#82A098]">Degree {idx + 1}</span>
+                    {education.length > 1 && (
+                      <button type="button" onClick={() => setEducation(prev => prev.filter((_, i) => i !== idx))} data-testid={`remove-edu-${idx}`} className="text-[#C27E70] hover:text-red-500">
+                        <Trash size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Degree Type</label>
+                      <select
+                        value={edu.degree_type}
+                        onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, degree_type: e.target.value } : r))}
+                        data-testid={`edu-degree-${idx}`}
+                        className="w-full text-sm px-3 py-2 border border-[#E5E5E2] rounded-lg focus:ring-2 focus:ring-[#82A098] focus:outline-none bg-white"
+                      >
+                        <option value="">Select degree</option>
+                        {['Graduation (BDS)', 'Post-Graduation (MDS)', 'Fellowship', 'Diploma', 'PhD', 'Other'].map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Institution / University</label>
+                      <Input value={edu.institution} onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, institution: e.target.value } : r))} placeholder="University name" data-testid={`edu-institution-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Specialization / Field</label>
+                      <Input value={edu.field} onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, field: e.target.value } : r))} placeholder="e.g. Oral Surgery" data-testid={`edu-field-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Passing Year</label>
+                      <Input type="number" value={edu.passing_year} onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, passing_year: e.target.value } : r))} placeholder="e.g. 2018" data-testid={`edu-passing-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Start Year</label>
+                      <Input type="number" value={edu.start_year} onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, start_year: e.target.value } : r))} placeholder="e.g. 2013" data-testid={`edu-start-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">End Year</label>
+                      <Input type="number" value={edu.end_year} onChange={e => setEducation(prev => prev.map((r, i) => i === idx ? { ...r, end_year: e.target.value } : r))} placeholder="e.g. 2018" data-testid={`edu-end-${idx}`} className="text-sm" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => setEducation(prev => [...prev, emptyEdu()])} data-testid="add-edu-btn" className="inline-flex items-center gap-2 text-sm font-medium text-[#82A098] hover:text-[#6B8A82]">
+                <Plus size={15} weight="bold" /> Add Another Degree
+              </button>
+            </div>
+
+            {/* ── Publications ── */}
+            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Publications &amp; Research</p>
+            <div className="space-y-3">
+              {publications.map((pub, idx) => (
+                <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#82A098]">Publication {idx + 1}</span>
+                    {publications.length > 1 && (
+                      <button type="button" onClick={() => setPublications(prev => prev.filter((_, i) => i !== idx))} data-testid={`remove-pub-${idx}`} className="text-[#C27E70] hover:text-red-500">
+                        <Trash size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Article Title</label>
+                      <Input value={pub.title} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, title: e.target.value } : r))} placeholder="Full article title" data-testid={`pub-title-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Journal Name</label>
+                      <Input value={pub.journal} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, journal: e.target.value } : r))} placeholder="e.g. Journal of Oral Implantology" data-testid={`pub-journal-${idx}`} className="text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Publication Year</label>
+                      <Input type="number" value={pub.year} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, year: e.target.value } : r))} placeholder="e.g. 2022" data-testid={`pub-year-${idx}`} className="text-sm" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Link / DOI</label>
+                      <Input type="url" value={pub.doi} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, doi: e.target.value } : r))} placeholder="https://doi.org/10.xxxx/xxxxx" data-testid={`pub-doi-${idx}`} className="text-sm" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => setPublications(prev => [...prev, emptyPub()])} data-testid="add-pub-btn" className="inline-flex items-center gap-2 text-sm font-medium text-[#82A098] hover:text-[#6B8A82]">
+                <Newspaper size={15} /> Add Another Publication
+              </button>
+            </div>
+
+            {/* ── Location ── */}
+            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Education Location</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <EditField label="College / University" fieldKey="college"       placeholder="College name" />
               <EditField label="College City"         fieldKey="college_place" placeholder="City / Place" />
             </div>
-
-            {/* Section: Location */}
-            <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Location</p>
             <EditField label="Practice City" fieldKey="place" placeholder="City where you practice" />
 
             {/* Bio */}

@@ -34,6 +34,20 @@ class UserUpdate(BaseModel):
     specialization: str | None = None
     place: str | None = None
     profile_picture_key: str | None = None
+    gender: str | None = None
+    date_of_birth: str | None = None
+    designation: str | None = None
+    organization: str | None = None
+    years_of_experience: int | None = None
+    address_street: str | None = None
+    address_city: str | None = None
+    address_state: str | None = None
+    address_zip: str | None = None
+    primary_clinic: str | None = None
+    consulting_clinics: str | None = None
+    clinical_focus: str | None = None
+    education: list | None = None
+    publications: list | None = None
 
 
 class UserRead(UserBase):
@@ -43,5 +57,19 @@ class UserRead(UserBase):
     profile_picture_key: str | None
     profile_picture: str | None = None
     created_at: datetime
+    gender: str | None = None
+    date_of_birth: str | None = None
+    designation: str | None = None
+    organization: str | None = None
+    years_of_experience: int | None = None
+    address_street: str | None = None
+    address_city: str | None = None
+    address_state: str | None = None
+    address_zip: str | None = None
+    primary_clinic: str | None = None
+    consulting_clinics: str | None = None
+    clinical_focus: str | None = None
+    education: list | None = None
+    publications: list | None = None
 
     model_config = {"from_attributes": True}
