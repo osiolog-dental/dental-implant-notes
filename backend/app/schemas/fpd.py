@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, field_validator, model_serializer
 
 
 class FPDBase(BaseModel):
@@ -15,6 +15,13 @@ class FPDBase(BaseModel):
     crown_type: str | None = None
     material: str | None = None
     clinical_notes: str | None = None
+
+    @field_validator("prosthetic_loading_date", mode="before")
+    @classmethod
+    def coerce_date(cls, v: Any) -> Any:
+        if v == "" or v is False:
+            return None
+        return v
 
 
 class FPDCreate(FPDBase):
