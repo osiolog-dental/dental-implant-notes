@@ -204,7 +204,7 @@ export default function Account() {
     address_zip: user?.address_zip || '',
     registration_number: user?.registration_number || '',
     designation: user?.designation || '',
-    organization: user?.organization || '',
+    organization_name: user?.organization_name || '',
     specialization: user?.specialization || '',
     years_of_experience: user?.years_of_experience || '',
     primary_clinic: user?.primary_clinic || '',
@@ -258,7 +258,7 @@ export default function Account() {
       address_zip: user?.address_zip || '',
       registration_number: user?.registration_number || '',
       designation: user?.designation || '',
-      organization: user?.organization || '',
+      organization_name: user?.organization_name || '',
       specialization: user?.specialization || '',
       years_of_experience: user?.years_of_experience || '',
       primary_clinic: user?.primary_clinic || '',
@@ -427,7 +427,7 @@ export default function Account() {
             )}
             <Field label="Registration No."        value={user?.registration_number} icon={Certificate} />
             <Field label="Designation / Job Title" value={user?.designation}         icon={Briefcase} />
-            <Field label="Organisation"            value={user?.organization}        icon={Buildings} />
+            <Field label="Organisation"            value={user?.organization_name}        icon={Buildings} />
             <Field label="Years of Experience"     value={user?.years_of_experience ? `${user.years_of_experience} years` : null} icon={Clock} />
             <Field label="Specialization"          value={user?.specialization}      icon={Stethoscope} />
             <Field label="Primary Clinic"          value={user?.primary_clinic}      icon={Buildings} />
@@ -534,7 +534,7 @@ export default function Account() {
             <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Professional</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <EditField label="Designation / Job Title"    fieldKey="designation"        placeholder="e.g. Senior Implantologist" />
-              <EditField label="Organisation / Hospital"    fieldKey="organization"       placeholder="Hospital or practice name" />
+              <EditField label="Organisation / Hospital"    fieldKey="organization_name"       placeholder="Hospital or practice name" />
               <EditField label="Specialization"             fieldKey="specialization"     placeholder="e.g. Implantology" />
               <EditField label="Years of Experience"        fieldKey="years_of_experience" placeholder="e.g. 8" type="number" />
               <div className="sm:col-span-2">

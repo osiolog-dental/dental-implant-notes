@@ -34,7 +34,7 @@ class User(Base):
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
     date_of_birth: Mapped[str | None] = mapped_column(String(20), nullable=True)
     designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    organization: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    organization_name: Mapped[str | None] = mapped_column("organization", String(255), nullable=True)
     years_of_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     address_street: Mapped[str | None] = mapped_column(Text, nullable=True)
     address_city: Mapped[str | None] = mapped_column(String(100), nullable=True)

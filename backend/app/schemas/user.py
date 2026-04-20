@@ -37,7 +37,7 @@ class UserUpdate(BaseModel):
     gender: str | None = None
     date_of_birth: str | None = None
     designation: str | None = None
-    organization: str | None = None
+    organization_name: str | None = None
     years_of_experience: int | None = None
     address_street: str | None = None
     address_city: str | None = None
@@ -60,7 +60,7 @@ class UserRead(UserBase):
     gender: str | None = None
     date_of_birth: str | None = None
     designation: str | None = None
-    organization: str | None = None
+    organization_name: str | None = None
     years_of_experience: int | None = None
     address_street: str | None = None
     address_city: str | None = None
