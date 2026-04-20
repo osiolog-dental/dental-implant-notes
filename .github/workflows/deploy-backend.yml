@@ -71,8 +71,8 @@ jobs:
             sudo systemctl restart osioloc-backend
 
             echo "Waiting for health check..."
-            sleep 3
-            curl -sf http://localhost:8002/api/health || (echo "Health check failed!" && exit 1)
+            sleep 8
+            curl -sf http://localhost:8002/api/health || (echo "Health check failed! Service logs:" && sudo journalctl -u osioloc-backend -n 30 --no-pager && exit 1)
 
             echo "Seeding demo user..."
             cd backend && python3 seed_demo_user.py && cd ..
