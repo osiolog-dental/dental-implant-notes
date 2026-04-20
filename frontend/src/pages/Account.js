@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import client from '../api/client';
@@ -6,13 +6,37 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import BulkImport from '../components/BulkImport';
 import {
-  ArrowLeft, User, Envelope, Phone, MapPin, Certificate,
+  User, Envelope, Phone, MapPin, Certificate,
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
-  ShareNetwork, ArrowSquareOut, X, Warning,
+  ShareNetwork, ArrowSquareOut, X, Warning, Camera, CurrencyDollar,
 } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+
+const COUNTRY_CURRENCY = {
+  'India': { currency: 'INR', symbol: '₹' },
+  'China': { currency: 'CNY', symbol: '¥' },
+  'Japan': { currency: 'JPY', symbol: '¥' },
+  'United States': { currency: 'USD', symbol: '$' },
+  'United Kingdom': { currency: 'GBP', symbol: '£' },
+  'Germany': { currency: 'EUR', symbol: '€' },
+  'France': { currency: 'EUR', symbol: '€' },
+  'Australia': { currency: 'AUD', symbol: 'A$' },
+  'Canada': { currency: 'CAD', symbol: 'C$' },
+  'Singapore': { currency: 'SGD', symbol: 'S$' },
+  'Malaysia': { currency: 'MYR', symbol: 'RM' },
+  'United Arab Emirates': { currency: 'AED', symbol: 'د.إ' },
+  'Saudi Arabia': { currency: 'SAR', symbol: 'ر.س' },
+  'Pakistan': { currency: 'PKR', symbol: '₨' },
+  'Bangladesh': { currency: 'BDT', symbol: '৳' },
+  'Sri Lanka': { currency: 'LKR', symbol: 'Rs' },
+  'Nepal': { currency: 'NPR', symbol: 'Rs' },
+  'Philippines': { currency: 'PHP', symbol: '₱' },
+  'Indonesia': { currency: 'IDR', symbol: 'Rp' },
+  'Thailand': { currency: 'THB', symbol: '฿' },
+};
+const getCurrency = (country) => COUNTRY_CURRENCY[country] || { currency: 'USD', symbol: '$' };
 
 export default function Account() {
   const { user, logout } = useAuth();
@@ -23,6 +47,9 @@ export default function Account() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [retainData, setRetainData] = useState(true);
+  const [picUploading, setPicUploading] = useState(false);
+  const [localPicUrl, setLocalPicUrl] = useState(null);
+  const picInputRef = useRef(null);
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -77,6 +104,29 @@ export default function Account() {
     setEditing(false);
   };
 
+  const handlePicUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
+    setPicUploading(true);
+    const preview = URL.createObjectURL(file);
+    setLocalPicUrl(preview);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await client.post('/api/users/me/profile-picture', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setLocalPicUrl(res.data.profile_picture_url);
+      toast.success('Profile picture updated');
+    } catch {
+      toast.error('Failed to upload picture');
+      setLocalPicUrl(null);
+    } finally {
+      setPicUploading(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') return;
     setDeleting(true);
@@ -114,10 +164,24 @@ export default function Account() {
         {/* Header */}
         <div className="bg-gradient-to-br from-[#82A098] to-[#5C8077] p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-white/30">
-              {user?.profile_picture && <AvatarImage src={user.profile_picture} alt={user?.name} />}
-              <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">{initials}</AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-16 w-16 border-2 border-white/30">
+                {(localPicUrl || user?.profile_picture) && <AvatarImage src={localPicUrl || user.profile_picture} alt={user?.name} />}
+                <AvatarFallback className="bg-white/20 text-white text-lg font-semibold">{initials}</AvatarFallback>
+              </Avatar>
+              <button
+                data-testid="upload-profile-pic-btn"
+                onClick={() => picInputRef.current?.click()}
+                disabled={picUploading}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md hover:bg-[#F0F0EE] transition-colors disabled:opacity-60"
+                title="Change profile picture"
+              >
+                {picUploading
+                  ? <span className="w-3 h-3 border-2 border-[#82A098] border-t-transparent rounded-full animate-spin" />
+                  : <Camera size={12} className="text-[#5C6773]" weight="fill" />}
+              </button>
+              <input ref={picInputRef} type="file" accept="image/*" className="hidden" onChange={handlePicUpload} data-testid="profile-pic-input" />
+            </div>
             <div>
               <h1 className="text-xl font-semibold text-white" data-testid="account-doctor-name">{displayName}</h1>
               <p className="text-sm text-white/70">{user?.specialization || 'Dental Surgeon'}</p>
@@ -141,6 +205,9 @@ export default function Account() {
             <Field label="Email"              value={user?.email}               icon={Envelope} />
             <Field label="Phone"              value={user?.phone}               icon={Phone} />
             <Field label="Country"            value={user?.country}             icon={MapPin} />
+            {user?.country && (
+              <Field label="Currency" value={`${getCurrency(user.country).symbol} ${getCurrency(user.country).currency}`} icon={CurrencyDollar} />
+            )}
             <Field label="Registration No."   value={user?.registration_number} icon={Certificate} />
             <Field label="Specialization"     value={user?.specialization}      icon={Stethoscope} />
             <Field label="College / University" value={user?.college}           icon={GraduationCap} />

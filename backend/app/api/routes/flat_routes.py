@@ -357,6 +357,29 @@ async def upload_patient_profile_picture(
     return {"profile_picture_url": url, "profile_picture": s3_key}
 
 
+# ── Doctor (user) profile picture  ───────────────────────────────────────────
+
+@router.post("/users/me/profile-picture")
+async def upload_doctor_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    content_type = file.content_type or "image/jpeg"
+    ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+    s3_key = f"doctors/{current_user.org_id}/{current_user.id}/profile.{ext}"
+
+    image_bytes = await file.read()
+    await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+
+    current_user.profile_picture_key = s3_key
+    db.add(current_user)
+    await db.flush()
+
+    url = s3_service.generate_download_url(s3_key)
+    return {"profile_picture_url": url}
+
+
 # ── /api/files/:filename — presigned redirect for image src tags  ─────────────
 
 @router.get("/files/{filename:path}")

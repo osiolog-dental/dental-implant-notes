@@ -5,6 +5,8 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { toast } from 'sonner';
 import { auth, googleProvider } from '../lib/firebase';
@@ -120,6 +122,8 @@ export const AuthProvider = ({ children }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
       setUser(data);
+      // Send welcome/verification email — non-blocking, don't fail registration if this errors
+      sendEmailVerification(fbUser).catch(() => {});
       return { success: true };
     } catch (err) {
       if (auth.currentUser) await signOut(auth).catch(() => {});
@@ -148,6 +152,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: _friendlyError(err) };
+    }
+  };
+
   const logout = async () => {
     await unregisterNotifications();
     await signOut(auth);
@@ -156,7 +169,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, loginWithGoogle, register, completeGoogleRegistration, logout }}
+      value={{ user, loading, login, loginWithGoogle, register, completeGoogleRegistration, logout, resetPassword }}
     >
       {children}
     </AuthContext.Provider>

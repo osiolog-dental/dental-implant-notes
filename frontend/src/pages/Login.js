@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Tooth } from '@phosphor-icons/react';
 
 const DEMO_EMAIL = 'doctor@dentalapp.com';
 const DEMO_PASSWORD = 'doctor123';
@@ -11,7 +10,10 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const { login, resetPassword } = useAuth();
   const navigate = useNavigate();
 
   const submitLogin = async (nextEmail, nextPassword) => {
@@ -35,6 +37,20 @@ const Login = () => {
     setEmail(DEMO_EMAIL);
     setPassword(DEMO_PASSWORD);
     await submitLogin(DEMO_EMAIL, DEMO_PASSWORD);
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    const result = await resetPassword(forgotEmail);
+    if (result.success) {
+      toast.success('Password reset email sent! Check your inbox.');
+      setShowForgot(false);
+      setForgotEmail('');
+    } else {
+      toast.error(result.error);
+    }
+    setForgotLoading(false);
   };
 
   return (
@@ -96,6 +112,17 @@ const Login = () => {
               />
             </div>
 
+            <div className="flex justify-end">
+              <button
+                type="button"
+                data-testid="forgot-password-btn"
+                onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                className="text-sm text-[#82A098] hover:text-[#6B8A82] transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -109,8 +136,8 @@ const Login = () => {
           <div className="mt-6 text-center">
             <p className="text-[#5C6773]">
               Don't have an account?{' '}
-              <Link 
-                to="/register" 
+              <Link
+                to="/register"
                 data-testid="register-link"
                 className="text-[#82A098] hover:text-[#6B8A82] font-medium transition-colors duration-200"
               >
@@ -118,6 +145,43 @@ const Login = () => {
               </Link>
             </p>
           </div>
+
+          {showForgot && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-xl">
+                <h3 className="font-semibold text-[#2A2F35] mb-1" style={{ fontFamily: 'Work Sans, sans-serif' }}>Reset Password</h3>
+                <p className="text-sm text-[#5C6773] mb-4">Enter your email and we'll send you a reset link.</p>
+                <form onSubmit={handleForgotPassword} className="space-y-3">
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                    data-testid="forgot-email-input"
+                    className="w-full px-4 py-3 bg-white border border-[#E5E5E2] rounded-xl focus:ring-2 focus:ring-[#82A098] focus:outline-none text-[#2A2F35] text-sm"
+                    placeholder="doctor@example.com"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      data-testid="send-reset-btn"
+                      className="flex-1 py-2.5 bg-[#82A098] hover:bg-[#6B8A82] text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {forgotLoading ? 'Sending…' : 'Send Reset Link'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgot(false)}
+                      className="flex-1 py-2.5 border border-[#E5E5E2] text-[#2A2F35] rounded-xl text-sm font-medium hover:bg-[#F9F9F8] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           <div className="mt-8 p-4 bg-white border border-[#E5E5E2] rounded-xl">
             <p className="text-xs text-[#5C6773] mb-2 font-medium">Demo Credentials:</p>

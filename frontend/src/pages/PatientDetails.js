@@ -728,15 +728,13 @@ const PatientDetails = () => {
                     : <FilePdf size={13} weight="bold" />}
                   {generatingPdf ? (pdfProgress || 'Building PDF...') : 'Export PDF'}
                 </button>
-                {editLog.length > 0 && (
-                  <button
-                    data-testid="show-edit-log-btn"
-                    onClick={() => setShowEditLog(v => !v)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#5C6773] border border-[#E5E5E2] rounded-lg hover:border-[#C27E70] hover:text-[#C27E70] transition-colors"
-                  >
-                    <ClockCounterClockwise size={13} weight="bold" /> History ({editLog.length})
-                  </button>
-                )}
+                <button
+                  data-testid="show-edit-log-btn"
+                  onClick={() => setShowEditLog(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#5C6773] border border-[#E5E5E2] rounded-lg hover:border-[#C27E70] hover:text-[#C27E70] transition-colors"
+                >
+                  <ClockCounterClockwise size={13} weight="bold" /> History ({editLog.length})
+                </button>
               </div>
             </div>
 
@@ -781,29 +779,33 @@ const PatientDetails = () => {
         </div>
 
         {/* Edit log panel */}
-        {showEditLog && editLog.length > 0 && (
+        {showEditLog && (
           <div className="mt-5 pt-4 border-t border-[#F0EDE8]">
             <p className="text-xs font-semibold text-[#C27E70] uppercase tracking-wide mb-3">Change History</p>
-            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-              {editLog.map((entry, i) => (
-                <div key={i} className="text-xs text-[#5C6773]">
-                  <span className="font-medium text-[#2A2F35]">
-                    {new Date(entry.changed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <div className="mt-1 space-y-0.5 pl-2 border-l-2 border-[#E5E5E2]">
-                    {entry.changes.map((c, j) => (
-                      <div key={j}>
-                        <span className="capitalize">{c.field.replace(/_/g, ' ')}</span>
-                        {': '}
-                        <span className="line-through text-[#9CA3AF]">{c.old || '—'}</span>
-                        {' → '}
-                        <span className="text-[#2A2F35] font-medium">{c.new || '—'}</span>
-                      </div>
-                    ))}
+            {editLog.length === 0 ? (
+              <p className="text-xs text-[#9CA3AF]">No changes recorded yet.</p>
+            ) : (
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {editLog.map((entry, i) => (
+                  <div key={i} className="text-xs text-[#5C6773]">
+                    <span className="font-medium text-[#2A2F35]">
+                      {new Date(entry.changed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <div className="mt-1 space-y-0.5 pl-2 border-l-2 border-[#E5E5E2]">
+                      {entry.changes.map((c, j) => (
+                        <div key={j}>
+                          <span className="capitalize">{c.field.replace(/_/g, ' ')}</span>
+                          {': '}
+                          <span className="line-through text-[#9CA3AF]">{c.old || '—'}</span>
+                          {' → '}
+                          <span className="text-[#2A2F35] font-medium">{c.new || '—'}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1342,14 +1344,6 @@ const PatientDetails = () => {
                 )}
 
                 <div>
-                  <Label className="text-xs">Clinic</Label>
-                  <select value={abutmentData.clinic_id} onChange={e => setAbutmentData(p => ({ ...p, clinic_id: e.target.value }))} className={`mt-1 ${selectClass}`}>
-                    <option value="">Select clinic</option>
-                    {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-
-                <div>
                   <Label className="text-xs">Clinical Notes</Label>
                   <textarea value={abutmentData.clinical_notes} onChange={e => setAbutmentData(p => ({ ...p, clinical_notes: e.target.value }))} data-testid="abutment-notes" rows={3} className={`mt-1 ${selectClass}`} placeholder="Torque values, angulation notes..." />
                 </div>
@@ -1669,6 +1663,14 @@ const PatientDetails = () => {
                     <PencilSimple size={15} weight="bold" />
                   </button>
                 </div>
+                {rec.connected_implant_ids?.length > 0 && (
+                  <p className="text-xs text-[#5C6773] mb-1">
+                    Connected to implant{rec.connected_implant_ids.length > 1 ? 's' : ''}: {rec.connected_implant_ids.map(iid => {
+                      const imp = implants.find(i => i.id === iid);
+                      return imp ? `Tooth #${imp.tooth_number}${imp.brand ? ` (${imp.brand})` : ''}` : null;
+                    }).filter(Boolean).join(', ')}
+                  </p>
+                )}
                 {rec.clinical_notes && <p className="text-xs text-[#5C6773] italic">{rec.clinical_notes}</p>}
               </div>
             ))}
