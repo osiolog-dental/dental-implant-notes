@@ -1588,7 +1588,7 @@ const PatientDetails = () => {
 
       {/* FPD Records */}
       {fpdRecords.length > 0 && (
-        <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+        <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
           <h2 className="text-lg font-medium text-[#2A2F35] mb-4">
             FPD Records ({fpdRecords.length})
           </h2>

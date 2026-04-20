@@ -40,7 +40,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       return;
     }
     try {
-      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, { osseointegration_days: days });
+      await client.patch(`/api/implants/${implant.id || implant._id}`, { osseointegration_days: days });
       toast.success('Osseointegration period updated');
       setEditingDays(false);
       onUpdate();
@@ -60,7 +60,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       const payload = { current_stage: nextStage };
       if (nextStage === 2) payload.stage_2_date = todayStr;
       if (nextStage === 3) payload.stage_3_date = todayStr;
-      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, payload);
+      await client.patch(`/api/implants/${implant.id || implant._id}`, payload);
       toast.success(`Moved to Stage ${nextStage}: ${STAGES[nextStage - 1].label}`);
       onUpdate();
     } catch {
@@ -78,7 +78,7 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
       const payload = { current_stage: prevStage };
       if (currentStage === 3) payload.stage_3_date = null;
       if (currentStage === 2) payload.stage_2_date = null;
-      await client.patch(`/api/implants/${implant.id || implant._id}/stage`, payload);
+      await client.patch(`/api/implants/${implant.id || implant._id}`, payload);
       toast.success(`Reverted to Stage ${prevStage}: ${STAGES[prevStage - 1].label}`);
       onUpdate();
     } catch {
@@ -237,13 +237,9 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
         {currentStage < 3 ? (
           <button
             onClick={handleAdvanceStage}
-            disabled={advancing || (currentStage === 1 && !isReady)}
+            disabled={advancing}
             data-testid={`advance-stage-btn-${implant._id}`}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              currentStage === 1 && !isReady
-                ? 'bg-[#E5E5E2] text-[#5C6773] cursor-not-allowed'
-                : 'bg-[#82A098] text-white hover:bg-[#6B8A82]'
-            }`}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[#82A098] text-white hover:bg-[#6B8A82] disabled:opacity-50"
           >
             {advancing ? 'Updating…' : `Mark: ${STAGES[currentStage].label}`}
           </button>
