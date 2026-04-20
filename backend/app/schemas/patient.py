@@ -11,7 +11,7 @@ class PatientBase(BaseModel):
     age: int | None = None
     gender: str | None = None
     phone: str | None = None
-    email: EmailStr | None = None
+    email: str | None = None  # str not EmailStr — avoids 500 on legacy malformed emails in DB
     alternate_email: str | None = None
     emergency_phone: str | None = None
     address: str | None = None
