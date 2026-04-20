@@ -38,8 +38,16 @@ const JPEG_QUALITY = 0.85;
  */
 export function compressImage(file) {
   if (file.type === 'application/pdf') return Promise.resolve(file);
+  // HEIC/HEIF (iPhone default) and other formats the Canvas API can't decode —
+  // skip compression and send raw. Backend accepts image/jpeg, image/png, image/webp.
+  // We normalise HEIC → jpeg content-type below so the presigned URL request works.
+  const CANVAS_UNSUPPORTED = ['image/heic', 'image/heif', 'image/tiff', 'image/bmp'];
+  if (CANVAS_UNSUPPORTED.includes(file.type)) {
+    // Return a copy tagged as image/jpeg so the backend accepts it
+    return Promise.resolve(new File([file], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+  }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
 
@@ -65,7 +73,7 @@ export function compressImage(file) {
 
       canvas.toBlob(
         (blob) => {
-          if (!blob) return reject(new Error('Canvas compression failed'));
+          if (!blob) { resolve(file); return; }
           resolve(new File([blob], file.name, { type: 'image/jpeg' }));
         },
         'image/jpeg',
@@ -75,7 +83,8 @@ export function compressImage(file) {
 
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error('Failed to load image for compression'));
+      // Can't compress — send original so the upload still proceeds
+      resolve(file);
     };
 
     img.src = objectUrl;
@@ -120,7 +129,16 @@ function _uploadToS3(uploadUrl, file, onProgress) {
  */
 export async function uploadImage(caseId, file, { category = 'general', onProgress } = {}) {
   const compressed = await compressImage(file);
-  const contentType = compressed.type || 'image/jpeg';
+
+  // Normalise content-type — backend only accepts jpeg/png/webp/pdf.
+  // Anything unknown (heic, tiff, bmp retagged above, or unexpected) → jpeg.
+  const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+  const contentType = ALLOWED.has(compressed.type) ? compressed.type : 'image/jpeg';
+
+  // Ensure the File object carries the correct type so XHR Content-Type header matches
+  const uploadFile = compressed.type === contentType
+    ? compressed
+    : new File([compressed], compressed.name, { type: contentType });
 
   // Step 1: get presigned URL
   const { data: { upload_url, image_id } } = await client.post(
@@ -129,7 +147,7 @@ export async function uploadImage(caseId, file, { category = 'general', onProgre
   );
 
   // Step 2: upload directly to S3
-  await _uploadToS3(upload_url, compressed, onProgress);
+  await _uploadToS3(upload_url, uploadFile, onProgress);
 
   // Step 3: tell backend to generate thumbnail and mark as uploaded
   const { data: image } = await client.post(

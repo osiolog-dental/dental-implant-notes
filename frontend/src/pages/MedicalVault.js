@@ -122,7 +122,7 @@ const MedicalVault = () => {
       toast.success('File uploaded');
       caseList_invalidateAndRefetch();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to upload');
+      toast.error(err?.response?.data?.detail || err?.message || 'Failed to upload');
     } finally {
       setUploadingFiles(prev => ({ ...prev, [key]: false }));
     }
@@ -180,7 +180,7 @@ const MedicalVault = () => {
       setCameraViewId(null);
       caseList_invalidateAndRefetch();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to upload');
+      toast.error(err?.response?.data?.detail || err?.message || 'Failed to upload');
     } finally {
       setUploadingFiles(prev => ({ ...prev, [key]: false }));
     }
@@ -311,6 +311,34 @@ const MedicalVault = () => {
           ))}
         </div>
 
+        {/* Hidden file inputs — always mounted so refs are valid regardless of active tab */}
+        <input
+          ref={extraInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
+          disabled={uploadingExtra}
+        />
+        <input
+          ref={extraCameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleExtraCameraCapture}
+          disabled={uploadingExtra}
+        />
+        <input
+          ref={viewCameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleViewCameraCapture}
+        />
+
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-4">
 
@@ -332,32 +360,6 @@ const MedicalVault = () => {
                   <span className="text-xs text-[#9CA3AF]">{extraPhotos.length}/{MAX_EXTRA_PHOTOS}</span>
                 </div>
               </div>
-              <input
-                ref={extraInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => { if (e.target.files?.length) handleExtraUpload(e.target.files); e.target.value = ''; }}
-                disabled={uploadingExtra}
-              />
-              <input
-                ref={extraCameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleExtraCameraCapture}
-                disabled={uploadingExtra}
-              />
-              <input
-                ref={viewCameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleViewCameraCapture}
-              />
               <div className="grid grid-cols-3 gap-2">
                 {Array.from({ length: MAX_EXTRA_PHOTOS }).map((_, i) => {
                   const photo = extraPhotos[i];
