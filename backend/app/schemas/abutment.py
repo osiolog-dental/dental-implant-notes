@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, field_validator, model_serializer
 
 
 class AbutmentBase(BaseModel):
@@ -14,6 +14,16 @@ class AbutmentBase(BaseModel):
     placement_date: date | None = None
     clinical_notes: str | None = None
     clinic_id: uuid.UUID | None = None
+
+    @field_validator('placement_date', mode='before')
+    @classmethod
+    def _empty_date(cls, v):
+        return None if v == '' else v
+
+    @field_validator('clinic_id', mode='before')
+    @classmethod
+    def _empty_uuid(cls, v):
+        return None if v == '' else v
 
 
 class AbutmentCreate(AbutmentBase):
