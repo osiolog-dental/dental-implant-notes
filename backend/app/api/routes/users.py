@@ -14,6 +14,7 @@ from app.models.audit import AuditEvent, DeviceToken
 from app.models.user import User
 from app.models.organization import Organization
 from app.schemas.user import UserRead, UserUpdate
+from app.services import s3 as s3_service
 
 logger = logging.getLogger("dentalhub")
 
@@ -48,6 +49,16 @@ def _delete_firebase_user(id_token: str) -> None:
         )
 
 
+def _user_read_with_pic(user: User) -> UserRead:
+    data = UserRead.model_validate(user)
+    if user.profile_picture_key:
+        try:
+            data.profile_picture = s3_service.generate_download_url(user.profile_picture_key)
+        except Exception:
+            pass
+    return data
+
+
 @router.patch("/me", response_model=UserRead)
 async def update_me(
     body: UserUpdate,
@@ -59,7 +70,7 @@ async def update_me(
         setattr(current_user, field, value)
     db.add(current_user)
     await db.flush()
-    return UserRead.model_validate(current_user)
+    return _user_read_with_pic(current_user)
 
 
 @router.delete("/me", status_code=status.HTTP_200_OK)

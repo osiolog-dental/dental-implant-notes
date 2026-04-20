@@ -41,6 +41,7 @@ class UserRead(UserBase):
     org_id: uuid.UUID
     firebase_uid: str | None
     profile_picture_key: str | None
+    profile_picture: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

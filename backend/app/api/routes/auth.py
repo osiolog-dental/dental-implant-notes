@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead
+from app.services import s3 as s3_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _bearer = HTTPBearer(auto_error=False)
@@ -91,7 +92,17 @@ async def register(
     return UserRead.model_validate(user)
 
 
+def _user_read_with_pic(user: User) -> UserRead:
+    data = UserRead.model_validate(user)
+    if user.profile_picture_key:
+        try:
+            data.profile_picture = s3_service.generate_download_url(user.profile_picture_key)
+        except Exception:
+            pass
+    return data
+
+
 @router.get("/me", response_model=UserRead)
 async def me(current_user: User = Depends(get_current_user)) -> UserRead:
     """Return the profile of the currently authenticated doctor."""
-    return UserRead.model_validate(current_user)
+    return _user_read_with_pic(current_user)
