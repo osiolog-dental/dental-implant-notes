@@ -189,8 +189,8 @@ export default function Account() {
   const [cropSrc, setCropSrc] = useState(null);
   const picInputRef = useRef(null);
 
-  const emptyEdu = () => ({ degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
-  const emptyPub = () => ({ title: '', journal: '', year: '', doi: '' });
+  const emptyEdu = () => ({ _id: String(Date.now() + Math.random()), degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
+  const emptyPub = () => ({ _id: String(Date.now() + Math.random()), title: '', journal: '', year: '', doi: '' });
 
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -215,8 +215,16 @@ export default function Account() {
     place: user?.place || '',
     bio: user?.bio || '',
   });
-  const [education, setEducation] = useState(user?.education?.length ? user.education : [emptyEdu()]);
-  const [publications, setPublications] = useState(user?.publications?.length ? user.publications : [emptyPub()]);
+  const [education, setEducation] = useState(
+    user?.education?.length
+      ? user.education.map((e, i) => ({ _id: e._id || String(i), ...e }))
+      : [emptyEdu()]
+  );
+  const [publications, setPublications] = useState(
+    user?.publications?.length
+      ? user.publications.map((p, i) => ({ _id: p._id || String(i + 1000), ...p }))
+      : [emptyPub()]
+  );
 
   const rawName = user?.name || 'Doctor';
   const displayName = rawName.startsWith('Dr.') || rawName.startsWith('Dr ') ? rawName : `Dr. ${rawName}`;
@@ -269,8 +277,8 @@ export default function Account() {
       place: user?.place || '',
       bio: user?.bio || '',
     });
-    setEducation(user?.education?.length ? user.education : [emptyEdu()]);
-    setPublications(user?.publications?.length ? user.publications : [emptyPub()]);
+    setEducation(user?.education?.length ? user.education.map((e, i) => ({ _id: e._id || String(i), ...e })) : [emptyEdu()]);
+    setPublications(user?.publications?.length ? user.publications.map((p, i) => ({ _id: p._id || String(i + 1000), ...p })) : [emptyPub()]);
     setEditing(false);
   };
 
@@ -564,7 +572,7 @@ export default function Account() {
             <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Education</p>
             <div className="space-y-3">
               {education.map((edu, idx) => (
-                <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                <div key={edu._id} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#82A098]">Degree {idx + 1}</span>
                     {education.length > 1 && (
@@ -618,7 +626,7 @@ export default function Account() {
             <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wider pt-2">Publications &amp; Research</p>
             <div className="space-y-3">
               {publications.map((pub, idx) => (
-                <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                <div key={pub._id} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#82A098]">Publication {idx + 1}</span>
                     {publications.length > 1 && (

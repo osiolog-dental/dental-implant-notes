@@ -73,8 +73,10 @@ const getCountryData = (name) =>
 
 const DEGREE_TYPES = ['Graduation (BDS)', 'Post-Graduation (MDS)', 'Fellowship', 'Diploma', 'PhD', 'Other'];
 
-const emptyEducation = () => ({ degree_type: '', institution: '', field: '', start_year: '', end_year: '', passing_year: '' });
-const emptyPublication = () => ({ title: '', journal: '', year: '', doi: '' });
+let _rowId = 0;
+const nextId = () => String(++_rowId);
+const emptyEducation = () => ({ _id: nextId(), degree_type: '', institution: '', field: '', start_year: '', end_year: '', passing_year: '' });
+const emptyPublication = () => ({ _id: nextId(), title: '', journal: '', year: '', doi: '' });
 
 // ── Reusable UI helpers ────────────────────────────────────────────────────
 const inputCls = 'w-full px-4 py-3 bg-white border border-[#E5E5E2] rounded-xl focus:ring-2 focus:ring-[#82A098] focus:outline-none focus:ring-offset-1 text-[#2A2F35] text-sm transition-colors duration-200';
@@ -348,7 +350,7 @@ const Register = () => {
 
               <div className="space-y-4">
                 {education.map((edu, idx) => (
-                  <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                  <div key={edu._id} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[#82A098]">Degree {idx + 1}</span>
                       {education.length > 1 && (
@@ -456,7 +458,7 @@ const Register = () => {
 
               <div className="space-y-4">
                 {publications.map((pub, idx) => (
-                  <div key={idx} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
+                  <div key={pub._id} className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[#82A098]">Publication {idx + 1}</span>
                       {publications.length > 1 && (
