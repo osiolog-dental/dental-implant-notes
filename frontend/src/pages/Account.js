@@ -192,6 +192,40 @@ export default function Account() {
   const emptyEdu = () => ({ _id: String(Date.now() + Math.random()), degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
   const emptyPub = () => ({ _id: String(Date.now() + Math.random()), title: '', journal: '', year: '', doi: '' });
 
+  const [doiFetching, setDoiFetching] = useState({});
+  const fetchDoi = async (idx, rawValue) => {
+    const raw = rawValue.trim();
+    if (!raw) return;
+    const doiMatch = raw.match(/10\.\d{4,}\/\S+/);
+    if (!doiMatch) return;
+    const doi = doiMatch[0];
+    setDoiFetching(prev => ({ ...prev, [idx]: true }));
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+      const work = data.message;
+      const title = work.title?.[0] || '';
+      const journal = work['container-title']?.[0] || work['short-container-title']?.[0] || '';
+      const year = work.published?.['date-parts']?.[0]?.[0]?.toString()
+        || work['published-print']?.['date-parts']?.[0]?.[0]?.toString()
+        || work['published-online']?.['date-parts']?.[0]?.[0]?.toString()
+        || '';
+      setPublications(prev => prev.map((row, i) => i === idx ? {
+        ...row,
+        ...(title   && !row.title   ? { title }   : {}),
+        ...(journal && !row.journal ? { journal } : {}),
+        ...(year    && !row.year    ? { year }    : {}),
+      } : row));
+      if (title || journal) toast.success('Article details fetched!');
+      else toast.info('DOI found but no details available');
+    } catch {
+      toast.error('Could not fetch article details — check the DOI');
+    } finally {
+      setDoiFetching(prev => ({ ...prev, [idx]: false }));
+    }
+  };
+
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -649,8 +683,26 @@ export default function Account() {
                       <Input type="number" value={pub.year} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, year: e.target.value } : r))} placeholder="e.g. 2022" data-testid={`pub-year-${idx}`} className="text-sm" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-[#5C6773] mb-1">Link / DOI</label>
-                      <Input type="url" value={pub.doi} onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, doi: e.target.value } : r))} placeholder="https://doi.org/10.xxxx/xxxxx" data-testid={`pub-doi-${idx}`} className="text-sm" />
+                      <label className="block text-xs font-medium text-[#5C6773] mb-1">
+                        DOI / Article Link
+                        <span className="ml-1 text-[#9CA3AF] font-normal normal-case">— paste to auto-fill</span>
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type="url"
+                          value={pub.doi}
+                          onChange={e => setPublications(prev => prev.map((r, i) => i === idx ? { ...r, doi: e.target.value } : r))}
+                          onBlur={e => fetchDoi(idx, e.target.value)}
+                          placeholder="https://doi.org/10.xxxx/xxxxx"
+                          data-testid={`pub-doi-${idx}`}
+                          className="text-sm pr-8"
+                        />
+                        {doiFetching[idx] && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <span className="w-4 h-4 border-2 border-[#82A098] border-t-transparent rounded-full animate-spin inline-block" />
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

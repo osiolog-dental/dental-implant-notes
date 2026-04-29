@@ -184,6 +184,42 @@ const Register = () => {
   const addPublication = () => setPublications(prev => [...prev, emptyPublication()]);
   const removePublication = (idx) => setPublications(prev => prev.filter((_, i) => i !== idx));
 
+  // DOI auto-fetch via CrossRef API
+  const [doiFetching, setDoiFetching] = useState({});
+  const fetchDoi = async (idx, rawValue) => {
+    const raw = rawValue.trim();
+    if (!raw) return;
+    // Extract DOI from full URL or bare DOI
+    const doiMatch = raw.match(/10\.\d{4,}\/\S+/);
+    if (!doiMatch) return;
+    const doi = doiMatch[0];
+    setDoiFetching(prev => ({ ...prev, [idx]: true }));
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+      const work = data.message;
+      const title = work.title?.[0] || '';
+      const journal = work['container-title']?.[0] || work['short-container-title']?.[0] || '';
+      const year = work.published?.['date-parts']?.[0]?.[0]?.toString()
+        || work['published-print']?.['date-parts']?.[0]?.[0]?.toString()
+        || work['published-online']?.['date-parts']?.[0]?.[0]?.toString()
+        || '';
+      setPublications(prev => prev.map((row, i) => i === idx ? {
+        ...row,
+        ...(title   && !row.title   ? { title }   : {}),
+        ...(journal && !row.journal ? { journal } : {}),
+        ...(year    && !row.year    ? { year }    : {}),
+      } : row));
+      if (title || journal) toast.success('Article details fetched!');
+      else toast.info('DOI found but no details available');
+    } catch {
+      toast.error('Could not fetch article details — check the DOI');
+    } finally {
+      setDoiFetching(prev => ({ ...prev, [idx]: false }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -490,8 +526,26 @@ const Register = () => {
                         />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className={labelCls}>Link to Article / DOI</label>
-                        <input type="url" value={pub.doi} onChange={e => updatePublication(idx, 'doi', e.target.value)} data-testid={`pub-doi-${idx}`} className={inputCls} placeholder="https://doi.org/10.xxxx/xxxxx" />
+                        <label className={labelCls}>
+                          DOI / Article Link
+                          <span className="ml-1 normal-case text-[#9CA3AF] font-normal">— paste to auto-fill details</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="url"
+                            value={pub.doi}
+                            onChange={e => updatePublication(idx, 'doi', e.target.value)}
+                            onBlur={e => fetchDoi(idx, e.target.value)}
+                            data-testid={`pub-doi-${idx}`}
+                            className={inputCls}
+                            placeholder="https://doi.org/10.xxxx/xxxxx"
+                          />
+                          {doiFetching[idx] && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <span className="w-4 h-4 border-2 border-[#82A098] border-t-transparent rounded-full animate-spin inline-block" />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
