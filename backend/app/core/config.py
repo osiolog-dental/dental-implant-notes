@@ -157,7 +157,7 @@ class Settings(BaseSettings):
     VAPID_KEY: str = ""  # Firebase Web Push VAPID key (from Firebase Console > Project Settings > Cloud Messaging)
 
     # App
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://app.osiolog.com"
     ENVIRONMENT: str = "development"
 
     def model_post_init(self, __context: object) -> None:  # noqa: ANN001

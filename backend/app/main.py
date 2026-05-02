@@ -45,8 +45,6 @@ def create_app() -> FastAPI:
         # Capacitor mobile apps
         "capacitor://localhost",
         "ionic://localhost",
-        "http://localhost",
-        "https://localhost",
     ]
     if settings.ENVIRONMENT == "development":
         allowed_origins += [
