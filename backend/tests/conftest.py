@@ -67,7 +67,7 @@ def _db_override():
 async def client():
     """AsyncClient for org A with a fresh unique Firebase UID per test."""
     uid = f"uid-a-{uuid.uuid4().hex}"
-    email = f"doca-{uuid.uuid4().hex[:8]}@osioloc.com"
+    email = f"doca-{uuid.uuid4().hex[:8]}@osiolog.com"
 
     app.dependency_overrides[get_db] = _db_override()
     with _make_verify_patch(uid, email):
@@ -82,7 +82,7 @@ async def client():
 async def second_client():
     """AsyncClient for org B with a fresh unique Firebase UID per test."""
     uid = f"uid-b-{uuid.uuid4().hex}"
-    email = f"docb-{uuid.uuid4().hex[:8]}@osioloc.com"
+    email = f"docb-{uuid.uuid4().hex[:8]}@osiolog.com"
 
     app.dependency_overrides[get_db] = _db_override()
     with _make_verify_patch(uid, email):

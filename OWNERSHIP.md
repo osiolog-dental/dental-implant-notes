@@ -46,7 +46,7 @@ Osioloc is a full-stack dental implant case management system built from scratch
 | Phase 11 | Delete Account endpoint (App Store requirement) | April 19, 2026 |
 | Phase 11 | Android release keystore + Play Store prep | April 19, 2026 |
 | Phase 12 | AWS EC2 + RDS production deployment (Mumbai ap-south-1) | April 19, 2026 |
-| Phase 12 | HTTPS via Let's Encrypt SSL on api.osioloc.com | April 19, 2026 |
+| Phase 12 | HTTPS via Let's Encrypt SSL on api.osiolog.com + app.osiolog.com | April 19, 2026 |
 | Phase 12 | GitHub Actions CI/CD pipeline | April 19, 2026 |
 | Phase 12 | Privacy Policy page | April 19, 2026 |
 
@@ -63,7 +63,7 @@ All infrastructure is registered and owned by Midhilesh Krishna.
 | EC2 Public IP | 35.154.160.108 |
 | RDS PostgreSQL | osioloc-db.c3goqqwwyx6q.ap-south-1.rds.amazonaws.com |
 | S3 Bucket | osioloc-cases-prod |
-| AWS Account | admin@osioloc.com |
+| AWS Account | midhilesh163@gmail.com |
 | Region | ap-south-1 (Mumbai, India) |
 
 ### Firebase
@@ -71,22 +71,22 @@ All infrastructure is registered and owned by Midhilesh Krishna.
 |---|---|
 | Project ID | osiolog-prod |
 | Auth methods | Email/password, Google Sign-In |
-| Admin email | admin@osioloc.com |
+| Admin email | midhilesh163@gmail.com |
 
 ### GitHub
 | Resource | Detail |
 |---|---|
-| Organisation | osioloc-dental |
-| Repository | osioloc-dental/dental-implant-notes |
+| Organisation | osiolog-dental |
+| Repository | osiolog-dental/dental-implant-notes |
 | Visibility | Private |
 
 ### Domain
 | Resource | Detail |
 |---|---|
-| Domain | osioloc.com |
-| Registrar | Wix |
-| API subdomain | api.osioloc.com → EC2 |
-| App subdomain | dev.osioloc.com → EC2 |
+| Domain | osiolog.com |
+| Registrar | Cloudflare |
+| API subdomain | api.osiolog.com → EC2 |
+| App subdomain | app.osiolog.com → EC2 |
 
 ---
 
@@ -117,7 +117,7 @@ Git hashes are cryptographically generated — they cannot be forged or backdate
 | 38bab49a | 2026-04-18 | Tooth condition confirmation dialogs |
 | 6cde7e9a | 2026-04-19 | Phases 9-12: notifications, audit, delete account, deployment |
 | a80950fa | 2026-04-19 | Production backend URL |
-| 376ec3ea | 2026-04-19 | HTTPS via api.osioloc.com |
+| 376ec3ea | 2026-04-19 | HTTPS via api.osiolog.com |
 | cd8a2c8a | 2026-04-19 | Privacy Policy page |
 
 **Latest commit hash:** `cd8a2c86055ac35ea388b47f36ee32d9504662c6`
@@ -151,9 +151,9 @@ git log --format="%H %ai %s"
 
 ## How to Verify Ownership (Anyone Can Check)
 
-1. **GitHub:** Visit `https://github.com/osioloc-dental/dental-implant-notes` — commit history shows all work with timestamps
-2. **AWS:** EC2 instance `i-04a36f54b5105d9c6` is registered under `admin@osioloc.com`
-3. **Live app:** `https://dev.osioloc.com` and `https://api.osioloc.com/api/health`
+1. **GitHub:** Visit `https://github.com/osiolog-dental/dental-implant-notes` — commit history shows all work with timestamps
+2. **AWS:** EC2 instance `i-04a36f54b5105d9c6` is registered under `midhilesh163@gmail.com`
+3. **Live app:** `https://app.osiolog.com` and `https://api.osiolog.com/api/health`
 4. **Git hash verification:** Every commit hash in this document can be verified with `git show <hash>`
 
 ---

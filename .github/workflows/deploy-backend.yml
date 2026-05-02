@@ -28,7 +28,7 @@ jobs:
             cd /app/dental-implant-notes
 
             echo "Ensuring correct git remote..."
-            git remote set-url origin https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/osioloc-dental/dental-implant-notes.git
+            git remote set-url origin https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/osiolog-dental/dental-implant-notes.git
 
             echo "Pulling latest code..."
             git fetch origin main
