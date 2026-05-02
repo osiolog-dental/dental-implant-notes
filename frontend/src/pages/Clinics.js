@@ -12,9 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getClinics, createClinic } from '../api/clinics';
+import { getAllImplants } from '../api/implants';
 
 const Clinics = () => {
   const [clinics, setClinics] = useState([]);
+  const [implantCounts, setImplantCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -30,8 +32,20 @@ const Clinics = () => {
 
   const fetchClinics = async () => {
     try {
-      const data = await getClinics();
-      setClinics(data.items ?? data);
+      const [clinicData, implantData] = await Promise.all([
+        getClinics(),
+        getAllImplants().catch(() => []),
+      ]);
+      setClinics(clinicData.items ?? clinicData);
+
+      // Derive implant counts per clinic from the org-wide list
+      const counts = {};
+      (implantData ?? []).forEach((implant) => {
+        if (implant.clinic_id) {
+          counts[implant.clinic_id] = (counts[implant.clinic_id] ?? 0) + 1;
+        }
+      });
+      setImplantCounts(counts);
     } catch (error) {
       toast.error('Failed to fetch clinics');
     } finally {
@@ -175,6 +189,12 @@ const Clinics = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-medium text-[#2A2F35] mb-1 truncate">{clinic.name}</h3>
+                  <span
+                    data-testid={`clinic-implant-count-${clinic.id || clinic._id}`}
+                    className="inline-block text-xs font-medium text-[#82A098] bg-[#82A098]/10 rounded-full px-2 py-0.5"
+                  >
+                    {implantCounts[clinic.id || clinic._id] ?? 0} implant{(implantCounts[clinic.id || clinic._id] ?? 0) !== 1 ? 's' : ''}
+                  </span>
                 </div>
               </div>
               

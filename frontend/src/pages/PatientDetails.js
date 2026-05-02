@@ -2,131 +2,29 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import client from '../api/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
+import { ArrowLeft, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
 import ImplantProgressTracker from '../components/ImplantProgressTracker';
-import ImplantTagScanner from '../components/ImplantTagScanner';
 import DentalChart from '../components/DentalChart';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import ImplantModal, { INITIAL_IMPLANT } from '../components/ImplantModal';
+import FPDModal, { INITIAL_FPD } from '../components/FPDModal';
+import AbutmentModal, { INITIAL_ABUTMENT } from '../components/AbutmentModal';
+import OverdentureModal, { INITIAL_OVERDENTURE } from '../components/OverdentureModal';
 
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
-
-const INITIAL_IMPLANT = {
-  tooth_number: '',
-  implant_type: 'Single',
-  brand: '',
-  implant_system: '',
-  diameter_mm: '',
-  length_mm: '',
-  insertion_torque: '',
-  isq_value: '',
-  connection_type: 'Internal Hex',
-  surgical_approach: 'Immediate Placement',
-  bone_graft: '',
-  sinus_lift_type: '',
-  is_pterygoid: false,
-  is_zygomatic: false,
-  is_subperiosteal: false,
-  cover_screw: false,
-  healing_abutment: false,
-  membrane_used: false,
-  surgery_date: '',
-  prosthetic_loading_date: '',
-  follow_up_date: '',
-  surgeon_name: '',
-  consultant_surgeon: '',
-  clinic_id: '',
-  implant_outcome: 'Pending',
-  osseointegration_success: false,
-  peri_implant_health: '',
-  clinical_notes: '',
-  notes: '',
-  site_specific_notes: '',
-  complication_remarks: '',
-  arch: 'Upper',
-  jaw_region: 'Anterior',
-  tag_image: null,
-};
-
-const INITIAL_FPD = {
-  tooth_numbers: [],
-  prosthetic_loading_date: '',
-  crown_count: 'Single',
-  connected_implant_ids: [],
-  crown_type: 'Screw Retained',
-  crown_material: 'Zirconia',
-  clinical_notes: '',
-  consultant_prosthodontist: '',
-  lab_name: '',
-  warranty_image: null,
-};
-
-const ABUTMENT_TYPES = [
-  'Stock Abutment Straight',
-  'Stock Abutment Angled 15°',
-  'Stock Abutment Angled 17°',
-  'Stock Abutment Angled 25°',
-  'Multi-Unit Abutment (MUA) Straight',
-  'MUA Angled 15°',
-  'MUA Angled 17°',
-  'MUA Angled 25°',
-  'MUA Angled 30°',
-  'MUA Angled 35°',
-  'MUA Angled 40°',
-  'MUA Angled 45°',
-  'MUA Angled 50°',
-  'MUA Angled 60°',
-  'Ball Abutment',
-  'Locator Abutment',
-  'Custom Milled Abutment',
-  'UCLA Abutment',
-  'Ti Base',
-];
-
-const INITIAL_ABUTMENT = {
-  tooth_number: '',
-  abutment_type: 'Stock Abutment Straight',
-  connected_implant_ids: [],
-  placement_date: '',
-  clinical_notes: '',
-  clinic_id: '',
-};
-
-const OVERDENTURE_ATTACHMENTS = [
-  'Ball Attachment',
-  'Locator / LOCATOR R-Tx',
-  'Bar Clip (Dolder Bar)',
-  'Bar Clip (Hader Bar)',
-  'Magnetic Attachment',
-  'ERA Attachment',
-  'Ceka Attachment',
-  'Custom Bar',
-];
-
-const INITIAL_OVERDENTURE = {
-  tooth_numbers: [],
-  attachment_type: 'Ball Attachment',
-  connected_implant_ids: [],
-  has_bar: false,
-  bar_material: '',
-  prosthetic_loading_date: '',
-  clinical_notes: '',
-  clinic_id: '',
-};
 
 const PatientDetails = () => {
   const { id } = useParams();
@@ -143,7 +41,7 @@ const PatientDetails = () => {
   const [editingImplantId, setEditingImplantId] = useState(null);
   const [editingFpdId, setEditingFpdId] = useState(null);
   const [warrantyFile, setWarrantyFile] = useState(null);
-  const [missingConfirm, setMissingConfirm] = useState(null); // { toothNumber, action: 'mark'|'revert' }
+  const [missingConfirm, setMissingConfirm] = useState(null);
   const [abutmentRecords, setAbutmentRecords] = useState([]);
   const [overdentureRecords, setOverdentureRecords] = useState([]);
   const [isAbutmentOpen, setIsAbutmentOpen] = useState(false);
@@ -234,15 +132,12 @@ const PatientDetails = () => {
       const svg = document.querySelector('[aria-label="FDI Dental Chart"]');
       if (!svg) return null;
 
-      // Clone SVG so we can mutate it without affecting the page
       const clone = svg.cloneNode(true);
 
-      // Get the SVG's viewBox dimensions for canvas sizing
       const vb = svg.viewBox?.baseVal;
       const svgW = vb?.width  || svg.clientWidth  || 1050;
       const svgH = vb?.height || svg.clientHeight || 400;
 
-      // Inline all external <image> hrefs as base64 so canvas renders them
       const imageEls = clone.querySelectorAll('image');
       await Promise.all(Array.from(imageEls).map(async (imgEl) => {
         const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href');
@@ -260,7 +155,6 @@ const PatientDetails = () => {
         } catch { /* skip failed images */ }
       }));
 
-      // Serialize and render to canvas
       const svgData = new XMLSerializer().serializeToString(clone);
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
@@ -295,7 +189,6 @@ const PatientDetails = () => {
       setPdfProgress('Capturing dental chart...');
       const chartImage = await captureDentalChartImage();
 
-      // Fetch extra vault photos
       const extraRes = await client.get(`/api/patients/${id}/photos`);
       await generatePatientPDF({
         patient,
@@ -317,7 +210,6 @@ const PatientDetails = () => {
 
   const handleMarkMissing = (toothNumber) => {
     const current = toothConditions[toothNumber]?.condition;
-    // Open dialog with clicked tooth pre-selected, show all teeth for multi-select
     setMissingConfirm({
       action: current === 'missing' ? 'revert' : 'mark',
       selectedTeeth: [toothNumber],
@@ -566,7 +458,7 @@ const PatientDetails = () => {
     }
     try {
       const payload = { ...fpdData, patient_id: id };
-      delete payload.warranty_image; // stored via separate upload endpoint
+      delete payload.warranty_image;
       let fpdId = editingFpdId;
       if (editingFpdId) {
         await client.patch(`/api/fpd-records/${editingFpdId}`, payload);
@@ -576,7 +468,6 @@ const PatientDetails = () => {
         fpdId = res.data?.id;
         toast.success('FPD record added');
       }
-      // Upload warranty image if selected
       if (warrantyFile && fpdId) {
         try {
           const form = new FormData();
@@ -615,8 +506,6 @@ const PatientDetails = () => {
     setEditingFpdId(fpd.id);
     setIsFpdOpen(true);
   };
-
-  const getToothStatus = (toothNumber) => implants.find(imp => imp.tooth_number === toothNumber);
 
   const getDaysRemaining = (osseoDate) => {
     if (!osseoDate) return 0;
@@ -661,7 +550,6 @@ const PatientDetails = () => {
       {/* Patient Info */}
       <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
         <div className="flex items-start gap-5">
-          {/* Avatar — click to upload profile picture */}
           <label
             htmlFor="patient-pic-upload"
             data-testid="patient-avatar"
@@ -707,7 +595,6 @@ const PatientDetails = () => {
             }}
           />
 
-          {/* Patient details */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl md:text-3xl font-semibold text-[#2A2F35] tracking-tight" data-testid="patient-name">
@@ -747,7 +634,6 @@ const PatientDetails = () => {
               </div>
             </div>
 
-            {/* Contact grid */}
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
               <div className="flex gap-2">
                 <span className="text-[#9CA3AF] shrink-0">Phone</span>
@@ -787,7 +673,6 @@ const PatientDetails = () => {
           </div>
         </div>
 
-        {/* Edit log panel */}
         {showEditLog && (
           <div className="mt-5 pt-4 border-t border-[#F0EDE8]">
             <p className="text-xs font-semibold text-[#C27E70] uppercase tracking-wide mb-3">Change History</p>
@@ -811,7 +696,7 @@ const PatientDetails = () => {
         )}
       </div>
 
-      {/* Missing Tooth Confirmation Dialog — multi-select */}
+      {/* Missing Tooth Confirmation Dialog */}
       <Dialog open={!!missingConfirm} onOpenChange={(open) => { if (!open) setMissingConfirm(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -825,7 +710,6 @@ const PatientDetails = () => {
                 ? 'Select all teeth to mark as missing. They will be saved to the patient record.'
                 : 'Select all missing teeth to restore to healthy status.'}
             </p>
-            {/* Upper arch teeth */}
             <div className="mb-2">
               <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wide mb-1">Upper Arch</p>
               <div className="flex flex-wrap gap-1.5">
@@ -846,7 +730,6 @@ const PatientDetails = () => {
                 ))}
               </div>
             </div>
-            {/* Lower arch teeth */}
             <div>
               <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wide mb-1">Lower Arch</p>
               <div className="flex flex-wrap gap-1.5">
@@ -968,525 +851,64 @@ const PatientDetails = () => {
       <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
         <h2 className="text-lg font-medium text-[#2A2F35] mb-4">FDI Dental Chart</h2>
 
-        {/* Implant Dialog (opened via chart tooth click) */}
-        <div>
-          <Dialog open={isImplantOpen} onOpenChange={(open) => {
+        <ImplantModal
+          isOpen={isImplantOpen}
+          onOpenChange={(open) => {
             setIsImplantOpen(open);
             if (!open) { setFormData({ ...INITIAL_IMPLANT }); setSelectedTooth(null); setEditingImplantId(null); }
-          }}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-semibold">
-                  {editingImplantId ? `Edit Implant Record${selectedTooth ? ` - Tooth #${selectedTooth}` : ''}` : (selectedTooth ? `Add Implant - Tooth #${selectedTooth}` : 'Add Implant Record')}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmitImplant} className="space-y-4 mt-2">
-                {/* Implant Tag Scanner */}
-                <ImplantTagScanner
-                  tagImage={formData.tag_image}
-                  onAutoFill={handleTagAutoFill}
-                  onImageCapture={(img) => updateField('tag_image', img)}
-                />
+          }}
+          formData={formData}
+          updateField={updateField}
+          editingImplantId={editingImplantId}
+          selectedTooth={selectedTooth}
+          clinics={clinics}
+          onSubmit={handleSubmitImplant}
+          onTagAutoFill={handleTagAutoFill}
+        />
 
-                {/* Row 1: Tooth, Type, Brand */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">Tooth Number *</Label>
-                    <Input type="number" value={formData.tooth_number} onChange={(e) => updateField('tooth_number', e.target.value)} required data-testid="tooth-number-input" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Implant Type *</Label>
-                    <select value={formData.implant_type} onChange={(e) => updateField('implant_type', e.target.value)} data-testid="implant-type-select" className={`mt-1 ${selectClass}`}>
-                      <option>Single</option><option>Bridge</option><option>Full Mouth</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Brand *</Label>
-                    <Input value={formData.brand} onChange={(e) => updateField('brand', e.target.value)} required data-testid="brand-input" placeholder="e.g., Alpha, Straumann" className="mt-1" />
-                  </div>
-                </div>
-
-                {/* Row 2: Diameter, Length */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Diameter (mm) *</Label>
-                    <Input type="number" step="0.1" value={formData.diameter_mm} onChange={(e) => updateField('diameter_mm', e.target.value)} required data-testid="diameter-input" placeholder="e.g. 4.5" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Length (mm) *</Label>
-                    <Input type="number" step="0.1" value={formData.length_mm} onChange={(e) => updateField('length_mm', e.target.value)} required data-testid="length-input" placeholder="e.g. 10.0" className="mt-1" />
-                  </div>
-                </div>
-
-                {/* Row 3: Torque, ISQ, Connection, Surgical Approach */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs">Insertion Torque (Ncm)</Label>
-                    <Input type="number" step="0.1" value={formData.insertion_torque} onChange={(e) => updateField('insertion_torque', e.target.value)} data-testid="torque-input" placeholder="35" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">ISQ Value</Label>
-                    <Input type="number" step="0.1" value={formData.isq_value} onChange={(e) => updateField('isq_value', e.target.value)} data-testid="isq-input" placeholder="70" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Connection Type *</Label>
-                    <select value={formData.connection_type} onChange={(e) => updateField('connection_type', e.target.value)} data-testid="connection-type-select" className={`mt-1 ${selectClass}`}>
-                      <option>Internal Hex</option><option>External Hex</option><option>Conical</option><option>Morse Taper</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Surgical Approach *</Label>
-                    <select value={formData.surgical_approach} onChange={(e) => updateField('surgical_approach', e.target.value)} data-testid="surgical-approach-select" className={`mt-1 ${selectClass}`}>
-                      <option>Immediate Placement</option><option>Delayed Placement</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 4: Arch, Jaw Region, Implant System, Outcome */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs">Arch</Label>
-                    <select value={formData.arch} onChange={(e) => updateField('arch', e.target.value)} className={`mt-1 ${selectClass}`}>
-                      <option>Upper</option><option>Lower</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Jaw Region</Label>
-                    <select value={formData.jaw_region} onChange={(e) => updateField('jaw_region', e.target.value)} className={`mt-1 ${selectClass}`}>
-                      <option>Anterior</option><option>Posterior</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Implant System</Label>
-                    <Input value={formData.implant_system} onChange={(e) => updateField('implant_system', e.target.value)} placeholder="Product line" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Outcome</Label>
-                    <select value={formData.implant_outcome} onChange={(e) => updateField('implant_outcome', e.target.value)} className={`mt-1 ${selectClass}`}>
-                      <option>Pending</option><option>Success</option><option>Failed</option><option>Complications</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 5: Surgery Date, Follow-up, Prosthetic Loading, Surgeon */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs">Surgery Date</Label>
-                    <Input type="date" value={formData.surgery_date} onChange={(e) => updateField('surgery_date', e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Follow-up Date</Label>
-                    <Input type="date" value={formData.follow_up_date} onChange={(e) => updateField('follow_up_date', e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Prosthetic Loading Date</Label>
-                    <Input type="date" value={formData.prosthetic_loading_date} onChange={(e) => updateField('prosthetic_loading_date', e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Surgeon Name</Label>
-                    <Input value={formData.surgeon_name} onChange={(e) => updateField('surgeon_name', e.target.value)} placeholder="In-house surgeon" className="mt-1" />
-                  </div>
-                </div>
-
-                {/* Consultant surgeon */}
-                <div>
-                  <Label className="text-xs">Consultant / Visiting Surgeon <span className="text-[#9CA3AF]">(if different from treating doctor)</span></Label>
-                  <Input value={formData.consultant_surgeon || ''} onChange={(e) => updateField('consultant_surgeon', e.target.value)} placeholder="Dr. Name, Specialization" className="mt-1" data-testid="implant-consultant-surgeon" />
-                </div>
-
-                {/* Row 6: Bone Graft, Sinus Lift, Clinic */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">Bone Graft</Label>
-                    <Input value={formData.bone_graft} onChange={(e) => updateField('bone_graft', e.target.value)} data-testid="bone-graft-input" placeholder="Xenograft, Allograft..." className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Sinus Lift Type</Label>
-                    <select value={formData.sinus_lift_type} onChange={(e) => updateField('sinus_lift_type', e.target.value)} data-testid="sinus-lift-select" className={`mt-1 ${selectClass}`}>
-                      <option value="">None</option><option>Direct</option><option>Indirect</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Clinic</Label>
-                    <select value={formData.clinic_id} onChange={(e) => updateField('clinic_id', e.target.value)} className={`mt-1 ${selectClass}`}>
-                      <option value="">Select clinic</option>
-                      {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Checkboxes */}
-                <div className="flex flex-wrap gap-x-6 gap-y-2 py-2">
-                  {[
-                    ['cover_screw', 'Cover Screw'],
-                    ['healing_abutment', 'Healing Abutment'],
-                    ['membrane_used', 'Membrane Used'],
-                    ['is_pterygoid', 'Pterygoid'],
-                    ['is_zygomatic', 'Zygomatic'],
-                    ['is_subperiosteal', 'Sub-periosteal'],
-                    ['osseointegration_success', 'Osseointegration Success'],
-                  ].map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-1.5 text-sm text-[#2A2F35]">
-                      <input type="checkbox" checked={formData[key]} onChange={(e) => updateField(key, e.target.checked)} className={checkboxClass} data-testid={`${key}-checkbox`} />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-
-                {/* Peri-implant Health — string select, not checkbox */}
-                <div>
-                  <Label className="text-xs">Peri-implant Health</Label>
-                  <select value={formData.peri_implant_health} onChange={(e) => updateField('peri_implant_health', e.target.value)} className={`mt-1 ${selectClass}`} data-testid="peri-implant-health-select">
-                    <option value="">Not assessed</option>
-                    <option value="Healthy">Healthy</option>
-                    <option value="Mild Inflammation">Mild Inflammation</option>
-                    <option value="Moderate Inflammation">Moderate Inflammation</option>
-                    <option value="Severe (Peri-implantitis)">Severe (Peri-implantitis)</option>
-                  </select>
-                </div>
-
-                {/* Notes */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Clinical Notes</Label>
-                    <textarea value={formData.clinical_notes} onChange={(e) => updateField('clinical_notes', e.target.value)} rows={3} className={`mt-1 ${selectClass}`} placeholder="Clinical observations..." />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Additional Notes</Label>
-                    <textarea value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} data-testid="notes-input" rows={3} className={`mt-1 ${selectClass}`} placeholder="General notes..." />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Site-Specific Notes</Label>
-                    <textarea value={formData.site_specific_notes} onChange={(e) => updateField('site_specific_notes', e.target.value)} rows={2} className={`mt-1 ${selectClass}`} placeholder="Site healing patterns..." />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Complication Remarks</Label>
-                    <textarea value={formData.complication_remarks} onChange={(e) => updateField('complication_remarks', e.target.value)} rows={2} className={`mt-1 ${selectClass}`} placeholder="Any complications..." />
-                  </div>
-                </div>
-
-                <Button type="submit" data-testid="submit-implant-button" className="w-full bg-[#82A098] hover:bg-[#6B8A82] text-white">
-                  {editingImplantId ? 'Save Changes' : 'Add Implant Record'}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* FPD Log Sheet Dialog (opened via chart tooth click) */}
-          <Dialog open={isFpdOpen} onOpenChange={(open) => {
+        <FPDModal
+          isOpen={isFpdOpen}
+          onOpenChange={(open) => {
             setIsFpdOpen(open);
             if (!open) { setFpdData({ ...INITIAL_FPD }); setEditingFpdId(null); setWarrantyFile(null); }
-          }}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-semibold">{editingFpdId ? 'Edit FPD Record' : 'FPD Log Sheet'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmitFpd} className="space-y-4 mt-2">
-                {/* FDI Chart — tooth selection for FPD */}
-                <div>
-                  <Label className="text-xs mb-2 block">Select Teeth — click to toggle</Label>
-                  <DentalChart
-                    implants={implants}
-                    fpdRecords={fpdRecords}
-                    selectedTeeth={fpdData.tooth_numbers}
-                    onToothToggle={toggleFpdTooth}
-                    mode="fpd"
-                  />
-                  {fpdData.tooth_numbers.length > 0 && (
-                    <p className="mt-2 text-xs text-[#2A2F35] font-medium text-center">
-                      Selected: {fpdData.tooth_numbers.join(', ')}
-                    </p>
-                  )}
-                </div>
+          }}
+          fpdData={fpdData}
+          setFpdData={setFpdData}
+          editingFpdId={editingFpdId}
+          warrantyFile={warrantyFile}
+          setWarrantyFile={setWarrantyFile}
+          implants={implants}
+          fpdRecords={fpdRecords}
+          onSubmit={handleSubmitFpd}
+          onToothToggle={toggleFpdTooth}
+        />
 
-                {/* FPD fields */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Prosthetic Loading Date</Label>
-                    <Input type="date" value={fpdData.prosthetic_loading_date} onChange={(e) => setFpdData({ ...fpdData, prosthetic_loading_date: e.target.value })} data-testid="fpd-loading-date" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Crown Count</Label>
-                    <select value={fpdData.crown_count} onChange={(e) => setFpdData({ ...fpdData, crown_count: e.target.value })} data-testid="fpd-crown-count" className={`mt-1 ${selectClass}`}>
-                      <option>Single</option><option>Multiple</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Crown Type</Label>
-                    <select value={fpdData.crown_type} onChange={(e) => setFpdData({ ...fpdData, crown_type: e.target.value })} data-testid="fpd-crown-type" className={`mt-1 ${selectClass}`}>
-                      <option>Cement Retained</option><option>Screw Retained</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Crown Material</Label>
-                    <select value={fpdData.crown_material} onChange={(e) => setFpdData({ ...fpdData, crown_material: e.target.value })} data-testid="fpd-crown-material" className={`mt-1 ${selectClass}`}>
-                      <option>Metal</option><option>Porcelain fused to metal</option><option>Zirconia</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Connected implants */}
-                {implants.length > 0 && (
-                  <div>
-                    <Label className="text-xs">Connected Implants</Label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {implants.map(imp => (
-                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#82A098] transition-colors">
-                          <input type="checkbox"
-                            checked={fpdData.connected_implant_ids.includes(imp.id)}
-                            onChange={(e) => {
-                              setFpdData(prev => ({
-                                ...prev,
-                                connected_implant_ids: e.target.checked
-                                  ? [...prev.connected_implant_ids, imp.id]
-                                  : prev.connected_implant_ids.filter(x => x !== imp.id)
-                              }));
-                            }}
-                            className={checkboxClass}
-                          />
-                          <span>#{imp.tooth_number} ({imp.brand})</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Consultant & Lab */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Consultant / Visiting Prosthodontist <span className="text-[#9CA3AF]">(optional)</span></Label>
-                    <Input value={fpdData.consultant_prosthodontist} onChange={(e) => setFpdData({ ...fpdData, consultant_prosthodontist: e.target.value })} placeholder="Dr. Name" className="mt-1" data-testid="fpd-consultant" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Dental Lab <span className="text-[#9CA3AF]">(crown fabrication)</span></Label>
-                    <Input value={fpdData.lab_name} onChange={(e) => setFpdData({ ...fpdData, lab_name: e.target.value })} placeholder="Lab name" className="mt-1" data-testid="fpd-lab-name" />
-                  </div>
-                </div>
-
-                {/* Warranty image */}
-                <div>
-                  <Label className="text-xs">Warranty Card Photo <span className="text-[#9CA3AF]">(optional)</span></Label>
-                  <div className="mt-1 flex items-center gap-3">
-                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#E5E5E2] hover:border-[#82A098] hover:bg-[#F0F8F6] cursor-pointer text-xs text-[#5C6773] transition-colors" data-testid="fpd-warranty-upload-label">
-                      <input type="file" accept="image/*" className="hidden" data-testid="fpd-warranty-input"
-                        onChange={e => { if (e.target.files?.[0]) setWarrantyFile(e.target.files[0]); }} />
-                      📷 {warrantyFile ? warrantyFile.name : 'Upload warranty photo'}
-                    </label>
-                    {/* Show existing warranty image if editing */}
-                    {fpdData.warranty_image && !warrantyFile && (
-                      <a href={`${API_URL}/api/files/${fpdData.warranty_image}`} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-[#82A098] underline">View existing</a>
-                    )}
-                    {warrantyFile && (
-                      <button type="button" onClick={() => setWarrantyFile(null)} className="text-xs text-red-400 hover:text-red-600">✕ Remove</button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs">Clinical Notes</Label>
-                  <textarea value={fpdData.clinical_notes} onChange={(e) => setFpdData({ ...fpdData, clinical_notes: e.target.value })} data-testid="fpd-clinical-notes" rows={3} className={`mt-1 ${selectClass}`} placeholder="Prosthetic observations, adjustments..." />
-                </div>
-
-                <Button type="submit" data-testid="submit-fpd-button" className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white">
-                  {editingFpdId ? 'Save Changes' : 'Add FPD Record'}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-          {/* Abutment Log Dialog */}
-          <Dialog open={isAbutmentOpen} onOpenChange={(open) => {
+        <AbutmentModal
+          isOpen={isAbutmentOpen}
+          onOpenChange={(open) => {
             setIsAbutmentOpen(open);
             if (!open) { setAbutmentData({ ...INITIAL_ABUTMENT }); setEditingAbutmentId(null); }
-          }}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-semibold">
-                  {editingAbutmentId ? 'Edit Abutment Record' : 'Abutment Log'}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmitAbutment} className="space-y-4 mt-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Tooth Number *</Label>
-                    <Input type="number" value={abutmentData.tooth_number} onChange={e => setAbutmentData(p => ({ ...p, tooth_number: e.target.value }))} required data-testid="abutment-tooth-number" className="mt-1" placeholder="e.g. 16" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Placement Date</Label>
-                    <Input type="date" value={abutmentData.placement_date} onChange={e => setAbutmentData(p => ({ ...p, placement_date: e.target.value }))} data-testid="abutment-placement-date" className="mt-1" />
-                  </div>
-                </div>
+          }}
+          abutmentData={abutmentData}
+          setAbutmentData={setAbutmentData}
+          editingAbutmentId={editingAbutmentId}
+          implants={implants}
+          onSubmit={handleSubmitAbutment}
+        />
 
-                <div>
-                  <Label className="text-xs">Abutment Type *</Label>
-                  <select value={abutmentData.abutment_type} onChange={e => setAbutmentData(p => ({ ...p, abutment_type: e.target.value }))} data-testid="abutment-type-select" className={`mt-1 ${selectClass}`} required>
-                    {ABUTMENT_TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-
-                {/* Connected implants */}
-                {implants.length > 0 && (
-                  <div>
-                    <Label className="text-xs">Connected Implant(s)</Label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {implants.map(imp => (
-                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#E8A76C] transition-colors">
-                          <input type="checkbox"
-                            checked={abutmentData.connected_implant_ids.includes(imp.id)}
-                            onChange={e => setAbutmentData(prev => ({
-                              ...prev,
-                              connected_implant_ids: e.target.checked
-                                ? [...prev.connected_implant_ids, imp.id]
-                                : prev.connected_implant_ids.filter(x => x !== imp.id)
-                            }))}
-                            className={checkboxClass}
-                          />
-                          <span>#{imp.tooth_number} ({imp.brand})</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs">Clinical Notes</Label>
-                  <textarea value={abutmentData.clinical_notes} onChange={e => setAbutmentData(p => ({ ...p, clinical_notes: e.target.value }))} data-testid="abutment-notes" rows={3} className={`mt-1 ${selectClass}`} placeholder="Torque values, angulation notes..." />
-                </div>
-
-                <Button type="submit" data-testid="submit-abutment-button" className="w-full bg-[#E8A76C] hover:bg-[#D4925A] text-white">
-                  {editingAbutmentId ? 'Save Changes' : 'Add Abutment Record'}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* Overdenture Log Dialog */}
-          <Dialog open={isOverdentureOpen} onOpenChange={(open) => {
+        <OverdentureModal
+          isOpen={isOverdentureOpen}
+          onOpenChange={(open) => {
             setIsOverdentureOpen(open);
             if (!open) { setOverdentureData({ ...INITIAL_OVERDENTURE }); setEditingOverdentureId(null); }
-          }}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-semibold" style={{ color: '#7C3AED' }}>
-                  {editingOverdentureId ? 'Edit Overdenture Record' : 'Overdenture Log'}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmitOverdenture} className="space-y-4 mt-2">
-                {/* Tooth/implant site selection */}
-                <div>
-                  <Label className="text-xs mb-2 block">Implant Sites (select teeth covered by overdenture)</Label>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wide mb-1">Upper Arch</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28].map(tn => (
-                          <button key={tn} type="button"
-                            onClick={() => toggleOverdentureTooth(tn)}
-                            className={`w-9 h-9 text-xs font-medium rounded-md border transition-colors ${
-                              overdentureData.tooth_numbers.includes(tn)
-                                ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
-                                : 'bg-white text-[#2A2F35] border-[#E5E5E2] hover:border-[#7C3AED]'
-                            }`}
-                          >{tn}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wide mb-1">Lower Arch</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38].map(tn => (
-                          <button key={tn} type="button"
-                            onClick={() => toggleOverdentureTooth(tn)}
-                            className={`w-9 h-9 text-xs font-medium rounded-md border transition-colors ${
-                              overdentureData.tooth_numbers.includes(tn)
-                                ? 'bg-[#7C3AED] text-white border-[#7C3AED]'
-                                : 'bg-white text-[#2A2F35] border-[#E5E5E2] hover:border-[#7C3AED]'
-                            }`}
-                          >{tn}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {overdentureData.tooth_numbers.length > 0 && (
-                    <p className="mt-1 text-xs text-[#5C6773]">Selected: <span className="font-medium text-[#7C3AED]">{overdentureData.tooth_numbers.join(', ')}</span></p>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-xs">Overdenture Attachment Type *</Label>
-                  <select value={overdentureData.attachment_type} onChange={e => setOverdentureData(p => ({ ...p, attachment_type: e.target.value }))} data-testid="overdenture-attachment-type" className={`mt-1 ${selectClass}`} required>
-                    {OVERDENTURE_ATTACHMENTS.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-
-                {/* Bar section */}
-                <div className="border border-[#E5E5E2] rounded-lg p-3 space-y-3">
-                  <label className="flex items-center gap-2 text-sm font-medium text-[#2A2F35]">
-                    <input type="checkbox" checked={overdentureData.has_bar} onChange={e => setOverdentureData(p => ({ ...p, has_bar: e.target.checked, bar_material: e.target.checked ? p.bar_material : '' }))} className={checkboxClass} data-testid="overdenture-has-bar" />
-                    Implant Bar (connecting implants)
-                  </label>
-                  {overdentureData.has_bar && (
-                    <div>
-                      <Label className="text-xs">Bar Material</Label>
-                      <select value={overdentureData.bar_material} onChange={e => setOverdentureData(p => ({ ...p, bar_material: e.target.value }))} data-testid="overdenture-bar-material" className={`mt-1 ${selectClass}`}>
-                        <option value="">Select material</option>
-                        <option>Titanium</option>
-                        <option>Cobalt Chromium</option>
-                        <option>Gold Alloy</option>
-                        <option>PEEK</option>
-                        <option>Zirconia</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                {/* Connected implants */}
-                {implants.length > 0 && (
-                  <div>
-                    <Label className="text-xs">Connected Implant(s)</Label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {implants.map(imp => (
-                        <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#7C3AED] transition-colors">
-                          <input type="checkbox"
-                            checked={overdentureData.connected_implant_ids.includes(imp.id)}
-                            onChange={e => setOverdentureData(prev => ({
-                              ...prev,
-                              connected_implant_ids: e.target.checked
-                                ? [...prev.connected_implant_ids, imp.id]
-                                : prev.connected_implant_ids.filter(x => x !== imp.id)
-                            }))}
-                            className={checkboxClass}
-                          />
-                          <span>#{imp.tooth_number} ({imp.brand})</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs">Prosthetic Loading Date</Label>
-                  <Input type="date" value={overdentureData.prosthetic_loading_date} onChange={e => setOverdentureData(p => ({ ...p, prosthetic_loading_date: e.target.value }))} data-testid="overdenture-loading-date" className="mt-1" />
-                </div>
-
-                <div>
-                  <Label className="text-xs">Clinical Notes</Label>
-                  <textarea value={overdentureData.clinical_notes} onChange={e => setOverdentureData(p => ({ ...p, clinical_notes: e.target.value }))} data-testid="overdenture-notes" rows={3} className={`mt-1 ${selectClass}`} placeholder="Retention, occlusion, patient comfort notes..." />
-                </div>
-
-                <Button type="submit" data-testid="submit-overdenture-button" className="w-full text-white" style={{ backgroundColor: '#7C3AED' }}>
-                  {editingOverdentureId ? 'Save Changes' : 'Add Overdenture Record'}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          }}
+          overdentureData={overdentureData}
+          setOverdentureData={setOverdentureData}
+          editingOverdentureId={editingOverdentureId}
+          implants={implants}
+          onSubmit={handleSubmitOverdenture}
+          onToothToggle={toggleOverdentureTooth}
+        />
 
         {/* FDI Dental Chart — high-fidelity SVG */}
         <div className="overflow-x-auto">
@@ -1525,7 +947,13 @@ const PatientDetails = () => {
           </h2>
           <div className="space-y-3">
             {implants.map((implant) => {
-              const daysRemaining = getDaysRemaining(implant.osseointegration_date);
+              // Compute osseointegration countdown from surgery_date + 90 days
+              const daysRemaining = (() => {
+                if (!implant.surgery_date) return 0;
+                const osseoEnd = new Date(implant.surgery_date);
+                osseoEnd.setDate(osseoEnd.getDate() + 90);
+                return getDaysRemaining(osseoEnd.toISOString().split('T')[0]);
+              })();
               return (
                 <div key={implant.id} data-testid={`implant-record-${implant.id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
                   <div className="flex items-start justify-between mb-2">
@@ -1548,7 +976,6 @@ const PatientDetails = () => {
                       >
                         <PencilSimple size={15} weight="bold" />
                       </button>
-                      {/* Tag image thumbnail */}
                       {implant.tag_image ? (
                         <div className="relative group" data-testid={`tag-thumb-${implant.id}`}>
                           <img

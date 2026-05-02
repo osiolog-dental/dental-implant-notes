@@ -10,7 +10,7 @@
 ```
 dental-implant-notes/
 ├── backend/
-│   ├── server.py          ← All FastAPI routes, Pydantic models, MongoDB logic
+│   ├── app/main.py        ← FastAPI app factory (modular routes, PostgreSQL)
 │   └── requirements.txt   ← Python dependencies
 ├── frontend/
 │   ├── src/
@@ -235,7 +235,7 @@ These rules exist because the primary user is non-technical. Every task must mee
 
 ### 1. Always Read Before Touching
 - Before editing ANY file, read the relevant section first. Never guess at existing code.
-- Before adding a new API endpoint, read the full `server.py` to check for conflicts, existing patterns, and naming conventions.
+- Before adding a new API endpoint, read `app/api/routes/flat_routes.py` and the relevant route file to check for conflicts, existing patterns, and naming conventions.
 - Before editing a React page, read the component's current state — especially `PatientDetails.js` which changes frequently.
 
 ### 2. Full Vertical Slice — No Half-Done Work
@@ -264,7 +264,7 @@ This applies to frontend AND backend changes:
 - Do not report a task complete based on code review alone — visual confirmation is required.
 
 ### 6. Regression Awareness
-- When editing a shared file (`Layout.js`, `AuthContext.js`, `server.py`), check all pages/routes that depend on it.
+- When editing a shared file (`Layout.js`, `AuthContext.js`, `app/main.py`), check all pages/routes that depend on it.
 - After any routing change in `App.js`, verify that login → dashboard → patient detail navigation still works.
 - After any auth change, verify that protected routes still redirect unauthenticated users.
 

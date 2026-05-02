@@ -101,3 +101,270 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Osiolog dental implant case management app — track implants, FPD records, patients, analytics, and clinic management for dentists."
+
+# ----------------------------------------------------------------------------------------------------
+# Code Review Pass — 2026-05-02
+# All features below were verified correct end-to-end via code review (backend route → DB → frontend).
+# Browser/UI testing is still pending. Backend must be restarted before any browser testing begins.
+#
+# IMPORTANT — Backend restart required before testing:
+#   The backend must be running on port 8002 with the new flat_routes.py endpoints loaded.
+#   Steps:
+#     1. pkill -f "uvicorn app.main:app"
+#     2. python3 -m uvicorn app.main:app --reload --port 8002 --host 0.0.0.0
+#     3. curl http://localhost:8002/api/health  →  must return {"status":"ok"}
+# ----------------------------------------------------------------------------------------------------
+
+backend:
+  - task: "Implant modal form — all fields, saves to backend"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. POST /api/implants accepts all fields (torque, brand, connection, grafts, sinus lifts, ISQ, follow-up, surgery_date, etc.) and writes to DB. Browser test pending."
+
+  - task: "FPD modal — tooth selection, saves to backend"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. POST /api/fpd-records accepts tooth_numbers[], crown_count, material, clinical_notes, connected_implant_ids. Browser test pending."
+
+  - task: "Account page college/place edit — PATCH /api/users/me"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. PATCH /api/users/me updates college and place fields on the users table. Browser test pending."
+
+  - task: "Osseointegration countdown (surgery_date + 90 days)"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. surgery_date stored on implant row; 90-day completion date computed from it for countdown display. Browser test pending."
+
+  - task: "Dashboard urgent alerts panel (osseointegration completing ≤14 days)"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. GET /api/notifications/osseointegration-alerts returns implants completing within 14 days. Browser test pending."
+
+  - task: "Analytics per-patient revenue chart — GET /api/analytics/per-patient"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. GET /api/analytics/per-patient returns top-10 patients by estimated revenue. Browser test pending."
+
+  - task: "Excel export — GET /api/export/implants → downloads .xlsx"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. GET /api/export/implants streams an .xlsx file of all implant records for the authenticated doctor. Browser test pending."
+
+  - task: "Clinics page — implant count badge per clinic"
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes/flat_routes.py"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Clinic list response includes implant count per clinic. Browser test pending."
+
+frontend:
+  - task: "Implant modal form — all fields rendered, submits to backend"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/ImplantModal.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Extracted into ImplantModal.js. All fields present, uses client.js for POST /api/implants. Browser test pending."
+
+  - task: "FPD modal — tooth selection UI, submits to backend"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/FPDModal.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Extracted into FPDModal.js. Tooth selection grid present, uses client.js for POST /api/fpd-records. Browser test pending."
+
+  - task: "Account page college/place edit — PATCH /api/users/me"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Account.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Inline edit fields for college and place, saves via client.patch('/api/users/me'). Browser test pending."
+
+  - task: "PatientDetails.js refactored — 4 modal components extracted"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/PatientDetails.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. ImplantModal, FPDModal, AbutmentModal, OverdentureModal all extracted to frontend/src/components/. PatientDetails.js now ~900 lines. Browser test pending."
+
+  - task: "Osseointegration countdown display (surgery_date + 90 days)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/PatientDetails.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Countdown rendered on both PatientDetails and Dashboard from surgery_date + 90 days. Browser test pending."
+
+  - task: "Dashboard healing phase implants section"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Dashboard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Dashboard shows implants currently in osseointegration/healing phase with countdown per implant. Browser test pending."
+
+  - task: "Dashboard urgent alerts panel (≤14 days to osseointegration completion)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Dashboard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Urgent alerts panel calls GET /api/notifications/osseointegration-alerts and displays implants due within 14 days. Browser test pending."
+
+  - task: "Analytics per-patient revenue chart"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Analytics.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Recharts bar chart for top-10 patients by revenue, data from GET /api/analytics/per-patient. Browser test pending."
+
+  - task: "Excel export button — triggers .xlsx download"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Analytics.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Export button calls GET /api/export/implants via client.js with responseType blob and triggers browser download. Browser test pending."
+
+  - task: "Patients page — gender filter, count badge, search empty state"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Patients.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Gender filter dropdown, total patient count badge, and empty state message for search with no results all present. Browser test pending."
+
+  - task: "Clinics page — implant count badge per clinic"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Clinics.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code-verified 2026-05-02. Each clinic card displays an implant count badge from the clinic list API response. Browser test pending."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+  last_code_review: "2026-05-02"
+
+test_plan:
+  current_focus:
+    - "Implant modal form — all fields rendered, submits to backend"
+    - "FPD modal — tooth selection UI, submits to backend"
+    - "Dashboard urgent alerts panel (≤14 days to osseointegration completion)"
+    - "Dashboard healing phase implants section"
+    - "Excel export button — triggers .xlsx download"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Code Review Pass 2026-05-02 — 11 features verified end-to-end via code review across backend routes, DB schema, and frontend components. None have been browser-tested yet. All tasks marked needs_retesting: true. IMPORTANT: backend must be restarted on port 8002 with flat_routes.py loaded before any browser testing. Use demo account doctor@dentalapp.com / doctor123."

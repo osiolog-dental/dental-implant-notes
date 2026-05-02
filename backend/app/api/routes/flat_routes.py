@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse
@@ -39,11 +40,14 @@ router = APIRouter(tags=["flat-routes"])
 @router.get("/implants", response_model=list[ImplantRead])
 async def list_implants_flat(
     patient_id: uuid.UUID = Query(...),
+    clinic_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ImplantRead]:
     repo = ImplantRepository(db)
     implants = await repo.list_by_patient(patient_id, current_user.org_id)
+    if clinic_id:
+        implants = [i for i in implants if i.clinic_id == clinic_id]
     return [ImplantRead.model_validate(i) for i in implants]
 
 
@@ -553,6 +557,41 @@ async def analytics_financial(
     }
 
 
+@router.get("/analytics/per-patient")
+async def analytics_per_patient(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list:
+    implants_result = await db.execute(
+        select(Implant, Patient)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    rows = implants_result.all()
+
+    RATE = {"Single": 1500, "Bridge": 4500, "Full Mouth": 25000}
+    DEFAULT_RATE = 1500
+
+    patient_map: dict[str, dict] = {}
+    for implant, patient in rows:
+        pid = str(patient.id)
+        if pid not in patient_map:
+            patient_map[pid] = {
+                "patient_id": pid,
+                "patient_name": patient.name,
+                "total_revenue": 0,
+                "implant_count": 0,
+            }
+        patient_map[pid]["total_revenue"] += RATE.get(implant.implant_type or "Single", DEFAULT_RATE)
+        patient_map[pid]["implant_count"] += 1
+
+    sorted_patients = sorted(patient_map.values(), key=lambda x: x["total_revenue"], reverse=True)
+    return sorted_patients[:10]
+
+
 @router.get("/implants/due-for-second-stage")
 async def implants_due_for_second_stage(
     current_user: User = Depends(get_current_user),
@@ -721,3 +760,137 @@ async def subscription_upgrade(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     raise HTTPException(status_code=402, detail="Payment integration coming soon. Contact support to upgrade.")
+
+
+@router.get("/ads")
+async def get_ads(current_user: User = Depends(get_current_user)) -> list:
+    return []
+
+
+# ── Notifications  ─────────────────────────────────────────────────────────────
+
+@router.get("/notifications/osseointegration-alerts")
+async def get_osseointegration_alerts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list:
+    """Return implants within 14 days of osseointegration completion (surgery_date + 90 days)."""
+    from datetime import date, timedelta
+    cutoff = date.today() + timedelta(days=14)
+    start = date.today()
+
+    result = await db.execute(
+        select(Implant, Patient)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+            Implant.surgery_date.isnot(None),
+        )
+    )
+    rows = result.all()
+
+    alerts = []
+    for implant, patient in rows:
+        if implant.surgery_date:
+            osseo_end = implant.surgery_date + timedelta(days=90)
+            if start <= osseo_end <= cutoff:
+                alerts.append({
+                    "implant_id": implant.id,
+                    "patient_id": patient.id,
+                    "patient_name": patient.name,
+                    "tooth_number": implant.tooth_number,
+                    "brand": implant.brand,
+                    "osseo_date": str(osseo_end),
+                    "days_remaining": (osseo_end - date.today()).days,
+                })
+    return sorted(alerts, key=lambda x: x["days_remaining"])
+
+
+# ── Excel export  ──────────────────────────────────────────────────────────────
+
+@router.get("/export/implants")
+async def export_implants_excel(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download all implant records as Excel (.xlsx)."""
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from fastapi.responses import StreamingResponse
+
+    # Query all implants for this org
+    result = await db.execute(
+        select(Implant, Patient)
+        .join(Patient, Implant.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+        )
+        .order_by(Patient.name, Implant.tooth_number)
+    )
+    rows = result.all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Implant Records"
+
+    headers = [
+        "Patient Name", "Patient Age", "Tooth #", "Implant Type",
+        "Brand", "System", "Diameter (mm)", "Length (mm)",
+        "Insertion Torque", "ISQ", "Connection Type",
+        "Surgical Approach", "Arch", "Jaw Region",
+        "Surgery Date", "Follow-up Date", "Prosthetic Loading",
+        "Surgeon", "Clinic", "Outcome", "Notes"
+    ]
+
+    # Style header row
+    header_fill = PatternFill("solid", fgColor="82A098")
+    header_font = Font(bold=True, color="FFFFFF")
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data rows
+    for row_num, (implant, patient) in enumerate(rows, 2):
+        ws.append([
+            patient.name,
+            patient.age,
+            implant.tooth_number,
+            implant.implant_type,
+            implant.brand,
+            implant.implant_system,
+            implant.diameter_mm,
+            implant.length_mm,
+            implant.insertion_torque,
+            implant.isq_value,
+            implant.connection_type,
+            implant.surgical_approach,
+            implant.arch,
+            implant.jaw_region,
+            str(implant.surgery_date) if implant.surgery_date else "",
+            str(implant.follow_up_date) if implant.follow_up_date else "",
+            str(implant.prosthetic_loading_date) if implant.prosthetic_loading_date else "",
+            implant.surgeon_name,
+            implant.clinic_id,
+            implant.implant_outcome,
+            implant.notes,
+        ])
+
+    # Auto-size columns
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 30)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=implant-records.xlsx"},
+    )

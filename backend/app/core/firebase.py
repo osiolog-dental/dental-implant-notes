@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import timedelta
 from typing import Any
 
 import jwt
@@ -91,6 +92,7 @@ def verify_id_token(id_token: str) -> dict[str, Any]:
             audience=project_id,
             issuer=f"{_ISSUER_PREFIX}{project_id}",
             options={"verify_exp": True},
+            leeway=timedelta(seconds=60),
         )
     except jwt.ExpiredSignatureError as exc:
         raise ValueError("Firebase token has expired") from exc

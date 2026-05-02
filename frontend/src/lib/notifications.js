@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import client from '../api/client';
+import { registerDeviceToken, unregisterDeviceToken } from '../api/notifications';
 
 let _registeredToken = null;
 
@@ -31,7 +31,7 @@ export async function registerForNotifications() {
 export async function unregisterNotifications() {
   if (!_registeredToken) return;
   try {
-    await client.delete(`/api/notifications/device-token?fcm_token=${encodeURIComponent(_registeredToken)}`);
+    await unregisterDeviceToken(_registeredToken);
   } catch (_) {
     // Ignore — token will expire on backend eventually
   } finally {
@@ -98,9 +98,6 @@ async function _registerWeb() {
 }
 
 async function _sendTokenToBackend(fcmToken, platform) {
-  await client.post('/api/notifications/device-token', {
-    fcm_token: fcmToken,
-    platform,
-  });
+  await registerDeviceToken(fcmToken, platform);
   _registeredToken = fcmToken;
 }

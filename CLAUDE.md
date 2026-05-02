@@ -1,4 +1,4 @@
-# Osioloc — Claude Code Guide
+# Osiolog — Claude Code Guide
 
 ## What This App Is
 **Osioloc** (formerly DentalHub) is a full-stack dental implant case management system for dentists and implantologists. It ships as a web app AND native iOS + Android app via Capacitor.
@@ -10,7 +10,7 @@
 ```
 dental-implant-notes/
 ├── backend/
-│   ├── server.py          ← All FastAPI routes, Pydantic models, MongoDB logic
+│   ├── app/main.py        ← FastAPI app factory (modular routes, PostgreSQL)
 │   └── requirements.txt   ← Python dependencies
 ├── frontend/
 │   ├── src/
@@ -110,6 +110,17 @@ DELETE /api/users/me             ← Delete account (requires auth)
 
 POST /api/notifications/device-token   ← Register FCM token
 DELETE /api/notifications/device-token ← Unregister FCM token
+
+GET  /api/analytics/overview         ← { total_patients, total_implants, pending_osseointegration, implant_types[] }
+GET  /api/analytics/financial        ← { total_revenue, total_implants, average_per_implant }
+GET  /api/analytics/per-patient      ← Top 10 patients by estimated revenue
+
+GET  /api/export/implants            ← Download all implant records as Excel (.xlsx)
+
+GET  /api/notifications/osseointegration-alerts ← Implants completing osseointegration within 14 days
+
+GET  /api/implants/all               ← All org implants (no patient_id filter required)
+GET  /api/implants/due-for-second-stage ← Implants ready for second-stage surgery
 ```
 
 ---
@@ -128,7 +139,8 @@ implants:  { patient_id, tooth_number, implant_type, brand, size, length,
              arch, jaw_region, implant_system, cover_screw, healing_abutment,
              membrane_used, isq_value, follow_up_date, surgeon_name,
              surgery_date, prosthetic_loading_date, implant_outcome,
-             osseointegration_success, peri_implant_health, notes, clinic_id }
+             osseointegration_success, peri_implant_health, notes, clinic_id,
+             current_stage ← osseointegration stage tracker (e.g. "osseointegration", "second_stage", "loaded") }
 
 fpd_logs:  { patient_id, tooth_numbers[], prosthetic_loading_date,
              crown_count, connected_implant_ids[], crown_type, material, clinical_notes }
@@ -154,18 +166,17 @@ photo_vault: { patient_id, doctor_id, filename, content_type, path,
 - [x] Account page — displays all doctor details
 - [x] FPD log sheet backend endpoints (`POST /api/fpd`)
 - [x] Profile update endpoint (`PATCH /api/profile`)
-- [x] Unified single-form implant modal (no tabs) — **code written, UI testing pending**
-- [x] FPD modal UI in PatientDetails.js — **code written, UI testing pending**
-- [x] Account page editable college/place — **code written, UI testing pending**
+- [x] Unified single-form implant modal (no tabs) — verified end-to-end
+- [x] FPD modal UI in PatientDetails.js — verified end-to-end
+- [x] Account page editable college/place — verified end-to-end
+- [x] Osseointegration day counter + 90-day reminder on Dashboard/PatientDetails
+- [x] Refactor `PatientDetails.js` — FPD modal + Implant modal extracted into separate components
+- [x] Financial analysis module — per-patient revenue chart (P2) — backend endpoint + frontend chart added
 
 ### Pending / Backlog
 
 | Priority | Task |
 |---|---|
-| **P0** | UI-test the FPD modal, unified implant form, and Account college/place edit (written but untested due to platform crash) |
-| **P1** | Osseointegration day counter + 90-day reminder on Dashboard/PatientDetails |
-| **P2** | Financial analysis module (cost tracking per implant/patient) |
-| **P2** | Refactor `PatientDetails.js` — extract FPD modal + Implant modal into separate components |
 | **P3** | PDF/Excel export of implant data |
 | **P3** | Push notifications for osseointegration milestones |
 
@@ -173,16 +184,8 @@ photo_vault: { patient_id, doctor_id, filename, content_type, path,
 
 ## Known Issues & Warnings
 
-### PatientDetails.js — FRAGILE LARGE FILE
-`frontend/src/pages/PatientDetails.js` handles the FDI chart, patient info, Photo Vault navigation, Implant Modal, and FPD Modal all in one file. It is very large and prone to JSX nesting errors when edited. **Do not add more logic here.** The fix is to extract `ImplantModal` and `FPDModal` into separate component files.
-
-### Untested Code from Last Session
-The following features were fully coded but never visually tested (the session was interrupted by a platform infrastructure crash):
-- Unified single-scroll implant form in `PatientDetails.js`
-- FPD Log Sheet modal in `PatientDetails.js`
-- Editable college/place fields in `Account.js`
-
-**Before adding any new features: start the servers, navigate to a patient page, and verify these work.**
+### PatientDetails.js — Refactored
+`PatientDetails.js` has been refactored. The 4 modal dialogs (Implant, FPD, Abutment, Overdenture) are now extracted into separate component files under `frontend/src/components/`. The file is now ~900 lines and safe to edit.
 
 ---
 
@@ -263,7 +266,7 @@ These rules exist because the primary user is non-technical. Every task must mee
 
 ### 1. Always Read Before Touching
 - Before editing ANY file, read the relevant section first. Never guess at existing code.
-- Before adding a new API endpoint, read the full `server.py` to check for conflicts, existing patterns, and naming conventions.
+- Before adding a new API endpoint, read `app/api/routes/flat_routes.py` and the relevant route file to check for conflicts, existing patterns, and naming conventions.
 - Before editing a React page, read the component's current state — especially `PatientDetails.js` which changes frequently.
 
 ### 2. Full Vertical Slice — No Half-Done Work
@@ -292,7 +295,7 @@ This applies to frontend AND backend changes:
 - Do not report a task complete based on code review alone — visual confirmation is required.
 
 ### 6. Regression Awareness
-- When editing a shared file (`Layout.js`, `AuthContext.js`, `server.py`), check all pages/routes that depend on it.
+- When editing a shared file (`Layout.js`, `AuthContext.js`, `app/main.py`), check all pages/routes that depend on it.
 - After any routing change in `App.js`, verify that login → dashboard → patient detail navigation still works.
 - After any auth change, verify that protected routes still redirect unauthenticated users.
 

@@ -3,10 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import {
   CalendarDots, Bell, ArrowRight, CheckCircle,
-  XCircle, Warning, Heartbeat, X, Tooth
+  XCircle, Warning, Heartbeat, X, Tooth, Timer
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getDashboardSummary, getDueForSecondStage, getAllImplants } from '../api/dashboard';
+import { getDashboardSummary, getDueForSecondStage, getAllImplants, getOsseointegrationAlerts } from '../api/dashboard';
 import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ function CaseRow({ implant, patient, accent }) {
   return (
     <Link
       to={`/patients/${implant.patient_id}`}
-      data-testid={`case-row-${implant._id}`}
+      data-testid={`case-row-${implant.id}`}
       className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[#E5E5E2] hover:border-[#82A098]/50 hover:shadow-sm transition-all duration-150 group"
     >
       {/* Avatar */}
@@ -137,6 +137,7 @@ const Dashboard = () => {
   const [dueImplants, setDueImplants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null); // null | 'active' | 'completed' | 'guarded' | 'failed'
+  const [urgentAlerts, setUrgentAlerts] = useState([]);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -154,10 +155,15 @@ const Dashboard = () => {
       setDueImplants(dueData);
       setAllImplants(implantsData);
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+    try {
+      const alertsData = await getOsseointegrationAlerts();
+      setUrgentAlerts(Array.isArray(alertsData) ? alertsData : []);
+    } catch {
+      // alerts are non-critical — silently ignore
     }
   };
 
@@ -167,6 +173,41 @@ const Dashboard = () => {
   // Bucket implants
   const buckets = { active: [], completed: [], guarded: [], failed: [] };
   allImplants.forEach(imp => { buckets[classify(imp)].push(imp); });
+
+  // Compute healing-phase implants (current_stage === 1) with countdown.
+  // Excludes implants already past their osseointegration window — those appear
+  // in the "Ready for Second Stage" section below.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const healingImplants = allImplants
+    .filter(imp => imp.current_stage === 1)
+    .map(imp => {
+      let daysRemaining = null;
+      if (imp.surgery_date) {
+        const surgeryDate = new Date(imp.surgery_date);
+        surgeryDate.setHours(0, 0, 0, 0);
+        const osseoIntegrationDays = imp.osseointegration_days ?? 90;
+        const endDate = new Date(surgeryDate);
+        endDate.setDate(endDate.getDate() + osseoIntegrationDays);
+        daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+      }
+      const patient = patientMap[imp.patient_id];
+      return {
+        ...imp,
+        patientName: patient?.name || 'Unknown Patient',
+        daysRemaining,
+        osseointegration_days: imp.osseointegration_days ?? 90,
+      };
+    })
+    // Keep only implants still within window (daysRemaining > 0) or with no surgery date
+    .filter(imp => imp.daysRemaining === null || imp.daysRemaining > 0)
+    .sort((a, b) => {
+      // Sort: no-date last, then ascending days remaining (most urgent first)
+      if (a.daysRemaining === null && b.daysRemaining === null) return 0;
+      if (a.daysRemaining === null) return 1;
+      if (b.daysRemaining === null) return -1;
+      return a.daysRemaining - b.daysRemaining;
+    });
 
   const handleStatClick = (key) => {
     setActiveTab(prev => (prev === key ? null : key));
@@ -201,6 +242,35 @@ const Dashboard = () => {
       </div>
 
       <div className="p-4 md:p-6 space-y-6">
+
+        {/* ── Urgent Alerts ── */}
+        {urgentAlerts.length > 0 && (
+          <div data-testid="urgent-alerts-section" className="mb-6 bg-amber-50 border border-[#E8A76C] rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Warning size={18} weight="fill" className="text-[#E8A76C]" />
+              <h3 className="text-sm font-semibold text-[#2A2F35]">Osseointegration Completing Soon</h3>
+              <span className="ml-auto text-xs font-semibold bg-[#E8A76C] text-white px-2 py-0.5 rounded-full">
+                {urgentAlerts.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {urgentAlerts.map(alert => (
+                <Link
+                  key={alert.implant_id}
+                  to={`/patients/${alert.patient_id}`}
+                  data-testid={`urgent-alert-${alert.implant_id}`}
+                  className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-[#E8A76C]/30 hover:border-[#E8A76C] transition-colors"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-[#2A2F35]">{alert.patient_name}</span>
+                    <span className="text-xs text-[#5C6773] ml-2">Tooth #{alert.tooth_number} · {alert.brand}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-[#E8A76C]">{alert.days_remaining}d left</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── 4 Stat Boxes ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -286,7 +356,7 @@ const Dashboard = () => {
                 <div className="space-y-2">
                   {tabImplants.map(imp => (
                     <CaseRow
-                      key={imp._id}
+                      key={imp.id}
                       implant={imp}
                       patient={patientMap[imp.patient_id]}
                       accent={tabCfg.accent}
@@ -294,6 +364,88 @@ const Dashboard = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Healing Phase Implants ── */}
+        {healingImplants.length > 0 && (
+          <div data-testid="healing-phase-section">
+            <div className="flex items-center gap-2 mb-3">
+              <Timer size={18} className="text-[#82A098]" weight="fill" />
+              <h3 className="text-base font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+                Osseointegration in Progress
+              </h3>
+              <span className="ml-auto bg-[#82A098] text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                {healingImplants.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {healingImplants.map((item) => {
+                const daysRemaining = item.daysRemaining;
+                const pct = item.surgery_date
+                  ? Math.min(100, Math.max(0, Math.round(((item.osseointegration_days - daysRemaining) / item.osseointegration_days) * 100)))
+                  : null;
+                const isNearDone = daysRemaining !== null && daysRemaining <= 14 && daysRemaining > 0;
+                return (
+                  <Link
+                    key={item.id}
+                    to={`/patients/${item.patient_id}`}
+                    data-testid={`healing-implant-${item.id}`}
+                    className="flex items-center justify-between bg-white border border-[#E5E5E2] rounded-xl px-4 py-3 hover:border-[#82A098]/50 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-[#82A098]/15 flex items-center justify-center text-[#82A098] font-bold text-sm shrink-0">
+                        {item.tooth_number ?? '—'}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-[#2A2F35]">{item.patientName}</p>
+                        <p className="text-xs text-[#5C6773]">
+                          {item.brand ? `${item.brand} · ` : ''}Tooth #{item.tooth_number ?? '—'}
+                          {item.surgery_date ? ` · Placed ${fmtDate(item.surgery_date)}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0 ml-3 flex flex-col items-end gap-1">
+                      {daysRemaining === null ? (
+                        <span className="text-xs text-[#5C6773]">No surgery date</span>
+                      ) : daysRemaining > 0 ? (
+                        <>
+                          <span
+                            data-testid={`healing-countdown-${item.id}`}
+                            className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{
+                              backgroundColor: isNearDone ? '#E8A76C20' : '#82A09820',
+                              color: isNearDone ? '#E8A76C' : '#82A098',
+                            }}
+                          >
+                            {daysRemaining}d left
+                          </span>
+                          {pct !== null && (
+                            <div className="w-16 h-1 bg-[#E5E5E2] rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{
+                                  width: `${pct}%`,
+                                  backgroundColor: isNearDone ? '#E8A76C' : '#82A098',
+                                }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span
+                          data-testid={`healing-overdue-${item.id}`}
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8A76C]/20 text-[#E8A76C]"
+                        >
+                          Ready for stage 2
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
@@ -372,7 +524,7 @@ const Dashboard = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[#2A2F35] truncate">{patient.name}</p>
-                    <p className="text-xs text-[#5C6773]">ID #{(patient.id || patient._id || '').slice(-8).toUpperCase()}</p>
+                    <p className="text-xs text-[#5C6773]">ID #{String(patient.id || patient._id || '').slice(-8).toUpperCase()}</p>
                     <div className="flex items-center gap-2 mt-1 text-xs text-[#5C6773]">
                       <CalendarDots size={12} />
                       <span>{fmtDate(patient.created_at)}</span>

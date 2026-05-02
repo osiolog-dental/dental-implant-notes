@@ -1,5 +1,8 @@
 import client from './client';
 
+export const getAllImplants = () =>
+  client.get('/api/implants/all').then(r => r.data);
+
 export const getImplantsByCase = (caseId) =>
   client.get(`/api/cases/${caseId}/implants`).then(r => r.data);
 

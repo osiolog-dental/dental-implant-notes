@@ -18,6 +18,7 @@ const Patients = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [genderFilter, setGenderFilter] = useState('All');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -65,19 +66,33 @@ const Patients = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.phone.includes(searchQuery) ||
-    (patient.email && patient.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredPatients = patients.filter(patient => {
+    const matchesSearch =
+      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.phone.includes(searchQuery) ||
+      (patient.email && patient.email.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesGender =
+      genderFilter === 'All' || patient.gender === genderFilter;
+    return matchesSearch && matchesGender;
+  });
 
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
-          <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
-            Patients
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+              Patients
+            </h1>
+            {!loading && (
+              <span
+                data-testid="patient-count-badge"
+                className="px-2.5 py-0.5 rounded-full text-sm font-medium bg-[#82A098]/15 text-[#82A098]"
+              >
+                {filteredPatients.length} {filteredPatients.length === 1 ? 'patient' : 'patients'}
+              </span>
+            )}
+          </div>
           <p className="text-[#5C6773] mt-2">Manage your patient records</p>
         </div>
 
@@ -200,20 +215,33 @@ const Patients = () => {
         </Dialog>
       </div>
 
-      {/* Search */}
-      <div className="mb-6 relative">
-        <MagnifyingGlass 
-          size={20} 
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#5C6773]" 
-        />
-        <input
-          type="text"
-          placeholder="Search patients by name, phone, or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          data-testid="search-patients-input"
-          className="w-full pl-12 pr-4 py-3 bg-white border border-[#E5E5E2] rounded-xl focus:ring-2 focus:ring-[#82A098] focus:outline-none focus:ring-offset-1 text-[#2A2F35] transition-colors duration-200"
-        />
+      {/* Search + Gender filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlass
+            size={20}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#5C6773]"
+          />
+          <input
+            type="text"
+            placeholder="Search patients by name, phone, or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="search-patients-input"
+            className="w-full pl-12 pr-4 py-3 bg-white border border-[#E5E5E2] rounded-xl focus:ring-2 focus:ring-[#82A098] focus:outline-none focus:ring-offset-1 text-[#2A2F35] transition-colors duration-200"
+          />
+        </div>
+        <select
+          value={genderFilter}
+          onChange={(e) => setGenderFilter(e.target.value)}
+          data-testid="gender-filter-select"
+          className="px-4 py-3 bg-white border border-[#E5E5E2] rounded-xl focus:ring-2 focus:ring-[#82A098] focus:outline-none text-[#2A2F35] transition-colors duration-200 sm:w-36"
+        >
+          <option value="All">All genders</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
 
       {/* Patient List */}
@@ -221,15 +249,22 @@ const Patients = () => {
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#82A098] mx-auto"></div>
         </div>
-      ) : filteredPatients.length === 0 ? (
+      ) : filteredPatients.length === 0 && patients.length === 0 ? (
         <div className="text-center py-12 bg-white border border-[#E5E5E2] rounded-xl">
-          <img 
+          <img
             src="https://images.pexels.com/photos/6502343/pexels-photo-6502343.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
             alt="No patients"
             className="w-48 h-48 object-cover rounded-xl mx-auto mb-4 opacity-50"
           />
           <p className="text-[#5C6773]">No patients found</p>
         </div>
+      ) : filteredPatients.length === 0 ? (
+        <p
+          data-testid="no-patients-search-message"
+          className="text-sm text-[#5C6773] text-center py-8"
+        >
+          No patients match your search.
+        </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPatients.map((patient) => (

@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import Case
+from app.models.clinic import Clinic
 from app.models.implant import Implant
 from app.models.patient import Patient
 from app.schemas.case import CaseCreate, CaseUpdate
@@ -98,18 +99,43 @@ class CaseRepository:
             )
         )
 
-        # Upcoming follow-ups — implants whose follow_up_date is within 14 days
-        # and osseointegration_success is not yet recorded
+        # Upcoming follow-ups — join via patient_id (case_id may be null for flat-created implants)
         upcoming_followups = await self.db.scalar(
             select(func.count(Implant.id))
-            .join(Case, Implant.case_id == Case.id)
-            .join(Patient, Case.patient_id == Patient.id)
+            .join(Patient, Implant.patient_id == Patient.id)
             .where(
                 Patient.org_id == org_id,
+                Patient.deleted_at.is_(None),
                 Implant.follow_up_date.isnot(None),
                 Implant.follow_up_date <= fourteen_days.date(),
                 Implant.follow_up_date >= now.date(),
                 Implant.osseointegration_success.is_(None),
+            )
+        )
+
+        # Total implants across all patients in this org
+        total_implants = await self.db.scalar(
+            select(func.count(Implant.id))
+            .join(Patient, Implant.patient_id == Patient.id)
+            .where(
+                Patient.org_id == org_id,
+                Patient.deleted_at.is_(None),
+            )
+        )
+
+        # Total clinics for this org
+        total_clinics = await self.db.scalar(
+            select(func.count(Clinic.id)).where(Clinic.org_id == org_id)
+        )
+
+        # Implants still in healing phase (stage 1)
+        pending_osseointegration = await self.db.scalar(
+            select(func.count(Implant.id))
+            .join(Patient, Implant.patient_id == Patient.id)
+            .where(
+                Patient.org_id == org_id,
+                Patient.deleted_at.is_(None),
+                Implant.current_stage == 1,
             )
         )
 
@@ -118,4 +144,7 @@ class CaseRepository:
             "active_cases": active_cases or 0,
             "cases_this_month": cases_this_month or 0,
             "upcoming_followups": upcoming_followups or 0,
+            "total_implants": total_implants or 0,
+            "total_clinics": total_clinics or 0,
+            "pending_osseointegration": pending_osseointegration or 0,
         }

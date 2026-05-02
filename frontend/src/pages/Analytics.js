@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendUp, Users, Tooth, CurrencyDollar } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
+import { getAnalyticsOverview, getAnalyticsFinancial, getAnalyticsPerPatient } from '../api/dashboard';
+import client from '../api/client';
 
 const Analytics = () => {
   const [overview, setOverview] = useState(null);
   const [financial, setFinancial] = useState(null);
+  const [perPatient, setPerPatient] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
@@ -15,17 +18,38 @@ const Analytics = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const [overviewData, financialData] = await Promise.all([
+      const [overviewData, financialData, perPatientData] = await Promise.all([
         getAnalyticsOverview(),
         getAnalyticsFinancial(),
+        getAnalyticsPerPatient(),
       ]);
       setOverview(overviewData);
       setFinancial(financialData);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
+      setPerPatient(perPatientData);
+    } catch {
       toast.error('Failed to load analytics');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const response = await client.get('/api/export/implants', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'implant-records.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel export downloaded');
+    } catch {
+      toast.error('Failed to export data');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -54,11 +78,22 @@ const Analytics = () => {
 
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-      <div className="mb-6 md:mb-8">
-        <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
-          Analytics
-        </h1>
-        <p className="text-[#5C6773] mt-2">Practice performance and insights</p>
+      <div className="mb-6 md:mb-8 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+            Analytics
+          </h1>
+          <p className="text-[#5C6773] mt-2">Practice performance and insights</p>
+        </div>
+        <button
+          data-testid="export-excel-btn"
+          onClick={handleExportExcel}
+          disabled={exporting}
+          style={{ backgroundColor: '#82A098' }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60 hover:opacity-90 transition-opacity whitespace-nowrap"
+        >
+          {exporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -134,10 +169,10 @@ const Analytics = () => {
                 <Pie
                   data={implantTypeData}
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -169,6 +204,59 @@ const Analytics = () => {
           </div>
         )}
       </div>
+
+      {/* Per-Patient Revenue */}
+      {perPatient.length > 0 && (
+        <div
+          data-testid="per-patient-revenue-section"
+          className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm"
+        >
+          <h2
+            className="text-xl font-medium text-[#2A2F35] mb-6"
+            style={{ fontFamily: 'Work Sans, sans-serif' }}
+          >
+            Per-Patient Revenue (Top 10)
+          </h2>
+          <ResponsiveContainer data-testid="per-patient-bar-chart" width="100%" height={Math.max(perPatient.length * 48, 200)}>
+            <BarChart
+              data={perPatient}
+              layout="vertical"
+              margin={{ top: 0, right: 24, left: 8, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" horizontal={false} />
+              <XAxis
+                type="number"
+                tickFormatter={v => `$${v.toLocaleString()}`}
+                tick={{ fill: '#5C6773', fontSize: 12 }}
+              />
+              <YAxis
+                type="category"
+                dataKey="patient_name"
+                width={140}
+                tick={{ fill: '#5C6773', fontSize: 13 }}
+              />
+              <Tooltip
+                formatter={(value) => [`$${value.toLocaleString()}`, 'Est. Revenue']}
+                contentStyle={{ borderRadius: 8, border: '1px solid #E5E5E2' }}
+              />
+              <Bar
+                dataKey="total_revenue"
+                fill="#7B9EBB"
+                radius={[0, 6, 6, 0]}
+                label={{
+                  position: 'right',
+                  formatter: (v) => `$${v.toLocaleString()}`,
+                  fill: '#5C6773',
+                  fontSize: 12,
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-[#5C6773] italic mt-4">
+            * Based on implant counts: Single ($1,500), Bridge ($4,500), Full Mouth ($25,000). Sorted by revenue descending.
+          </p>
+        </div>
+      )}
 
       {/* Financial Breakdown */}
       <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">

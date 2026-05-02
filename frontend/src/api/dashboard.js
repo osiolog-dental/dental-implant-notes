@@ -14,3 +14,9 @@ export const getDueForSecondStage = () =>
 
 export const getAllImplants = () =>
   client.get('/api/implants/all').then(r => r.data);
+
+export const getAnalyticsPerPatient = () =>
+  client.get('/api/analytics/per-patient').then(r => r.data);
+
+export const getOsseointegrationAlerts = () =>
+  client.get('/api/notifications/osseointegration-alerts').then(r => r.data);

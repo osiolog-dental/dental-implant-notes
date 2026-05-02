@@ -188,6 +188,7 @@ const MedicalVault = () => {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (img) => {
+    if (!window.confirm('Delete this photo?')) return;
     setDeletingId(img.id);
     try {
       await deleteImage(img.caseId, img.id);
@@ -246,6 +247,7 @@ const MedicalVault = () => {
         <div className="p-4 border-b border-[#E5E5E2]">
           <button
             onClick={() => navigate(`/patients/${patientId}`)}
+            data-testid="back-to-patient"
             className="flex items-center gap-2 text-[#5C6773] hover:text-[#82A098] mb-4 transition-colors"
           >
             <ArrowLeft size={20} /> Back to Patient
@@ -274,17 +276,27 @@ const MedicalVault = () => {
           <button
             onClick={() => { setUploadType('photo'); setUploadDialogOpen(true); }}
             data-testid="add-photos-button"
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] text-white rounded-lg transition-colors"
+            disabled={uploadingExtra}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#82A098] hover:bg-[#6B8A82] text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Plus size={20} weight="bold" />
+            {uploadingExtra ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+            ) : (
+              <Plus size={20} weight="bold" />
+            )}
             <span className="font-medium">Add New Photos</span>
           </button>
           <button
             onClick={() => { setUploadType('radiograph'); setUploadDialogOpen(true); }}
             data-testid="add-radiographs-button"
-            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] text-white rounded-lg transition-colors"
+            disabled={uploadingExtra}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-[#7B9EBB] hover:bg-[#6B8A9F] text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Plus size={20} weight="bold" />
+            {uploadingExtra ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+            ) : (
+              <Plus size={20} weight="bold" />
+            )}
             <span className="font-medium">Add New Radiographs</span>
           </button>
         </div>
@@ -345,6 +357,16 @@ const MedicalVault = () => {
           {/* ── EXTRA PHOTOS TAB (12-slot template) ── */}
           {activeTab === 'extra' && (
             <div>
+              {extraPhotos.length === 0 && (
+                <div
+                  data-testid="extra-photos-empty-state"
+                  className="mb-4 p-3 bg-[#F9F9F8] border border-dashed border-[#E5E5E2] rounded-lg text-center"
+                >
+                  <Camera size={24} className="mx-auto text-[#E5E5E2] mb-1.5" />
+                  <p className="text-xs font-medium text-[#5C6773]">No extra photos yet</p>
+                  <p className="text-xs text-[#9CA3AF] mt-0.5">Tap a slot below to upload</p>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-[#5C6773] uppercase tracking-wider">Extra Photos</h3>
                 <div className="flex items-center gap-2">
@@ -612,13 +634,17 @@ const MedicalVault = () => {
             <img
               src={selectedItem.url}
               alt={selectedItem.category || 'Clinical image'}
+              data-testid="selected-image-fullview"
               className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
               onError={e => { e.target.style.display = 'none'; }}
             />
           ) : (
-            <div className="text-center">
+            <div className="text-center" data-testid="no-image-selected-state">
               <Image size={64} className="mx-auto text-[#E5E5E2] mb-4" />
               <p className="text-[#5C6773]">Select an image from the sidebar to view</p>
+              {allImages.length === 0 && (
+                <p className="text-sm text-[#9CA3AF] mt-2">Upload photos using the buttons on the left to get started</p>
+              )}
             </div>
           )}
         </div>
@@ -639,6 +665,7 @@ const MedicalVault = () => {
               <select
                 value={uploadCaseId || ''}
                 onChange={e => setUploadCaseId(e.target.value)}
+                data-testid="dialog-case-selector"
                 className="w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-lg text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none"
               >
                 {cases.map(c => (
@@ -657,10 +684,14 @@ const MedicalVault = () => {
                   <div key={view.id} className="border border-[#E5E5E2] rounded-lg p-3">
                     <p className="text-xs text-[#5C6773] mb-2 min-h-[32px]">{view.label}</p>
                     {/* Upload from gallery */}
-                    <label className="aspect-square bg-[#F9F9F8] border-2 border-dashed border-[#E5E5E2] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[#82A098] hover:bg-white transition-all">
+                    <label
+                      data-testid={`upload-label-${uploadType}-${view.id}`}
+                      className="aspect-square bg-[#F9F9F8] border-2 border-dashed border-[#E5E5E2] rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-[#82A098] hover:bg-white transition-all"
+                    >
                       <input
                         type="file"
                         accept="image/*"
+                        data-testid={`upload-input-${uploadType}-${view.id}`}
                         className="hidden"
                         onChange={(e) => { if (e.target.files[0]) handleViewUpload(e.target.files[0], view.id); }}
                         disabled={isUploading}

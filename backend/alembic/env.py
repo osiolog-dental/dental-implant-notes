@@ -5,6 +5,9 @@ import os
 import sys
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -35,7 +38,7 @@ config = context.config
 # Override sqlalchemy.url with DATABASE_URL env var if set
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
