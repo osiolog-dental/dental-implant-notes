@@ -19,6 +19,11 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // Firebase account exists but no DB profile yet (first social sign-in)
+  if (user._needsRegistration) {
+    return <Navigate to="/complete-profile" replace />;
+  }
+
   return children;
 };
 
