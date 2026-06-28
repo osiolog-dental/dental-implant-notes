@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, MagnifyingGlass } from '@phosphor-icons/react';
+import { Plus, MagnifyingGlass, Trash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
+import client from '../api/client';
 import { getPatients, createPatient } from '../api/patients';
 
 const Patients = () => {
@@ -28,6 +30,8 @@ const Patients = () => {
     address: '',
     medical_history: ''
   });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -62,6 +66,21 @@ const Patients = () => {
       fetchPatients();
     } catch (error) {
       toast.error('Failed to add patient');
+    }
+  };
+
+  const handleConfirmDeletePatient = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await client.delete(`/api/patients/${deleteTarget.id || deleteTarget._id}`);
+      toast.success(`${deleteTarget.name} deleted`);
+      setDeleteTarget(null);
+      fetchPatients();
+    } catch {
+      toast.error('Failed to delete patient');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -233,34 +252,53 @@ const Patients = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPatients.map((patient) => (
-            <Link
-              key={patient.id || patient._id}
-              to={`/patients/${patient.id || patient._id}`}
-              data-testid={`patient-card-${patient.id || patient._id}`}
-              className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
-                  {patient.name.charAt(0)}
+            <div key={patient.id || patient._id} className="relative group">
+              <Link
+                to={`/patients/${patient.id || patient._id}`}
+                data-testid={`patient-card-${patient.id || patient._id}`}
+                className="block bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
+                    {patient.name.charAt(0)}
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
+                    patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {patient.gender}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
-                  patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {patient.gender}
-                </span>
-              </div>
-              <h3 className="text-lg font-medium text-[#2A2F35] mb-1">{patient.name}</h3>
-              <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
-              <div className="space-y-1">
-                <p className="text-sm text-[#5C6773]">{patient.phone}</p>
-                {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
-              </div>
-            </Link>
+                <h3 className="text-lg font-medium text-[#2A2F35] mb-1 pr-6">{patient.name}</h3>
+                <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
+                <div className="space-y-1">
+                  <p className="text-sm text-[#5C6773]">{patient.phone}</p>
+                  {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
+                </div>
+              </Link>
+              <button
+                data-testid={`delete-patient-${patient.id || patient._id}`}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(patient); }}
+                className="absolute top-4 right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                title="Delete patient"
+              >
+                <Trash size={16} weight="bold" />
+              </button>
+            </div>
           ))}
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleConfirmDeletePatient}
+        deleting={deleting}
+        title={`Delete ${deleteTarget?.name || 'patient'}?`}
+        description="This will remove this patient from your active patient list, including their implant, FPD, and abutment records."
+        testIdPrefix="confirm-delete-patient"
+      />
     </div>
   );
 };

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import client from '../api/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Camera, Tag, PencilSimple, ClockCounterClockwise, FilePdf } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Camera, Tag, PencilSimple, Trash, ClockCounterClockwise, FilePdf, Stack } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
 import ImplantProgressTracker from '../components/ImplantProgressTracker';
 import ImplantTagScanner from '../components/ImplantTagScanner';
 import DentalChart from '../components/DentalChart';
+import BulkImplantModal from '../components/BulkImplantModal';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 import {
   Dialog,
   DialogContent,
@@ -160,6 +162,31 @@ const PatientDetails = () => {
   const [showEditLog, setShowEditLog] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [isBulkImplantOpen, setIsBulkImplantOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'implant'|'fpd'|'abutment'|'overdenture', id, label }
+  const [deleting, setDeleting] = useState(false);
+
+  const DELETE_ENDPOINTS = {
+    implant: (recId) => `/api/implants/${recId}`,
+    fpd: (recId) => `/api/fpd-records/${recId}`,
+    abutment: (recId) => `/api/abutment-records/${recId}`,
+    overdenture: (recId) => `/api/overdenture-records/${recId}`,
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await client.delete(DELETE_ENDPOINTS[deleteTarget.type](deleteTarget.id));
+      toast.success(`${deleteTarget.label} deleted`);
+      setDeleteTarget(null);
+      fetchAll();
+    } catch {
+      toast.error(`Failed to delete ${deleteTarget.label.toLowerCase()}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     fetchAll();
@@ -966,7 +993,33 @@ const PatientDetails = () => {
 
       {/* FDI Dental Chart */}
       <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
-        <h2 className="text-lg font-medium text-[#2A2F35] mb-4">FDI Dental Chart</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium text-[#2A2F35]">FDI Dental Chart</h2>
+          <button
+            data-testid="open-bulk-implant-button"
+            onClick={() => setIsBulkImplantOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#82A098] border border-[#82A098]/30 rounded-lg hover:bg-[#82A098]/5 transition-colors"
+          >
+            <Stack size={14} weight="bold" /> Add Multiple Implants
+          </button>
+        </div>
+
+        <BulkImplantModal
+          open={isBulkImplantOpen}
+          onOpenChange={setIsBulkImplantOpen}
+          patientId={id}
+          clinics={clinics}
+          onSaved={fetchAll}
+        />
+
+        <ConfirmDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          onConfirm={handleConfirmDelete}
+          deleting={deleting}
+          title={`Delete ${deleteTarget?.label || 'record'}?`}
+          description="This will permanently remove this record from the patient's history. This cannot be undone."
+        />
 
         {/* Implant Dialog (opened via chart tooth click) */}
         <div>
@@ -1548,6 +1601,14 @@ const PatientDetails = () => {
                       >
                         <PencilSimple size={15} weight="bold" />
                       </button>
+                      <button
+                        data-testid={`delete-implant-${implant.id}`}
+                        onClick={() => setDeleteTarget({ type: 'implant', id: implant.id, label: `Implant — Tooth #${implant.tooth_number}` })}
+                        className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors"
+                        title="Delete implant record"
+                      >
+                        <Trash size={15} weight="bold" />
+                      </button>
                       {/* Tag image thumbnail */}
                       {implant.tag_image ? (
                         <div className="relative group" data-testid={`tag-thumb-${implant.id}`}>
@@ -1608,14 +1669,24 @@ const PatientDetails = () => {
                     </h3>
                     <p className="text-xs text-[#5C6773]">{fpd.case_number}</p>
                   </div>
-                  <button
-                    data-testid={`edit-fpd-${fpd.id}`}
-                    onClick={() => openEditFpd(fpd)}
-                    className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#3B82F6] transition-colors flex-shrink-0"
-                    title="Edit FPD record"
-                  >
-                    <PencilSimple size={15} weight="bold" />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      data-testid={`edit-fpd-${fpd.id}`}
+                      onClick={() => openEditFpd(fpd)}
+                      className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#3B82F6] transition-colors"
+                      title="Edit FPD record"
+                    >
+                      <PencilSimple size={15} weight="bold" />
+                    </button>
+                    <button
+                      data-testid={`delete-fpd-${fpd.id}`}
+                      onClick={() => setDeleteTarget({ type: 'fpd', id: fpd.id, label: `FPD — Teeth ${fpd.tooth_numbers?.join(', ')}` })}
+                      className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors"
+                      title="Delete FPD record"
+                    >
+                      <Trash size={15} weight="bold" />
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div><span className="text-[#5C6773]">Crown:</span> <span className="font-medium text-[#2A2F35]">{fpd.crown_count}</span></div>
@@ -1666,14 +1737,24 @@ const PatientDetails = () => {
                       {rec.placement_date && <p className="text-xs text-[#5C6773]">Placed: {rec.placement_date}</p>}
                     </div>
                   </div>
-                  <button
-                    data-testid={`edit-abutment-${rec.id}`}
-                    onClick={() => openEditAbutment(rec)}
-                    className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#E8A76C] transition-colors flex-shrink-0"
-                    title="Edit abutment record"
-                  >
-                    <PencilSimple size={15} weight="bold" />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      data-testid={`edit-abutment-${rec.id}`}
+                      onClick={() => openEditAbutment(rec)}
+                      className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-[#E8A76C] transition-colors"
+                      title="Edit abutment record"
+                    >
+                      <PencilSimple size={15} weight="bold" />
+                    </button>
+                    <button
+                      data-testid={`delete-abutment-${rec.id}`}
+                      onClick={() => setDeleteTarget({ type: 'abutment', id: rec.id, label: `Abutment — Tooth #${rec.tooth_number}` })}
+                      className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors"
+                      title="Delete abutment record"
+                    >
+                      <Trash size={15} weight="bold" />
+                    </button>
+                  </div>
                 </div>
                 {rec.connected_implant_ids?.length > 0 && (
                   <p className="text-xs text-[#5C6773] mb-1">
@@ -1706,14 +1787,24 @@ const PatientDetails = () => {
                     </h3>
                     <p className="text-xs text-[#5C6773]">Teeth: {rec.tooth_numbers?.join(', ')}</p>
                   </div>
-                  <button
-                    data-testid={`edit-overdenture-${rec.id}`}
-                    onClick={() => openEditOverdenture(rec)}
-                    className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] transition-colors flex-shrink-0"
-                    title="Edit overdenture record"
-                  >
-                    <PencilSimple size={15} weight="bold" />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      data-testid={`edit-overdenture-${rec.id}`}
+                      onClick={() => openEditOverdenture(rec)}
+                      className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] transition-colors"
+                      title="Edit overdenture record"
+                    >
+                      <PencilSimple size={15} weight="bold" />
+                    </button>
+                    <button
+                      data-testid={`delete-overdenture-${rec.id}`}
+                      onClick={() => setDeleteTarget({ type: 'overdenture', id: rec.id, label: `Overdenture — Teeth ${rec.tooth_numbers?.join(', ')}` })}
+                      className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors"
+                      title="Delete overdenture record"
+                    >
+                      <Trash size={15} weight="bold" />
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                   {rec.has_bar && (
