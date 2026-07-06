@@ -105,10 +105,12 @@ const Layout = () => {
   ];
 
   const footerItems = [
-    { path: '/', label: 'Cases', icon: House },
+    { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
-    { path: '/analytics', label: 'Timeline', icon: ClockCounterClockwise },
-    { path: '/clinics', label: 'Search', icon: MagnifyingGlass }
+    { path: '/analytics', label: 'Analytics', icon: ChartLine },
+    { path: '/clinics', label: 'Clinics', icon: Buildings },
+    { path: '/backup', label: 'Backup', icon: CloudArrowUp },
+    { path: '/subscription', label: 'Subscription', icon: Crown },
   ];
 
   const rawName = user?.name || 'Doctor';
@@ -236,7 +238,7 @@ const Layout = () => {
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">
-        <div className="flex items-center justify-around px-2 py-3">
+        <div className="flex items-center overflow-x-auto px-1 py-2 gap-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
           {footerItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -245,14 +247,14 @@ const Layout = () => {
                 key={item.path}
                 to={item.path}
                 data-testid={`footer-nav-${item.label.toLowerCase()}`}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all duration-200 flex-shrink-0 ${
                   isActive
-                    ? 'text-[#3B82F6]'
+                    ? 'text-[#82A098]'
                     : 'text-[#5C6773]'
                 }`}
               >
-                <Icon size={24} weight={isActive ? 'fill' : 'regular'} />
-                <span className="text-xs font-medium">{item.label}</span>
+                <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+                <span className="text-[10px] font-medium">{item.label}</span>
               </Link>
             );
           })}
