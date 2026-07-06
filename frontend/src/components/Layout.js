@@ -42,7 +42,7 @@ function CountryPicker() {
         className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F0F0EE] transition-colors text-xl leading-none"
         title={`${country.name} · ${country.currency}`}
       >
-        <span>{country.flag}</span>
+        <span style={{ fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{country.flag}</span>
       </button>
 
       {open && (
