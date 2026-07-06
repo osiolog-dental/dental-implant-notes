@@ -42,7 +42,11 @@ function CountryPicker() {
         className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F0F0EE] transition-colors text-xl leading-none"
         title={`${country.name} · ${country.currency}`}
       >
-        <span style={{ fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{country.flag}</span>
+        <img
+          src={`https://flagcdn.com/w40/${country.code.toLowerCase()}.png`}
+          alt={country.name}
+          style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, display: 'block' }}
+        />
       </button>
 
       {open && (
@@ -66,7 +70,7 @@ function CountryPicker() {
                   country.code === c.code ? 'bg-[#F0F5F4] font-medium' : ''
                 }`}
               >
-                <span className="text-lg">{c.flag}</span>
+                <img src={`https://flagcdn.com/w40/${c.code.toLowerCase()}.png`} alt={c.name} style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2 }} />
                 <span className="flex-1 text-[#2A2F35]">{c.name}</span>
                 <span className="text-xs text-[#5C6773] font-mono">{c.symbol.trim()}</span>
               </button>
