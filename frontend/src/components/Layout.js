@@ -5,6 +5,7 @@ import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
 import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
+import AIChatBox from './AIChatBox';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -225,6 +226,9 @@ const Layout = () => {
           <ExternalAdBanner />
         </main>
       </div>
+
+      {/* AI Chat */}
+      <AIChatBox />
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">

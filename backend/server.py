@@ -1218,6 +1218,244 @@ async def get_financial_analytics(request: Request):
         "average_per_implant": total_revenue / len(implants) if len(implants) > 0 else 0
     }
 
+# ── AI CHAT ───────────────────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    patient_id: Optional[str] = None  # context: which patient page the user is on
+
+CHAT_TOOLS = [
+    {
+        "name": "create_patient",
+        "description": "Create a new patient record. Use when the user asks to add a new patient.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":            {"type": "string",  "description": "Full name"},
+                "age":             {"type": "integer", "description": "Age in years"},
+                "gender":          {"type": "string",  "enum": ["Male", "Female", "Other"]},
+                "phone":           {"type": "string",  "description": "Phone number (optional)"},
+                "medical_history": {"type": "string",  "description": "Medical conditions, allergies (optional)"},
+            },
+            "required": ["name", "age", "gender"],
+        },
+    },
+    {
+        "name": "log_implant",
+        "description": "Log a dental implant for an existing patient. Use when the user describes placing an implant.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "patient_id":       {"type": "string",  "description": "Patient ID (use context patient_id if on patient page)"},
+                "patient_name":     {"type": "string",  "description": "Patient name to search if no ID"},
+                "tooth_number":     {"type": "integer", "description": "FDI tooth number (11-48)"},
+                "brand":            {"type": "string",  "description": "Implant brand e.g. Nobel, Straumann, Osstem"},
+                "diameter_mm":      {"type": "number",  "description": "Diameter in mm"},
+                "length_mm":        {"type": "number",  "description": "Length in mm"},
+                "insertion_torque": {"type": "number",  "description": "Insertion torque in Ncm (optional)"},
+                "surgery_date":     {"type": "string",  "description": "Surgery date YYYY-MM-DD, default today"},
+                "surgeon_name":     {"type": "string",  "description": "Surgeon name (optional)"},
+                "notes":            {"type": "string",  "description": "Clinical notes (optional)"},
+            },
+            "required": ["tooth_number", "brand"],
+        },
+    },
+    {
+        "name": "get_patient_summary",
+        "description": "Get a summary of a patient's implants, FPD records and history.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "patient_id":   {"type": "string", "description": "Patient ID"},
+                "patient_name": {"type": "string", "description": "Patient name to search if no ID"},
+            },
+        },
+    },
+    {
+        "name": "answer_clinical_question",
+        "description": "Answer a general dental implantology clinical question using knowledge. No database lookup needed.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "The clinical question to answer"},
+            },
+            "required": ["question"],
+        },
+    },
+]
+
+async def _resolve_patient(db, doctor_id: str, patient_id: Optional[str], patient_name: Optional[str]):
+    if patient_id:
+        try:
+            p = await db.patients.find_one({"_id": ObjectId(patient_id), "doctor_id": doctor_id})
+            if p:
+                return p
+        except Exception:
+            pass
+    if patient_name:
+        p = await db.patients.find_one({
+            "doctor_id": doctor_id,
+            "name": {"$regex": patient_name, "$options": "i"},
+            "deleted": {"$ne": True},
+        })
+        return p
+    return None
+
+@api_router.post("/chat")
+async def chat(req: ChatRequest, request: Request):
+    user = await get_current_user(request)
+    doctor_id = user["_id"]
+
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not anthropic_key:
+        return {
+            "role": "assistant",
+            "content": "⚠️ AI chat is not configured yet. Ask your administrator to add the ANTHROPIC_API_KEY to the server environment.",
+            "action": None,
+        }
+
+    try:
+        import anthropic as _anthropic
+    except ImportError:
+        return {
+            "role": "assistant",
+            "content": "⚠️ The `anthropic` Python package is not installed on the server. Run: pip install anthropic",
+            "action": None,
+        }
+
+    client_ai = _anthropic.Anthropic(api_key=anthropic_key)
+
+    system_prompt = (
+        "You are OSIOLOG Assistant, an AI embedded in a dental implant case management system. "
+        "You help dentists quickly add patient data, log implants, and look up clinical information — all by chat. "
+        "Be concise and clinical. Always confirm what action you took. "
+        "Today's date is " + datetime.now().strftime("%Y-%m-%d") + ". "
+        "When logging an implant and no patient_id is given, use the patient_name tool input to search. "
+        "If the user is on a patient page, patient_id context is provided in the system prompt below."
+    )
+    if req.patient_id:
+        system_prompt += f"\n\nCurrent page context: patient_id = {req.patient_id}."
+
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    response = client_ai.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        system=system_prompt,
+        tools=CHAT_TOOLS,
+        messages=messages,
+    )
+
+    action_result = None
+
+    # Handle tool use
+    if response.stop_reason == "tool_use":
+        tool_block = next((b for b in response.content if b.type == "tool_use"), None)
+        if tool_block:
+            tool_name = tool_block.name
+            args = tool_block.input
+
+            # ── create_patient ──
+            if tool_name == "create_patient":
+                new_patient = {
+                    "doctor_id": doctor_id,
+                    "name": args["name"],
+                    "age": args.get("age"),
+                    "gender": args.get("gender", "Other"),
+                    "phone": args.get("phone", ""),
+                    "medical_history": args.get("medical_history", ""),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "deleted": False,
+                }
+                result = await db.patients.insert_one(new_patient)
+                patient_id_new = str(result.inserted_id)
+                action_result = {"type": "patient_created", "patient_id": patient_id_new, "name": args["name"]}
+                tool_result_text = f"Patient '{args['name']}' created successfully. ID: {patient_id_new}"
+
+            # ── log_implant ──
+            elif tool_name == "log_implant":
+                pid = args.get("patient_id") or req.patient_id
+                patient = await _resolve_patient(db, doctor_id, pid, args.get("patient_name"))
+                if not patient:
+                    tool_result_text = f"Could not find patient '{args.get('patient_name', '')}'. Please create the patient first."
+                else:
+                    tn = args["tooth_number"]
+                    arch = "Upper" if tn <= 28 else "Lower"
+                    tens = tn // 10
+                    jaw_region = "Anterior" if (tens in [1,2,3,4] and tn % 10 <= 3) else "Posterior"
+                    today_str = datetime.now().strftime("%Y-%m-%d")
+                    implant_doc = {
+                        "doctor_id": doctor_id,
+                        "patient_id": str(patient["_id"]),
+                        "tooth_number": tn,
+                        "brand": args["brand"],
+                        "diameter_mm": args.get("diameter_mm"),
+                        "length_mm": args.get("length_mm"),
+                        "insertion_torque": args.get("insertion_torque"),
+                        "surgery_date": args.get("surgery_date", today_str),
+                        "surgeon_name": args.get("surgeon_name", ""),
+                        "clinical_notes": args.get("notes", ""),
+                        "arch": arch,
+                        "jaw_region": jaw_region,
+                        "implant_outcome": "Pending",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    res = await db.implants.insert_one(implant_doc)
+                    action_result = {"type": "implant_logged", "implant_id": str(res.inserted_id), "patient_id": str(patient["_id"]), "tooth": tn}
+                    size_str = ""
+                    if args.get("diameter_mm") and args.get("length_mm"):
+                        size_str = f" {args['diameter_mm']}×{args['length_mm']}mm"
+                    tool_result_text = f"Implant logged: tooth {tn},{size_str} {args['brand']} for patient {patient['name']}."
+
+            # ── get_patient_summary ──
+            elif tool_name == "get_patient_summary":
+                pid = args.get("patient_id") or req.patient_id
+                patient = await _resolve_patient(db, doctor_id, pid, args.get("patient_name"))
+                if not patient:
+                    tool_result_text = "Patient not found."
+                else:
+                    implants = await db.implants.find({"patient_id": str(patient["_id"])}).to_list(100)
+                    fpds = await db.fpd_logs.find({"patient_id": str(patient["_id"])}).to_list(50)
+                    summary_lines = [f"Patient: {patient['name']}, {patient.get('age','?')}y {patient.get('gender','')}"]
+                    if patient.get("medical_history"):
+                        summary_lines.append(f"Medical history: {patient['medical_history']}")
+                    summary_lines.append(f"Implants: {len(implants)}")
+                    for imp in implants:
+                        summary_lines.append(f"  • Tooth {imp.get('tooth_number')} — {imp.get('brand','')} {imp.get('diameter_mm','')}×{imp.get('length_mm','')}mm, {imp.get('surgery_date','')}")
+                    if fpds:
+                        summary_lines.append(f"FPD records: {len(fpds)}")
+                    tool_result_text = "\n".join(summary_lines)
+
+            # ── answer_clinical_question ──
+            elif tool_name == "answer_clinical_question":
+                tool_result_text = f"[Answering clinical question: {args['question']}]"
+            else:
+                tool_result_text = "Unknown tool."
+
+            # Send tool result back to Claude for final response
+            followup_messages = messages + [
+                {"role": "assistant", "content": response.content},
+                {"role": "user",      "content": [{"type": "tool_result", "tool_use_id": tool_block.id, "content": tool_result_text}]},
+            ]
+            final = client_ai.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=system_prompt,
+                tools=CHAT_TOOLS,
+                messages=followup_messages,
+            )
+            reply_text = next((b.text for b in final.content if hasattr(b, "text")), "Done.")
+        else:
+            reply_text = next((b.text for b in response.content if hasattr(b, "text")), "")
+    else:
+        reply_text = next((b.text for b in response.content if hasattr(b, "text")), "")
+
+    return {"role": "assistant", "content": reply_text, "action": action_result}
+
 # ── BACKUP / RESTORE ──────────────────────────────────────────────────────────
 
 @api_router.get("/backup/export")
