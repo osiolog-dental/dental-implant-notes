@@ -2,6 +2,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { LocaleProvider } from './contexts/LocaleContext';
+import { PricingProvider } from './contexts/PricingContext';
 import { Toaster } from 'sonner';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -23,6 +24,7 @@ import Layout from './components/Layout';
 function App() {
   return (
     <LocaleProvider>
+    <PricingProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -47,6 +49,7 @@ function App() {
       </BrowserRouter>
       <Toaster position="top-right" />
     </AuthProvider>
+    </PricingProvider>
     </LocaleProvider>
   );
 }
