@@ -3,8 +3,10 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { TrendUp, Users, Tooth, CurrencyDollar } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
+import { useLocale } from '../contexts/LocaleContext';
 
 const Analytics = () => {
+  const { formatCurrency, country } = useLocale();
   const [overview, setOverview] = useState(null);
   const [financial, setFinancial] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,7 @@ const Analytics = () => {
             <div>
               <p className="text-sm text-[#5C6773] mb-1">Est. Revenue</p>
               <p className="text-3xl font-semibold text-[#2A2F35]">
-                ${(financial?.total_revenue || 0).toLocaleString()}
+                {formatCurrency(financial?.total_revenue || 0)}
               </p>
             </div>
             <div className="w-12 h-12 bg-[#7B9EBB]/10 rounded-lg flex items-center justify-center">
@@ -116,7 +118,7 @@ const Analytics = () => {
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm text-[#7B9EBB]">
-            <span>Avg: ${Math.round(financial?.average_per_implant || 0)}/implant</span>
+            <span>Avg: {formatCurrency(financial?.average_per_implant || 0)}/implant</span>
           </div>
         </div>
       </div>
@@ -179,7 +181,7 @@ const Analytics = () => {
           <div className="border-l-4 border-[#82A098] pl-4">
             <p className="text-sm text-[#5C6773] mb-1">Total Revenue</p>
             <p className="text-2xl font-semibold text-[#2A2F35]">
-              ${(financial?.total_revenue || 0).toLocaleString()}
+              {formatCurrency(financial?.total_revenue || 0)}
             </p>
           </div>
           <div className="border-l-4 border-[#C27E70] pl-4">
@@ -191,13 +193,13 @@ const Analytics = () => {
           <div className="border-l-4 border-[#7B9EBB] pl-4">
             <p className="text-sm text-[#5C6773] mb-1">Average per Procedure</p>
             <p className="text-2xl font-semibold text-[#2A2F35]">
-              ${Math.round(financial?.average_per_implant || 0)}
+              {formatCurrency(financial?.average_per_implant || 0)}
             </p>
           </div>
         </div>
         <div className="mt-6 p-4 bg-[#F9F9F8] rounded-lg">
           <p className="text-xs text-[#5C6773] italic">
-            * Revenue estimates are based on average market rates: Single ($1,500), Bridge ($4,500), Full Mouth ($25,000)
+            * Revenue estimates shown in {country.currency} ({country.flag} {country.name}). Based on average market rates. Change country using the flag button next to OSIOLOG.
           </p>
         </div>
       </div>

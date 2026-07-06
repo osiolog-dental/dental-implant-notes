@@ -1,5 +1,7 @@
+import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
 import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
@@ -12,6 +14,71 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
+
+/* Country picker popover — shown next to OSIOLOG logo on mobile */
+function CountryPicker() {
+  const { country, selectCountry } = useLocale();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    if (open) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const filtered = COUNTRIES.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.currency.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        data-testid="country-picker-btn"
+        onClick={() => { setOpen(o => !o); setSearch(''); }}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#F0F0EE] transition-colors text-xl leading-none"
+        title={`${country.name} · ${country.currency}`}
+      >
+        <span>{country.flag}</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-10 z-50 w-64 bg-white rounded-xl border border-[#E5E5E2] shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-[#E5E5E2]">
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search country…"
+              className="w-full px-3 py-1.5 text-sm rounded-lg border border-[#E5E5E2] focus:outline-none focus:ring-1 focus:ring-[#82A098]"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.map(c => (
+              <button
+                key={c.code}
+                data-testid={`country-option-${c.code}`}
+                onClick={() => { selectCountry(c); setOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[#F9F9F8] transition-colors ${
+                  country.code === c.code ? 'bg-[#F0F5F4] font-medium' : ''
+                }`}
+              >
+                <span className="text-lg">{c.flag}</span>
+                <span className="flex-1 text-[#2A2F35]">{c.name}</span>
+                <span className="text-xs text-[#5C6773] font-mono">{c.symbol.trim()}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-4 py-3 text-sm text-[#9CA3AF]">No countries found</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -54,7 +121,10 @@ const Layout = () => {
       {/* Sidebar */}
       <aside className="w-64 bg-[#F0F0EE] border-r border-[#E5E5E2] hidden md:flex md:flex-col relative">
         <div className="p-6">
-          <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">OSIOLOG</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">OSIOLOG</h1>
+            <CountryPicker />
+          </div>
           <p className="text-xs text-[#5C6773] mt-1">Dental Implant Management System</p>
         </div>
         
@@ -85,8 +155,9 @@ const Layout = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header Bar */}
         <header className="h-14 bg-white border-b border-[#E5E5E2] flex items-center justify-between px-4 md:px-6 shrink-0 z-40" data-testid="top-header">
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
             <h1 className="text-lg font-semibold text-[#2A2F35] tracking-tight">OSIOLOG</h1>
+            <CountryPicker />
           </div>
           <div className="hidden md:block" />
 
