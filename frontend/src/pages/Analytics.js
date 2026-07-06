@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendUp, Users, Tooth, CurrencyDollar, Gear, Plus, Trash, PencilSimple, Check, X, Tag, Package, Stethoscope } from '@phosphor-icons/react';
+import { TrendUp, Users, Tooth, CurrencyDollar, Plus, Trash, PencilSimple, Check, X, Tag, Package, Stethoscope } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
 import { useLocale } from '../contexts/LocaleContext';
-import { usePricing, DEFAULT_MATERIAL_CATEGORIES } from '../contexts/PricingContext';
+import { usePricing } from '../contexts/PricingContext';
 
 /* ── Inline editable number cell ── */
 function EditablePrice({ value, onSave, prefix = '' }) {
@@ -122,13 +122,15 @@ function ProceduresTab() {
 
 /* ── Materials tab ── */
 function MaterialsTab() {
-  const { materials, addMaterial, updateMaterial, deleteMaterial, materialCategories } = usePricing();
-  const { formatCurrency } = useLocale();
-  const [activeCategory, setActiveCategory] = useState('implant');
+  const { materials, addMaterial, updateMaterial, deleteMaterial, materialCategories, addMaterialCategory, deleteMaterialCategory } = usePricing();
+  const [activeCategory, setActiveCategory] = useState(materialCategories[0]?.id || 'implant');
   const [adding, setAdding] = useState(false);
   const [newMat, setNewMat] = useState({ name: '', cost: '', price: '' });
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState('');
 
   const filtered = materials.filter(m => m.category === activeCategory);
+  const activeCat = materialCategories.find(c => c.id === activeCategory);
 
   const handleAdd = () => {
     if (!newMat.name.trim()) { toast.error('Enter material name'); return; }
@@ -138,6 +140,14 @@ function MaterialsTab() {
     toast.success('Material added');
   };
 
+  const handleAddCategory = () => {
+    if (!newCatLabel.trim()) { toast.error('Enter a category name'); return; }
+    addMaterialCategory(newCatLabel.trim());
+    setNewCatLabel('');
+    setAddingCategory(false);
+    toast.success(`Category "${newCatLabel.trim()}" added`);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -145,20 +155,55 @@ function MaterialsTab() {
         <p className="text-xs text-[#5C6773] mt-0.5">Track what each material costs you to acquire vs. what you charge the patient. Margin = Price − Cost.</p>
       </div>
 
-      {/* Category tabs */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Category tabs + add category */}
+      <div className="flex gap-2 flex-wrap items-center">
         {materialCategories.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => { setActiveCategory(cat.id); setAdding(false); }}
-            data-testid={`mat-cat-${cat.id}`}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              activeCategory === cat.id
-                ? 'bg-[#82A098] text-white border-[#82A098]'
-                : 'bg-white text-[#5C6773] border-[#E5E5E2] hover:border-[#82A098]'
-            }`}
-          >{cat.label}</button>
+          <div key={cat.id} className="relative group">
+            <button
+              onClick={() => { setActiveCategory(cat.id); setAdding(false); }}
+              data-testid={`mat-cat-${cat.id}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors pr-${cat.custom ? '7' : '3'} ${
+                activeCategory === cat.id
+                  ? 'bg-[#82A098] text-white border-[#82A098]'
+                  : 'bg-white text-[#5C6773] border-[#E5E5E2] hover:border-[#82A098]'
+              }`}
+            >{cat.label}</button>
+            {cat.custom && (
+              <button
+                onClick={() => {
+                  deleteMaterialCategory(cat.id);
+                  setActiveCategory(materialCategories[0]?.id || 'implant');
+                }}
+                data-testid={`delete-cat-${cat.id}`}
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] items-center justify-center hidden group-hover:flex"
+                title="Delete category"
+              >×</button>
+            )}
+          </div>
         ))}
+
+        {addingCategory ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={newCatLabel}
+              onChange={e => setNewCatLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCategory(false); setNewCatLabel(''); } }}
+              placeholder="Category name…"
+              className="px-2 py-1.5 border border-[#82A098] rounded-lg text-xs focus:outline-none w-36"
+            />
+            <button onClick={handleAddCategory} className="text-[#82A098]"><Check size={14} /></button>
+            <button onClick={() => { setAddingCategory(false); setNewCatLabel(''); }} className="text-[#9CA3AF]"><X size={14} /></button>
+          </div>
+        ) : (
+          <button
+            data-testid="add-category-btn"
+            onClick={() => setAddingCategory(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#82A098] text-[#82A098] text-xs font-medium rounded-lg hover:bg-[#F0F5F4] transition-colors"
+          >
+            <Plus size={12} /> New Category
+          </button>
+        )}
       </div>
 
       <div className="rounded-xl border border-[#E5E5E2] overflow-hidden">
@@ -207,7 +252,7 @@ function MaterialsTab() {
 
       {adding ? (
         <div className="p-4 bg-[#F9F9F8] rounded-xl border border-[#E5E5E2] space-y-3">
-          <p className="text-xs font-semibold text-[#5C6773] uppercase tracking-wide">New {materialCategories.find(c => c.id === activeCategory)?.label}</p>
+          <p className="text-xs font-semibold text-[#5C6773] uppercase tracking-wide">New {activeCat?.label || 'Material'}</p>
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               autoFocus value={newMat.name}
@@ -239,7 +284,7 @@ function MaterialsTab() {
           onClick={() => setAdding(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-[#82A098] text-[#82A098] text-xs font-medium rounded-lg hover:bg-[#F0F5F4] transition-colors"
         >
-          <Plus size={14} /> Add {materialCategories.find(c => c.id === activeCategory)?.label.replace(/s$/, '')}
+          <Plus size={14} /> Add {activeCat?.label.replace(/s$/, '') || 'Material'}
         </button>
       )}
     </div>

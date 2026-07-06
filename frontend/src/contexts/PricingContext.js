@@ -56,6 +56,7 @@ export function PricingProvider({ children }) {
 
   const [procedures, setProcedures] = useState(stored?.procedures ?? DEFAULT_PROCEDURES);
   const [materials, setMaterials]   = useState(stored?.materials  ?? DEFAULT_MATERIALS);
+  const [materialCategories, setMaterialCategories] = useState(stored?.materialCategories ?? DEFAULT_MATERIAL_CATEGORIES);
   /* patientDiscounts: [{ id, patientId, patientName, type: 'percent'|'fixed', value, note }] */
   const [patientDiscounts, setPatientDiscounts] = useState(stored?.patientDiscounts ?? []);
 
@@ -63,58 +64,56 @@ export function PricingProvider({ children }) {
     saveToStorage(next);
   }, []);
 
-  const updateProcedure = (id, fee) => {
-    const next = procedures.map(p => p.id === id ? { ...p, fee: Number(fee) } : p);
-    setProcedures(next);
-    persist({ procedures: next, materials, patientDiscounts });
-  };
+  const p = (overrides) => persist({ procedures, materials, materialCategories, patientDiscounts, ...overrides });
 
+  const updateProcedure = (id, fee) => {
+    const next = procedures.map(proc => proc.id === id ? { ...proc, fee: Number(fee) } : proc);
+    setProcedures(next); p({ procedures: next });
+  };
   const addProcedure = (label, fee) => {
     const next = [...procedures, { id: `custom_${Date.now()}`, label, fee: Number(fee) }];
-    setProcedures(next);
-    persist({ procedures: next, materials, patientDiscounts });
+    setProcedures(next); p({ procedures: next });
+  };
+  const deleteProcedure = (id) => {
+    const next = procedures.filter(proc => proc.id !== id);
+    setProcedures(next); p({ procedures: next });
   };
 
-  const deleteProcedure = (id) => {
-    const next = procedures.filter(p => p.id !== id);
-    setProcedures(next);
-    persist({ procedures: next, materials, patientDiscounts });
+  const addMaterialCategory = (label) => {
+    const next = [...materialCategories, { id: `cat_${Date.now()}`, label, custom: true }];
+    setMaterialCategories(next); p({ materialCategories: next });
+  };
+  const deleteMaterialCategory = (id) => {
+    const nextCats = materialCategories.filter(c => c.id !== id);
+    const nextMats = materials.filter(m => m.category !== id);
+    setMaterialCategories(nextCats); setMaterials(nextMats);
+    p({ materialCategories: nextCats, materials: nextMats });
   };
 
   const addMaterial = (mat) => {
     const next = [...materials, { ...mat, id: `mat_${Date.now()}` }];
-    setMaterials(next);
-    persist({ procedures, materials: next, patientDiscounts });
+    setMaterials(next); p({ materials: next });
   };
-
   const updateMaterial = (id, changes) => {
     const next = materials.map(m => m.id === id ? { ...m, ...changes } : m);
-    setMaterials(next);
-    persist({ procedures, materials: next, patientDiscounts });
+    setMaterials(next); p({ materials: next });
   };
-
   const deleteMaterial = (id) => {
     const next = materials.filter(m => m.id !== id);
-    setMaterials(next);
-    persist({ procedures, materials: next, patientDiscounts });
+    setMaterials(next); p({ materials: next });
   };
 
   const addDiscount = (discount) => {
     const next = [...patientDiscounts, { ...discount, id: `disc_${Date.now()}` }];
-    setPatientDiscounts(next);
-    persist({ procedures, materials, patientDiscounts: next });
+    setPatientDiscounts(next); p({ patientDiscounts: next });
   };
-
   const updateDiscount = (id, changes) => {
     const next = patientDiscounts.map(d => d.id === id ? { ...d, ...changes } : d);
-    setPatientDiscounts(next);
-    persist({ procedures, materials, patientDiscounts: next });
+    setPatientDiscounts(next); p({ patientDiscounts: next });
   };
-
   const deleteDiscount = (id) => {
     const next = patientDiscounts.filter(d => d.id !== id);
-    setPatientDiscounts(next);
-    persist({ procedures, materials, patientDiscounts: next });
+    setPatientDiscounts(next); p({ patientDiscounts: next });
   };
 
   /* Get the fee for a procedure by id */
@@ -125,12 +124,12 @@ export function PricingProvider({ children }) {
 
   return (
     <PricingContext.Provider value={{
-      procedures, materials, patientDiscounts,
+      procedures, materials, materialCategories, patientDiscounts,
       updateProcedure, addProcedure, deleteProcedure,
+      addMaterialCategory, deleteMaterialCategory,
       addMaterial, updateMaterial, deleteMaterial,
       addDiscount, updateDiscount, deleteDiscount,
       getFee, getMargin,
-      materialCategories: DEFAULT_MATERIAL_CATEGORIES,
     }}>
       {children}
     </PricingContext.Provider>
