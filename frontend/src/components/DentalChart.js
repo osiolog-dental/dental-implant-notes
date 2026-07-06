@@ -139,12 +139,13 @@ export default function DentalChart({
     const crownY = up ? U_CROWN_Y : L_CROWN_Y;
     const rootY  = up ? U_ROOT_Y  : L_ROOT_Y;
 
-    /* Image sources */
-    const toothSrc   = `/teeth/tooth_${n}.png`;
-    const crownSrc   = `/teeth/crown_${n}.png`;
-    const rootSrc    = `/teeth/root_${n}.png`;
-    const fpdSrc     = `/teeth/fpd_${n}.png`;
-    const implantSrc = up ? '/teeth/implant_upper.png' : '/teeth/implant_lower.png';
+    /* Image sources — use PUBLIC_URL so paths resolve in Capacitor WebView */
+    const base = process.env.PUBLIC_URL || '';
+    const toothSrc   = `${base}/teeth/tooth_${n}.png`;
+    const crownSrc   = `${base}/teeth/crown_${n}.png`;
+    const rootSrc    = `${base}/teeth/root_${n}.png`;
+    const fpdSrc     = `${base}/teeth/fpd_${n}.png`;
+    const implantSrc = up ? `${base}/teeth/implant_upper.png` : `${base}/teeth/implant_lower.png`;
 
     /* Number box background */
     const numBg = hasImp    ? '#0369A1'
@@ -285,36 +286,38 @@ export default function DentalChart({
   return (
     <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E5E5E2', overflow: 'hidden' }}>
 
-      {/* Action buttons — hidden in fpd selection mode */}
+      {/* Action buttons — vertical list, always fully visible */}
       {mode !== 'fpd' && (
-        <div style={{ display: 'flex', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid #F0EDE8', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button data-testid="action-missing"
-            style={btnStyle('missing', '#2563EB', '#2563EB')}
-            onClick={() => toggleAction('missing')}>+ missing teeth</button>
-          <button data-testid="action-implant"
-            style={btnStyle('implant', '#64748B', '#0369A1')}
-            onClick={() => toggleAction('implant')}>+ dental implant</button>
-          <button data-testid="action-abutment"
-            style={btnStyle('abutment', '#C2850A', '#C2850A')}
-            onClick={() => toggleAction('abutment')}>+ abutment</button>
-          <button data-testid="action-crown"
-            style={btnStyle('crown', '#16A34A', '#16A34A')}
-            onClick={() => toggleAction('crown')}>+ crowns/FDP</button>
-          <button data-testid="action-overdenture"
-            style={{
-              ...btnStyle(null, '#7C3AED', '#7C3AED'),
-              background: actionMode === 'overdenture' ? '#7C3AED' : 'transparent',
-              color: actionMode === 'overdenture' ? '#fff' : '#7C3AED',
-              border: '1.5px solid #7C3AED',
-            }}
-            onClick={() => { toggleAction(null); onOverdentureLog?.(); }}>+ overdenture</button>
+        <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F0EDE8' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <button data-testid="action-missing"
+              style={btnStyle('missing', '#2563EB', '#2563EB')}
+              onClick={() => toggleAction('missing')}>+ Missing Tooth</button>
+            <button data-testid="action-implant"
+              style={btnStyle('implant', '#64748B', '#0369A1')}
+              onClick={() => toggleAction('implant')}>+ Dental Implant</button>
+            <button data-testid="action-abutment"
+              style={btnStyle('abutment', '#C2850A', '#C2850A')}
+              onClick={() => toggleAction('abutment')}>+ Abutment</button>
+            <button data-testid="action-crown"
+              style={btnStyle('crown', '#16A34A', '#16A34A')}
+              onClick={() => toggleAction('crown')}>+ Crown / FPD</button>
+            <button data-testid="action-overdenture"
+              style={{
+                ...btnStyle(null, '#7C3AED', '#7C3AED'),
+                background: actionMode === 'overdenture' ? '#7C3AED' : 'transparent',
+                color: actionMode === 'overdenture' ? '#fff' : '#7C3AED',
+                border: '1.5px solid #7C3AED',
+              }}
+              onClick={() => { toggleAction(null); onOverdentureLog?.(); }}>+ Overdenture</button>
+          </div>
           {actionMode && (
-            <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 4 }}>
-              {actionMode === 'missing'   && 'Click a tooth to mark missing'}
-              {actionMode === 'implant'   && 'Click a tooth to log an implant'}
-              {actionMode === 'abutment'  && 'Click a tooth to log an abutment'}
-              {actionMode === 'crown'     && 'Click a tooth to log a crown / FPD'}
-            </span>
+            <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+              {actionMode === 'missing'  && '→ Tap a tooth on the chart to mark it missing'}
+              {actionMode === 'implant'  && '→ Tap a tooth on the chart to log an implant'}
+              {actionMode === 'abutment' && '→ Tap a tooth on the chart to log an abutment'}
+              {actionMode === 'crown'    && '→ Tap a tooth on the chart to log a crown / FPD'}
+            </p>
           )}
         </div>
       )}
