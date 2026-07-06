@@ -192,12 +192,12 @@ export default function DentalChart({
           /* ── IMPLANT: screw in root zone, crown/fpd in crown zone, NO GAP ── */
           <>
             {/* Implant screw fills root zone exactly */}
-            <image href={implantSrc}
+            <image href={implantSrc} xlinkHref={implantSrc}
               x={sx + 6} y={rootY} width={SLOT - 12} height={ROOT_H}
               preserveAspectRatio="xMidYMid meet" />
             {/* Crown/FPD sits flush against number row */}
             {(hasCrownOnImp || hasFpd) ? (
-              <image href={hasFpd ? fpdSrc : crownSrc}
+              <image href={hasFpd ? fpdSrc : crownSrc} xlinkHref={hasFpd ? fpdSrc : crownSrc}
                 x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
                 preserveAspectRatio="xMidYMid meet" />
             ) : (
@@ -213,10 +213,10 @@ export default function DentalChart({
         ) : hasFpd ? (
           /* ── FPD CROWN ONLY (no implant): green crown + natural root ── */
           <>
-            <image href={rootSrc}
+            <image href={rootSrc} xlinkHref={rootSrc}
               x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H}
               preserveAspectRatio="xMidYMid meet" />
-            <image href={fpdSrc}
+            <image href={fpdSrc} xlinkHref={fpdSrc}
               x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
               preserveAspectRatio="xMidYMid meet" />
             {cfg.tint && (
@@ -228,7 +228,7 @@ export default function DentalChart({
         ) : (
           /* ── NATURAL TOOTH: single full tooth PNG spanning root+crown zone ── */
           <>
-            <image href={toothSrc}
+            <image href={toothSrc} xlinkHref={toothSrc}
               x={sx + 2} y={slotTop} width={SLOT - 4} height={ROOT_H + CROWN_H}
               preserveAspectRatio="xMidYMid meet"
               opacity={condition === 'healthy' ? 1 : 0.85}
