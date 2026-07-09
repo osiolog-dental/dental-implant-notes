@@ -186,8 +186,9 @@ export default function DentalChart({
         )}
 
         {/* ── TOOTH RENDERING ── */}
-        {isMissing ? (
-          /* Ghost outline only */
+        {/* Implant always wins over missing — extracted tooth that received an implant */}
+        {isMissing && !hasImp && !hasFpd ? (
+          /* Ghost outline only — missing with no implant or FPD */
           <rect x={sx + 8} y={slotTop + 6} width={SLOT - 16} height={slotH - 12}
             rx={6} fill="rgba(200,210,218,0.12)"
             stroke="rgba(150,165,178,0.30)" strokeWidth={1} strokeDasharray="3,3" />
