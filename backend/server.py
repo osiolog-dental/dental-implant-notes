@@ -1784,8 +1784,13 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         return cid
 
     # ── IMPLANTS ──
+    last_pname = None  # carry forward patient name when col A is blank (multiple implants per patient)
     for i, row in enumerate(sheet_rows("Implants"), start=2):
         pname = val(row, "Patient Name", "patient_name")
+        if pname:
+            last_pname = pname
+        else:
+            pname = last_pname
         if not pname:
             errors.append(f"Implants row {i}: Missing patient name — skipped")
             continue
@@ -1847,8 +1852,13 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         results["implants"] += 1
 
     # ── FPD ──
+    last_fpd_pname = None
     for i, row in enumerate(sheet_rows("FPD"), start=2):
         pname = val(row, "Patient Name", "patient_name")
+        if pname:
+            last_fpd_pname = pname
+        else:
+            pname = last_fpd_pname
         if not pname:
             errors.append(f"FPD row {i}: Missing patient name — skipped")
             continue
