@@ -2,7 +2,7 @@ import { useState } from 'react';
 import client from '../api/client';
 import { toast } from 'sonner';
 
-const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1nGRD2YcKeOEqntRdjBTkSIPO3ehknyZQy2TesmaW4-0/edit?usp=sharing';
+const TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1VyourAB7SUwfZde8lD7S3auHL9ySCNE_wfA0HoudVHk/edit?usp=sharing';
 
 export default function BulkImport() {
   const [sheetUrl, setSheetUrl] = useState('');
