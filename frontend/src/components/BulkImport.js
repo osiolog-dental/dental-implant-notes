@@ -89,25 +89,37 @@ const FPD_SAMPLE = [
 // Number of patient rows the dropdown will cover in Implants/FPD sheets
 const MAX_PATIENT_ROWS = 500;
 
-function downloadTemplate() {
-  const wb = XLSX.utils.book_new();
+// Tooth sites for Site Analysis sheet (FDI upper + lower)
+const FDI_SITES = [
+  [11,'Upper','Anterior'],[12,'Upper','Anterior'],[13,'Upper','Anterior'],
+  [14,'Upper','Posterior'],[15,'Upper','Posterior'],[16,'Upper','Posterior'],[17,'Upper','Posterior'],[18,'Upper','Posterior'],
+  [21,'Upper','Anterior'],[22,'Upper','Anterior'],[23,'Upper','Anterior'],
+  [24,'Upper','Posterior'],[25,'Upper','Posterior'],[26,'Upper','Posterior'],[27,'Upper','Posterior'],[28,'Upper','Posterior'],
+  [31,'Lower','Anterior'],[32,'Lower','Anterior'],[33,'Lower','Anterior'],
+  [34,'Lower','Posterior'],[35,'Lower','Posterior'],[36,'Lower','Posterior'],[37,'Lower','Posterior'],[38,'Lower','Posterior'],
+  [41,'Lower','Anterior'],[42,'Lower','Anterior'],[43,'Lower','Anterior'],
+  [44,'Lower','Posterior'],[45,'Lower','Posterior'],[46,'Lower','Posterior'],[47,'Lower','Posterior'],[48,'Lower','Posterior'],
+];
 
-  const styleSheet = (ws, cols) => {
-    ws['!cols'] = cols.map(() => ({ wch: 22 }));
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const hCell = XLSX.utils.encode_cell({ r: 0, c: C });
-      if (!ws[hCell]) continue;
+// Implant diameters and lengths used in Dimension Analysis
+const DIAMETERS = [3.3, 3.5, 3.75, 4.0, 4.1, 4.3, 4.5, 4.8, 5.0, 5.5, 6.0];
+const LENGTHS   = [6, 7, 8, 8.5, 10, 11.5, 12, 13, 14, 16];
+
+function styleHeader(ws, cols, headerRow = 0, noteRow = 1) {
+  ws['!cols'] = cols.map(c => ({ wch: c.w || 22 }));
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const hCell = XLSX.utils.encode_cell({ r: headerRow, c: C });
+    if (ws[hCell]) {
       ws[hCell].s = {
         font: { bold: true, color: { rgb: 'FFFFFF' } },
         fill: { fgColor: { rgb: '82A098' } },
         alignment: { wrapText: true, vertical: 'center' },
-        border: {
-          bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
-          right:  { style: 'thin', color: { rgb: 'CCCCCC' } },
-        },
+        border: { bottom: { style: 'thin', color: { rgb: 'CCCCCC' } }, right: { style: 'thin', color: { rgb: 'CCCCCC' } } },
       };
-      const nCell = XLSX.utils.encode_cell({ r: 1, c: C });
+    }
+    if (noteRow !== null) {
+      const nCell = XLSX.utils.encode_cell({ r: noteRow, c: C });
       if (ws[nCell]) {
         ws[nCell].s = {
           font: { italic: true, color: { rgb: '888888' }, sz: 9 },
@@ -116,102 +128,272 @@ function downloadTemplate() {
         };
       }
     }
-    ws['!freeze'] = { xSplit: 0, ySplit: 2 };
-  };
+  }
+  ws['!freeze'] = { xSplit: 0, ySplit: noteRow !== null ? 2 : 1 };
+}
 
-  /* ── Patients sheet ── */
-  const patHeaders = PATIENT_COLS.map(c => c.header);
-  const patNotes   = PATIENT_COLS.map(c => c.note);
-  const patData    = [patHeaders, patNotes, [], ...PATIENT_SAMPLE];
-  const patWs      = XLSX.utils.aoa_to_sheet(patData);
-  styleSheet(patWs, PATIENT_COLS);
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
 
+  /* ════════════════════════════════════════════
+     SHEET 1 — Patients
+  ════════════════════════════════════════════ */
+  const patData = [
+    PATIENT_COLS.map(c => c.header),
+    PATIENT_COLS.map(c => c.note),
+    [],
+    ...PATIENT_SAMPLE,
+  ];
+  const patWs = XLSX.utils.aoa_to_sheet(patData);
+  styleHeader(patWs, PATIENT_COLS);
+  // Extend ref so formulas in other sheets can reference up to row 502
+  const pRange = XLSX.utils.decode_range(patWs['!ref']);
+  pRange.e.r = Math.max(pRange.e.r, MAX_PATIENT_ROWS + 1);
+  patWs['!ref'] = XLSX.utils.encode_range(pRange);
   XLSX.utils.book_append_sheet(wb, patWs, 'Patients');
 
-  /* ── Helper: build Implant/FPD sheet ──
-     • Col A: =Patients!A{n} formula → auto-copies patient name from Patients sheet
-     • Cols with default: pre-filled for every blank data row (rows after sample)
-     • Date cols: formatted as text @, placeholder hint shown so Excel won't mangle DD-MM-YYYY
-  */
-  const makeLinkedSheet = (cols, sampleRows) => {
-    const headers = [...cols.map(c => c.header)];
-    headers[0] = 'Patient Name ← from Patients sheet';
+  /* ════════════════════════════════════════════
+     SHEET 2 — Implants (main data entry)
+     • Col A: patient name linked from Patients sheet
+     • Col J (Arch), Col K (Jaw Region): auto from tooth number
+     • All other cols: blank for doctor to fill
+  ════════════════════════════════════════════ */
+  const implantHeaders = [...IMPLANT_COLS.map(c => c.header)];
+  implantHeaders[0] = 'Patient Name ← from Patients sheet';
+  const implantNotes = [...IMPLANT_COLS.map(c => c.note)];
+  implantNotes[0] = 'Auto-filled from Patients sheet col A. Fill Patients first.';
 
-    const notes = [...cols.map(c => c.note)];
-    notes[0] = 'Auto-filled from Patients sheet col A. Fill Patients sheet first.';
+  const implantSampleStripped = IMPLANT_SAMPLE.map(r => ['', ...r.slice(1)]);
+  const implantData = [implantHeaders, implantNotes, [], ...implantSampleStripped];
+  const implantWs = XLSX.utils.aoa_to_sheet(implantData);
+  styleHeader(implantWs, IMPLANT_COLS);
 
-    // Sample rows: strip col A (replaced by formula), keep rest
-    const sampleWithoutName = sampleRows.map(row => ['', ...row.slice(1)]);
+  // Inject formulas: rows 3..502 (index 2..501)
+  for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
+    const er = r + 1; // Excel 1-based row
+    // Col A → patient name from Patients sheet (blank when no patient)
+    implantWs[XLSX.utils.encode_cell({ r, c: 0 })] = {
+      t: 'f', f: `IF(Patients!A${er}="","",Patients!A${er})`,
+    };
+    const tc = `B${er}`; // Tooth Number cell reference
+    // Col J (9) → Arch
+    IMPLANT_COLS.forEach((col, c) => {
+      if (col.archFormula) {
+        implantWs[XLSX.utils.encode_cell({ r, c })] = {
+          t: 'f', f: `IF(${tc}="","",IF(AND(INT(${tc}/10)>=1,INT(${tc}/10)<=2),"Upper","Lower"))`,
+        };
+      } else if (col.jawFormula) {
+        implantWs[XLSX.utils.encode_cell({ r, c })] = {
+          t: 'f', f: `IF(${tc}="","",IF(MOD(${tc},10)<=3,"Anterior","Posterior"))`,
+        };
+      }
+    });
+  }
+  const iRange = XLSX.utils.decode_range(implantWs['!ref'] || 'A1');
+  iRange.e.r = Math.max(iRange.e.r, MAX_PATIENT_ROWS + 1);
+  iRange.e.c = Math.max(iRange.e.c, IMPLANT_COLS.length - 1);
+  implantWs['!ref'] = XLSX.utils.encode_range(iRange);
+  XLSX.utils.book_append_sheet(wb, implantWs, 'Implants');
 
-    // Row layout: 0=headers, 1=notes, 2=blank spacer, 3..=sample rows
-    const data = [headers, notes, [], ...sampleWithoutName];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    styleSheet(ws, cols);
+  /* ════════════════════════════════════════════
+     SHEET 3 — FPD
+  ════════════════════════════════════════════ */
+  const fpdHeaders = [...FPD_COLS.map(c => c.header)];
+  fpdHeaders[0] = 'Patient Name ← from Patients sheet';
+  const fpdNotes = [...FPD_COLS.map(c => c.note)];
+  fpdNotes[0] = 'Auto-filled from Patients sheet col A. Fill Patients first.';
 
-    const sampleCount = sampleRows.length;
+  const fpdSampleStripped = FPD_SAMPLE.map(r => ['', ...r.slice(1)]);
+  const fpdData = [fpdHeaders, fpdNotes, [], ...fpdSampleStripped];
+  const fpdWs = XLSX.utils.aoa_to_sheet(fpdData);
+  styleHeader(fpdWs, FPD_COLS);
 
-    // ── Inject formulas for every data row ──
-    for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
-      const excelRow = r + 1;
+  for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
+    const er = r + 1;
+    fpdWs[XLSX.utils.encode_cell({ r, c: 0 })] = {
+      t: 'f', f: `IF(Patients!A${er}="","",Patients!A${er})`,
+    };
+  }
+  const fRange = XLSX.utils.decode_range(fpdWs['!ref'] || 'A1');
+  fRange.e.r = Math.max(fRange.e.r, MAX_PATIENT_ROWS + 1);
+  fRange.e.c = Math.max(fRange.e.c, FPD_COLS.length - 1);
+  fpdWs['!ref'] = XLSX.utils.encode_range(fRange);
+  XLSX.utils.book_append_sheet(wb, fpdWs, 'FPD');
 
-      // Col A → =Patients!A{n}  (blank when Patients row is empty)
-      ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'f', f: `IF(Patients!A${excelRow}="","",Patients!A${excelRow})` };
+  /* ════════════════════════════════════════════
+     SHEET 4 — Site Analysis
+     COUNTIF on Implants col B (Tooth Number) for each FDI site
+     Implants data starts at row 3 (index 2) → Excel rows 3:502
+  ════════════════════════════════════════════ */
+  const siteData = [
+    ['IMPLANT SITE USAGE ANALYSIS'],
+    ['Count of implants placed at each tooth site — updates automatically as you add rows to Implants sheet'],
+    ['Tooth Number', 'Arch', 'Jaw Region', 'Implant Count', '% of Total'],
+  ];
+  const IMPLANT_DATA_RANGE = `Implants!$B$3:$B$${MAX_PATIENT_ROWS + 2}`;
+  const totalFormula = `COUNTA(${IMPLANT_DATA_RANGE})`;
+  FDI_SITES.forEach(([tooth, arch, jaw]) => {
+    siteData.push([
+      tooth, arch, jaw,
+      { t: 'f', f: `COUNTIF(${IMPLANT_DATA_RANGE},${tooth})` },
+      { t: 'f', f: `IF(${totalFormula}=0,0,COUNTIF(${IMPLANT_DATA_RANGE},${tooth})/${totalFormula})` },
+    ]);
+  });
 
-      // Tooth Number is col B (index 1)
-      const toothCell = `B${excelRow}`;
+  const siteWs = XLSX.utils.aoa_to_sheet(siteData);
+  // Style title rows
+  siteWs['A1'].s = { font: { bold: true, sz: 13, color: { rgb: '2A4A44' } } };
+  siteWs['A2'].s = { font: { italic: true, color: { rgb: '888888' }, sz: 9 } };
+  // Style header row (row index 2 = row 3)
+  ['A3','B3','C3','D3','E3'].forEach(addr => {
+    if (siteWs[addr]) siteWs[addr].s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '82A098' } },
+    };
+  });
+  // Format % column
+  for (let r = 3; r < 3 + FDI_SITES.length; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 4 });
+    if (siteWs[addr]) siteWs[addr].z = '0.0%';
+  }
+  siteWs['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  siteWs['!freeze'] = { xSplit: 0, ySplit: 3 };
+  XLSX.utils.book_append_sheet(wb, siteWs, 'Site Analysis');
 
-      cols.forEach((col, c) => {
-        if (c === 0) return;
-        const addr = XLSX.utils.encode_cell({ r, c });
-
-        if (col.archFormula) {
-          // One tooth per row: Upper = quadrant 1-2 (11-28), Lower = 3-4 (31-48)
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(AND(INT(${toothCell}/10)>=1,INT(${toothCell}/10)<=2),"Upper","Lower"))` };
-        } else if (col.jawFormula) {
-          // Anterior = last digit 1-3, Posterior = 4-8
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(MOD(${toothCell},10)<=3,"Anterior","Posterior"))` };
-        }
-        // All other columns: leave untouched — no prefill, no empty cell injection
-      });
+  /* ════════════════════════════════════════════
+     SHEET 5 — Dimension Analysis
+     COUNTIF on Implants col E (Diameter) and col F (Length)
+     Diameter = col E (index 4), Length = col F (index 5)
+  ════════════════════════════════════════════ */
+  const DIA_RANGE = `Implants!$E$3:$E$${MAX_PATIENT_ROWS + 2}`;
+  const LEN_RANGE = `Implants!$F$3:$F$${MAX_PATIENT_ROWS + 2}`;
+  const dimData = [
+    ['IMPLANT DIMENSION USAGE ANALYSIS'],
+    ['Updates automatically from Implants sheet'],
+    ['DIAMETER COUNTS', '', '', '', 'LENGTH COUNTS'],
+    ['Diameter (mm)', 'Count', '% Share', '', 'Length (mm)', 'Count', '% Share'],
+  ];
+  const maxRows = Math.max(DIAMETERS.length, LENGTHS.length);
+  for (let i = 0; i < maxRows; i++) {
+    const row = [];
+    if (i < DIAMETERS.length) {
+      const d = DIAMETERS[i];
+      row.push(d,
+        { t: 'f', f: `COUNTIF(${DIA_RANGE},${d})` },
+        { t: 'f', f: `IF(COUNTA(${DIA_RANGE})=0,0,COUNTIF(${DIA_RANGE},${d})/COUNTA(${DIA_RANGE}))` },
+      );
+    } else { row.push('', '', ''); }
+    row.push('');
+    if (i < LENGTHS.length) {
+      const l = LENGTHS[i];
+      row.push(l,
+        { t: 'f', f: `COUNTIF(${LEN_RANGE},${l})` },
+        { t: 'f', f: `IF(COUNTA(${LEN_RANGE})=0,0,COUNTIF(${LEN_RANGE},${l})/COUNTA(${LEN_RANGE}))` },
+      );
     }
+    dimData.push(row);
+  }
+  const dimWs = XLSX.utils.aoa_to_sheet(dimData);
+  dimWs['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 4 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+  dimWs['!freeze'] = { xSplit: 0, ySplit: 4 };
+  // Format % columns
+  for (let r = 4; r < 4 + maxRows; r++) {
+    ['C','G'].forEach(col => {
+      const addr = `${col}${r + 1}`;
+      if (dimWs[addr]) dimWs[addr].z = '0.0%';
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, dimWs, 'Dimension Analysis');
 
-    // Expand the sheet ref to cover all rows
-    const sheetRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    sheetRange.e.r = Math.max(sheetRange.e.r, MAX_PATIENT_ROWS + 1);
-    sheetRange.e.c = Math.max(sheetRange.e.c, cols.length - 1);
-    ws['!ref'] = XLSX.utils.encode_range(sheetRange);
+  /* ════════════════════════════════════════════
+     SHEET 6 — Brand & Surgeon Summary
+     Brand = Implants col D (index 3), Surgeon = col Y (index 24)
+  ════════════════════════════════════════════ */
+  const BRAND_RANGE   = `Implants!$D$3:$D$${MAX_PATIENT_ROWS + 2}`;
+  const SURGEON_RANGE = `Implants!$Y$3:$Y$${MAX_PATIENT_ROWS + 2}`;
+  const BRANDS   = ['Straumann','Nobel Biocare','Dentsply Sirona','Zimmer Biomet','BioHorizons','Osstem','Megagen','Adin','Alpha Bio','Other'];
+  const brandData = [
+    ['BRAND & SURGEON SUMMARY'],
+    ['Updates automatically from Implants sheet'],
+    ['IMPLANT BRAND COUNTS'],
+    ['Brand', 'Count', '% Share'],
+    ...BRANDS.map(b => [
+      b,
+      { t: 'f', f: `COUNTIF(${BRAND_RANGE},"${b}")` },
+      { t: 'f', f: `IF(COUNTA(${BRAND_RANGE})=0,0,COUNTIF(${BRAND_RANGE},"${b}")/COUNTA(${BRAND_RANGE}))` },
+    ]),
+    [{ t: 'f', f: '"TOTAL"' }, { t: 'f', f: `COUNTA(${BRAND_RANGE})` }, ''],
+    [''],
+    ['SURGEON COUNTS'],
+    ['Surgeon', 'Implants Placed', '% of Total'],
+  ];
+  const brandWs = XLSX.utils.aoa_to_sheet(brandData);
+  brandWs['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }];
+  // Format % column
+  for (let r = 4; r < 4 + BRANDS.length; r++) {
+    const addr = `C${r + 1}`;
+    if (brandWs[addr]) brandWs[addr].z = '0.0%';
+  }
+  XLSX.utils.book_append_sheet(wb, brandWs, 'Brand & Surgeon');
 
-    return ws;
-  };
-
-  XLSX.utils.book_append_sheet(wb, makeLinkedSheet(IMPLANT_COLS, IMPLANT_SAMPLE), 'Implants');
-  XLSX.utils.book_append_sheet(wb, makeLinkedSheet(FPD_COLS,     FPD_SAMPLE),     'FPD');
-
-  // Instructions sheet
+  /* ════════════════════════════════════════════
+     SHEET 7 — Instructions
+  ════════════════════════════════════════════ */
   const instrData = [
     ['OSIOLOG — Bulk Import Template'],
     [''],
     ['HOW TO USE THIS FILE'],
-    ['1. Fill in the "Patients" sheet first — one row per patient (column A = Patient Name).'],
-    ['2. The "Implants" and "FPD" sheets column A will automatically show the same names.'],
-    ['   You do not need to retype patient names — they are pulled from the Patients sheet.'],
-    ['3. You can also type a name directly in Implants/FPD col A if needed.'],
-    ['4. Row 1 = column headers (do not edit). Row 2 = field notes (you may delete before uploading).'],
-    ['5. Sample data in rows 3-4 show the format — replace with your real data.'],
-    ['6. Upload this file from the Account page → Bulk Import section.'],
+    ['1. Fill the "Patients" sheet first — one row per patient, Patient Name in column A.'],
+    ['2. Go to "Implants" sheet — Patient Name (col A) auto-fills from the Patients sheet.'],
+    ['   ONE ROW = ONE IMPLANT. For a patient with 3 implants, add 3 rows.'],
+    ['3. Type the tooth number (FDI) in col B — Arch and Jaw Region fill automatically.'],
+    ['4. Fill remaining columns for each implant. Leave columns blank if not applicable.'],
+    ['5. "FPD" sheet works the same way — Patient Name auto-fills, one row per FPD bridge.'],
+    ['6. "Site Analysis", "Dimension Analysis", "Brand & Surgeon" update automatically.'],
+    ['7. When done, upload from Backup page → Bulk Import.'],
     [''],
-    ['IMPORTANT NOTES'],
-    ['• Patient Name in Implants/FPD sheets is auto-filled from the Patients sheet col A.'],
-    ['• Dates must be in DD-MM-YYYY format (e.g. 15-03-2025). Type as text, not as a date.'],
-    ['• Yes/No fields: type Yes or No (not TRUE/FALSE).'],
-    ['• FPD Tooth Numbers: comma-separated (e.g. 13,14,15).'],
-    ['• Consultant Surgeon / Prosthodontist: leave blank if not applicable.'],
-    ['• Dental Lab: name of the lab that made the crowns (FPD sheet only).'],
-    ['• Photos must be uploaded manually from the patient page after import.'],
-    ['• You can upload this file multiple times — duplicate patients are NOT re-created.'],
+    ['DATE FORMAT'],
+    ['• All dates must be typed as DD-MM-YYYY (e.g. 15-03-2025).'],
+    ['• Type dates as text — do not use Excel date picker.'],
+    [''],
+    ['COLUMN KEY — IMPLANTS SHEET'],
+    ['Col A   Patient Name         Auto-filled from Patients sheet'],
+    ['Col B   Tooth Number         FDI number — one tooth per row (e.g. 16, 26, 36)'],
+    ['Col C   Implant Type         Single / Multiple / Full Arch'],
+    ['Col D   Brand                Manufacturer name'],
+    ['Col E   Size (Diameter mm)   Implant body diameter'],
+    ['Col F   Length (mm)          Implant body length'],
+    ['Col G   Insertion Torque     Ncm achieved at placement'],
+    ['Col H   Connection Type      Internal Hex / Conical / External Hex etc.'],
+    ['Col I   Surgical Approach    Flapless / Flap'],
+    ['Col J   Arch                 Auto-filled: Upper (11-28) / Lower (31-48)'],
+    ['Col K   Jaw Region           Auto-filled: Anterior (x1-x3) / Posterior (x4-x8)'],
+    ['Col L   Implant System       Product line / system name'],
+    ['Col M   Bone Graft           Autograft / Xenograft / None'],
+    ['Col N   Sinus Lift Type      Lateral / Crestal / None'],
+    ['Col O   Pterygoid            Yes / No'],
+    ['Col P   Zygomatic            Yes / No'],
+    ['Col Q   Subperiosteal        Yes / No'],
+    ['Col R   Cover Screw          Yes / No'],
+    ['Col S   Healing Abutment     Yes / No'],
+    ['Col T   Membrane Used        Yes / No'],
+    ['Col U   ISQ Value            Implant Stability Quotient (number)'],
+    ['Col V   Surgery Date         DD-MM-YYYY'],
+    ['Col W   Prosthetic Loading   DD-MM-YYYY'],
+    ['Col X   Follow Up Date       DD-MM-YYYY'],
+    ['Col Y   Surgeon Name         Operating surgeon'],
+    ['Col Z   Outcome              Pending / Success / Failed'],
+    ['Col AA  Osseointegration     Yes / No'],
+    ['Col AB  Peri-Implant Health  Yes / No'],
+    ['Col AC  Case Number          Internal reference'],
+    ['Col AD  Consultant Surgeon   If different from treating doctor'],
+    ['Col AE  Clinic Name          Must match your Clinics list (or will be created)'],
+    ['Col AF  Clinic Address       Only needed if clinic is new'],
+    ['Col AG  Clinical Notes       Any clinical observations'],
+    ['Col AH  Notes                General notes'],
   ];
   const instrWs = XLSX.utils.aoa_to_sheet(instrData);
-  instrWs['!cols'] = [{ wch: 80 }];
+  instrWs['!cols'] = [{ wch: 90 }];
   XLSX.utils.book_append_sheet(wb, instrWs, 'Instructions');
 
   XLSX.writeFile(wb, 'OSIOLOG_Import_Template.xlsx');
