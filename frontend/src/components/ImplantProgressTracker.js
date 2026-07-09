@@ -3,6 +3,74 @@ import { toast } from 'sonner';
 import { Clock, PencilSimple, CheckCircle } from '@phosphor-icons/react';
 import client from '../api/client';
 
+function EditableDate({ label, value, field, implantId, onUpdate, testId }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const [saving, setSaving] = useState(false);
+
+  const displayDate = value
+    ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await client.patch(`/api/implants/${implantId}`, { [field]: draft || null });
+      toast.success(`${label} updated`);
+      setEditing(false);
+      onUpdate();
+    } catch {
+      toast.error(`Failed to update ${label.toLowerCase()}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="text-[10px] text-[#5C6773]">{label}:</span>
+        <input
+          type="date"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          data-testid={testId}
+          className="text-[10px] border border-[#82A098] rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#82A098]"
+        />
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="text-[10px] text-[#82A098] font-semibold hover:underline disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          onClick={() => { setEditing(false); setDraft(value || ''); }}
+          className="text-[10px] text-[#5C6773] hover:underline"
+        >
+          Cancel
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-[10px] text-[#5C6773]">
+        {label}: <span className="text-[#2A2F35] font-medium">{displayDate}</span>
+      </span>
+      <button
+        onClick={() => { setDraft(value || ''); setEditing(true); }}
+        data-testid={`edit-${field}-${implantId}`}
+        className="text-[#9CA3AF] hover:text-[#82A098] transition-colors"
+        title={`Edit ${label}`}
+      >
+        <PencilSimple size={10} />
+      </button>
+    </span>
+  );
+}
+
 const STAGES = [
   { id: 1, label: 'Implant Placement' },
   { id: 2, label: 'Second Stage / Impressions' },
@@ -205,15 +273,29 @@ const ImplantProgressTracker = ({ implant, onUpdate }) => {
         </div>
       )}
 
-      {/* Stage 2 date badge */}
+      {/* Stage 2 & 3 editable dates */}
       {currentStage >= 2 && implant.stage_2_date && (
-        <p className="text-[10px] text-[#5C6773] mt-1">
-          Stage 2 logged: {new Date(implant.stage_2_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        <p className="mt-1">
+          <EditableDate
+            label="Stage 2 logged"
+            value={implant.stage_2_date}
+            field="stage_2_date"
+            implantId={implant.id || implant._id}
+            onUpdate={onUpdate}
+            testId={`stage2-date-input-${implant._id}`}
+          />
         </p>
       )}
       {currentStage >= 3 && implant.stage_3_date && (
-        <p className="text-[10px] text-[#5C6773]">
-          Prosthesis delivered: {new Date(implant.stage_3_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        <p>
+          <EditableDate
+            label="Prosthesis delivered"
+            value={implant.stage_3_date}
+            field="stage_3_date"
+            implantId={implant.id || implant._id}
+            onUpdate={onUpdate}
+            testId={`stage3-date-input-${implant._id}`}
+          />
         </p>
       )}
 
