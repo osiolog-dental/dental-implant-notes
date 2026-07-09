@@ -1555,41 +1555,96 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Excel file")
 
+    # Accept alternate sheet names (reference doc uses different names)
+    SHEET_ALIASES = {
+        "Patients":  ["Patients", "Patient Log", "Patients Log", "Patient Data"],
+        "Implants":  ["Implants", "Implant Log", "Implant Data", "Patient Log"],
+        "FPD":       ["FPD", "FPD Log", "Crown", "Crowns"],
+    }
+
+    # Column name aliases — map reference-doc column names → our canonical names
+    COLUMN_ALIASES = {
+        "Patient Name":            ["Patient Name", "patient name", "Name", "Patient"],
+        "Age":                     ["Age", "age"],
+        "Gender":                  ["Gender", "gender", "Sex"],
+        "Phone":                   ["Phone", "phone", "Mobile", "Contact"],
+        "Medical History":         ["Medical History", "medical history", "Medical"],
+        "Tooth Number":            ["Tooth Number", "Tooth / Site #", "Tooth", "Site", "Tooth No", "tooth_number", "Tooth#"],
+        "Brand":                   ["Brand", "Implant Brand", "brand", "Manufacturer"],
+        "Implant System":          ["Implant System", "System", "implant_system", "System Name"],
+        "Size (Diameter mm)":      ["Size (Diameter mm)", "Implant Diameter (mm)", "Diameter", "Diameter (mm)", "diameter_mm", "Size"],
+        "Length (mm)":             ["Length (mm)", "Implant Length (mm)", "Length", "length_mm"],
+        "Insertion Torque (Ncm)":  ["Insertion Torque (Ncm)", "Torque Value (Ncm)", "Torque", "Insertion Torque", "torque"],
+        "Cover Screw":             ["Cover Screw", "cover_screw"],
+        "Healing Abutment":        ["Healing Abutment", "healing_abutment"],
+        "Bone Graft":              ["Bone Graft", "Bone Graft Used", "bone_graft", "Graft"],
+        "Membrane Used":           ["Membrane Used", "membrane_used", "Membrane"],
+        "ISQ Value":               ["ISQ Value", "ISQ", "isq_value"],
+        "Surgery Date":            ["Surgery Date", "Date of Surgery", "Surgery", "surgery_date"],
+        "Follow Up Date":          ["Follow Up Date", "Follow-up Date", "Followup Date", "follow_up_date"],
+        "Surgeon Name":            ["Surgeon Name", "Surgeon", "surgeon_name", "Doctor"],
+        "Arch":                    ["Arch", "arch"],
+        "Jaw Region":              ["Jaw Region", "jaw_region", "Region"],
+        "Clinical Notes":          ["Clinical Notes", "Notes / Complications", "Notes", "clinical_notes", "Complications"],
+    }
+
+    def normalise_headers(raw_headers):
+        """Map any column name variant to our canonical name."""
+        result = []
+        alias_map = {}
+        for canon, variants in COLUMN_ALIASES.items():
+            for v in variants:
+                alias_map[v.lower().strip()] = canon
+        for h in raw_headers:
+            if h is None:
+                result.append("")
+                continue
+            clean = str(h).split("←")[0].split("<-")[0].strip()
+            result.append(alias_map.get(clean.lower(), clean))
+        return result
+
+    def find_sheet(canonical_name):
+        """Return the first matching sheet name from aliases, or None."""
+        for alias in SHEET_ALIASES.get(canonical_name, [canonical_name]):
+            if alias in wb.sheetnames:
+                return alias
+        return None
+
     def sheet_rows(sheet_name):
-        if sheet_name not in wb.sheetnames:
+        actual = find_sheet(sheet_name)
+        if not actual:
             return []
-        ws = wb[sheet_name]
+        ws = wb[actual]
         all_rows = list(ws.iter_rows(min_row=1, values_only=True))
         if not all_rows:
             return []
 
-        # Row 1 = headers. Strip arrow suffixes added by template (e.g. "Patient Name ← from Patients sheet")
-        raw_headers = all_rows[0]
-        headers = []
-        for h in raw_headers:
-            if h is None:
-                headers.append("")
-            else:
-                # Normalise: strip everything from ← onwards, strip whitespace
-                clean = str(h).split("←")[0].split("<-")[0].strip()
-                headers.append(clean)
+        # Find the actual header row — skip title/subtitle rows (merged cells, no column structure)
+        # A header row has multiple non-null values across columns
+        header_row_idx = 0
+        for i, row in enumerate(all_rows[:5]):
+            non_null = [v for v in row if v is not None]
+            if len(non_null) >= 3:
+                header_row_idx = i
+                break
 
-        # Row 2 may be a notes/instruction row — skip it if it looks like one
-        # (all values are short hint strings, not real data)
-        data_start = 1  # 0-based index into all_rows; default = row 2
-        if len(all_rows) > 1:
-            second = all_rows[1]
-            non_null = [v for v in second if v is not None]
-            # Notes row: values are strings that look like hints, not numbers/dates
-            all_strings = all(isinstance(v, str) for v in non_null)
-            if all_strings and len(non_null) > 0:
-                data_start = 2  # skip notes row → data starts row 3
+        raw_headers = all_rows[header_row_idx]
+        headers = normalise_headers(raw_headers)
 
-        # Also load the formula workbook for this sheet so we can read
-        # patient names from formula cells (=Patients!A3 etc.) when
-        # the file was never opened in Excel (data_only returns None)
-        ws_formula = wb_formulas[sheet_name] if sheet_name in wb_formulas.sheetnames else None
-        pat_ws_formula = wb_formulas["Patients"] if "Patients" in wb_formulas.sheetnames else None
+        # Data starts one row after the header row
+        # But also skip any notes/instruction row immediately after headers
+        data_start = header_row_idx + 1
+        if data_start < len(all_rows):
+            next_row = all_rows[data_start]
+            non_null = [v for v in next_row if v is not None]
+            # Notes row: all strings, no numbers
+            if non_null and all(isinstance(v, str) for v in non_null):
+                data_start += 1
+
+        actual_formula = find_sheet(sheet_name)
+        ws_formula = wb_formulas[actual_formula] if actual_formula and actual_formula in wb_formulas.sheetnames else None
+        pat_actual = find_sheet("Patients")
+        pat_ws_formula = wb_formulas[pat_actual] if pat_actual and pat_actual in wb_formulas.sheetnames else None
 
         def resolve_patient_name_from_formula(excel_row_1based):
             """If col A of this row is a formula referencing Patients sheet, resolve it."""
@@ -1634,24 +1689,45 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         return str(v).lower() in ("yes", "true", "1", "y")
 
     def parse_date(row, *keys):
-        """Accept DD-MM-YYYY or YYYY-MM-DD, return YYYY-MM-DD string or None."""
+        """Accept DD-MM-YYYY, YYYY-MM-DD, or Excel serial number → YYYY-MM-DD string."""
         raw = val(row, *keys)
         if not raw:
             return None
-        raw = str(raw).strip()
+        raw_str = str(raw).strip()
+        # Excel serial date (e.g. 45306 = a number with no dashes)
+        try:
+            serial = float(raw_str)
+            if serial > 1000:  # looks like a serial, not a day/month number
+                from datetime import date as _date
+                excel_epoch = _date(1899, 12, 30)
+                from datetime import timedelta as _td
+                return (_date.fromordinal(excel_epoch.toordinal() + int(serial))).strftime("%Y-%m-%d")
+        except (ValueError, OverflowError):
+            pass
         for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
             try:
-                return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+                return datetime.strptime(raw_str, fmt).strftime("%Y-%m-%d")
             except ValueError:
                 continue
-        return raw  # return as-is if no format matched
+        return raw_str  # return as-is if no format matched
 
     errors = []
     results = {"patients": 0, "implants": 0, "fpd": 0}
 
     # ── PATIENTS ──
+    # If no dedicated Patients sheet, auto-extract unique patient names from Implants sheet
     patient_name_map = {}  # name (lower) → _id string
-    for i, row in enumerate(sheet_rows("Patients"), start=2):
+    pat_rows = sheet_rows("Patients")
+    if not pat_rows:
+        # Reference-doc style: extract unique names from Patient Log / Implants sheet
+        seen_names = {}
+        for row in sheet_rows("Implants"):
+            name = val(row, "Patient Name")
+            if name and name.lower() not in seen_names:
+                seen_names[name.lower()] = {"Patient Name": name, "Age": "", "Gender": "", "Phone": "", "Email": "", "Address": "", "Medical History": ""}
+        pat_rows = list(seen_names.values())
+
+    for i, row in enumerate(pat_rows, start=2):
         name = val(row, "Patient Name", "name")
         if not name:
             errors.append(f"Patients row {i}: Missing patient name — skipped")
@@ -1718,7 +1794,9 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
             errors.append(f"Implants row {i}: Patient '{pname}' not found — skipped")
             continue
         try:
-            tooth = int(float(val(row, "Tooth Number", "tooth_number") or 0))
+            raw_tooth = val(row, "Tooth Number", "tooth_number") or "0"
+            raw_tooth = str(raw_tooth).replace("#", "").strip()  # handle "#14" → "14"
+            tooth = int(float(raw_tooth))
         except Exception:
             errors.append(f"Implants row {i}: Invalid tooth number — skipped")
             continue
