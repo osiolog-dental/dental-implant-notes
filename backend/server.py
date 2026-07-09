@@ -157,7 +157,7 @@ class PatientCreate(BaseModel):
     name: str
     age: int
     gender: str
-    phone: str
+    phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
     medical_history: Optional[str] = None

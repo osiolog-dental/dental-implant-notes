@@ -159,15 +159,15 @@ const Patients = () => {
                   </select>
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone *</Label>
+                  <Label htmlFor="phone">Phone <span className="text-[#9CA3AF] font-normal text-xs">(optional)</span></Label>
                   <Input
                     id="phone"
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    required
                     data-testid="patient-phone-input"
                     className="mt-1"
+                    placeholder="Can be added later"
                   />
                 </div>
               </div>

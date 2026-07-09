@@ -962,8 +962,8 @@ const PatientDetails = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Primary Phone *</Label>
-                <Input value={editPatientData.phone || ''} onChange={e => setEditPatientData(p => ({ ...p, phone: e.target.value }))} required data-testid="edit-patient-phone" className="mt-1" placeholder="+91 98765 43210" />
+                <Label className="text-xs">Primary Phone <span className="text-[#9CA3AF] font-normal">(optional)</span></Label>
+                <Input value={editPatientData.phone || ''} onChange={e => setEditPatientData(p => ({ ...p, phone: e.target.value }))} data-testid="edit-patient-phone" className="mt-1" placeholder="+91 98765 43210" />
               </div>
               <div>
                 <Label className="text-xs">Emergency / Alternate Phone</Label>
