@@ -1577,6 +1577,19 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         v = val(row, key, default="")
         return str(v).lower() in ("yes", "true", "1", "y")
 
+    def parse_date(row, *keys):
+        """Accept DD-MM-YYYY or YYYY-MM-DD, return YYYY-MM-DD string or None."""
+        raw = val(row, *keys)
+        if not raw:
+            return None
+        raw = str(raw).strip()
+        for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return raw  # return as-is if no format matched
+
     errors = []
     results = {"patients": 0, "implants": 0, "fpd": 0}
 
@@ -1655,9 +1668,9 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
             "healing_abutment": boolval(row, "Healing Abutment"),
             "membrane_used": boolval(row, "Membrane Used"),
             "isq_value": float(val(row, "ISQ Value", "isq_value") or 0) or None,
-            "surgery_date": val(row, "Surgery Date", "surgery_date"),
-            "prosthetic_loading_date": val(row, "Prosthetic Loading Date", "prosthetic_loading_date"),
-            "follow_up_date": val(row, "Follow Up Date", "follow_up_date"),
+            "surgery_date": parse_date(row, "Surgery Date", "surgery_date"),
+            "prosthetic_loading_date": parse_date(row, "Prosthetic Loading Date", "prosthetic_loading_date"),
+            "follow_up_date": parse_date(row, "Follow Up Date", "follow_up_date"),
             "surgeon_name": val(row, "Surgeon Name", "surgeon_name"),
             "implant_outcome": val(row, "Outcome", "implant_outcome") or "Pending",
             "osseointegration_success": boolval(row, "Osseointegration Success"),
@@ -1700,7 +1713,7 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
             "crown_count": val(row, "Crown Count") or "Single",
             "crown_type": val(row, "Crown Type") or "Screw Retained",
             "crown_material": val(row, "Crown Material") or "Zirconia",
-            "prosthetic_loading_date": val(row, "Prosthetic Loading Date"),
+            "prosthetic_loading_date": parse_date(row, "Prosthetic Loading Date"),
             "consultant_prosthodontist": val(row, "Consultant Prosthodontist"),
             "lab_name": val(row, "Dental Lab"),
             "clinical_notes": val(row, "Clinical Notes"),

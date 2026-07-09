@@ -20,51 +20,52 @@ const PATIENT_COLS = [
   { header: 'Medical History', note: 'Allergies, conditions, medications etc.' },
 ];
 
+// default: value pre-filled in every blank data row; dateCol: format as DD-MM-YYYY
 const IMPLANT_COLS = [
-  { header: 'Patient Name',            note: 'Must match exactly a name in Patients sheet (required)' },
+  { header: 'Patient Name',            note: 'Auto-filled from Patients sheet (required)' },
   { header: 'Tooth Number',            note: 'FDI number e.g. 11, 16, 36 (required)' },
-  { header: 'Implant Type',            note: 'Single / Multiple / Full Arch' },
+  { header: 'Implant Type',            note: 'Single / Multiple / Full Arch',          default: 'Single' },
   { header: 'Brand',                   note: 'e.g. Straumann, Nobel Biocare' },
   { header: 'Size (Diameter mm)',      note: 'e.g. 3.3' },
   { header: 'Length (mm)',             note: 'e.g. 10' },
   { header: 'Insertion Torque (Ncm)',  note: 'Number e.g. 35' },
   { header: 'Connection Type',         note: 'e.g. Internal Hex, Conical' },
-  { header: 'Surgical Approach',       note: 'Flapless / Flap' },
-  { header: 'Arch',                    note: 'Upper / Lower' },
-  { header: 'Jaw Region',              note: 'Anterior / Posterior' },
+  { header: 'Surgical Approach',       note: 'Flapless / Flap',                        default: 'Flapless' },
+  { header: 'Arch',                    note: 'Upper / Lower',                           default: 'Upper' },
+  { header: 'Jaw Region',              note: 'Anterior / Posterior',                    default: 'Posterior' },
   { header: 'Implant System',          note: 'Product line / system name' },
-  { header: 'Bone Graft',              note: 'e.g. Autograft, Xenograft, None' },
-  { header: 'Sinus Lift Type',         note: 'Lateral / Crestal / None' },
-  { header: 'Pterygoid',               note: 'Yes / No' },
-  { header: 'Zygomatic',               note: 'Yes / No' },
-  { header: 'Subperiosteal',           note: 'Yes / No' },
-  { header: 'Cover Screw',             note: 'Yes / No' },
-  { header: 'Healing Abutment',        note: 'Yes / No' },
-  { header: 'Membrane Used',           note: 'Yes / No' },
+  { header: 'Bone Graft',              note: 'Autograft / Xenograft / None',            default: 'None' },
+  { header: 'Sinus Lift Type',         note: 'Lateral / Crestal / None',               default: 'None' },
+  { header: 'Pterygoid',               note: 'Yes / No',                               default: 'No' },
+  { header: 'Zygomatic',               note: 'Yes / No',                               default: 'No' },
+  { header: 'Subperiosteal',           note: 'Yes / No',                               default: 'No' },
+  { header: 'Cover Screw',             note: 'Yes / No',                               default: 'No' },
+  { header: 'Healing Abutment',        note: 'Yes / No',                               default: 'No' },
+  { header: 'Membrane Used',           note: 'Yes / No',                               default: 'No' },
   { header: 'ISQ Value',               note: 'Implant Stability Quotient (number)' },
-  { header: 'Surgery Date',            note: 'YYYY-MM-DD' },
-  { header: 'Prosthetic Loading Date', note: 'YYYY-MM-DD' },
-  { header: 'Follow Up Date',          note: 'YYYY-MM-DD' },
+  { header: 'Surgery Date',            note: 'DD-MM-YYYY  e.g. 15-01-2025',            dateCol: true },
+  { header: 'Prosthetic Loading Date', note: 'DD-MM-YYYY  e.g. 20-04-2025',            dateCol: true },
+  { header: 'Follow Up Date',          note: 'DD-MM-YYYY  e.g. 15-07-2025',            dateCol: true },
   { header: 'Surgeon Name',            note: 'Operating surgeon' },
-  { header: 'Outcome',                 note: 'Pending / Success / Failed' },
-  { header: 'Osseointegration Success',note: 'Yes / No' },
-  { header: 'Peri-Implant Health',     note: 'Yes / No' },
+  { header: 'Outcome',                 note: 'Pending / Success / Failed',              default: 'Pending' },
+  { header: 'Osseointegration Success',note: 'Yes / No',                               default: 'No' },
+  { header: 'Peri-Implant Health',     note: 'Yes / No',                               default: 'No' },
   { header: 'Case Number',             note: 'Your internal case reference' },
-  { header: 'Consultant Surgeon',      note: 'Visiting/consultant surgeon who performed surgery (if different from treating doctor)' },
+  { header: 'Consultant Surgeon',      note: 'Visiting/consultant surgeon (if different from treating doctor)' },
   { header: 'Clinical Notes',          note: 'Any additional clinical notes' },
   { header: 'Notes',                   note: 'General notes' },
 ];
 
 const FPD_COLS = [
-  { header: 'Patient Name',            note: 'Must match exactly a name in Patients sheet (required)' },
+  { header: 'Patient Name',            note: 'Auto-filled from Patients sheet (required)' },
   { header: 'Tooth Numbers',           note: 'Comma-separated FDI numbers e.g. 13,14,15 (required)' },
-  { header: 'Crown Count',             note: 'Single / Multiple' },
-  { header: 'Crown Type',              note: 'Screw Retained / Cement Retained' },
-  { header: 'Crown Material',              note: 'Zirconia / Porcelain fused to metal / Metal / PFZ / Emax' },
-  { header: 'Prosthetic Loading Date',     note: 'YYYY-MM-DD' },
-  { header: 'Consultant Prosthodontist',   note: 'Visiting/consultant prosthodontist who did this case (if different from treating doctor)' },
-  { header: 'Dental Lab',                  note: 'Name of lab that fabricated the crowns' },
-  { header: 'Clinical Notes',              note: 'Any clinical observations or adjustments' },
+  { header: 'Crown Count',             note: 'Single / Multiple',                      default: 'Single' },
+  { header: 'Crown Type',              note: 'Screw Retained / Cement Retained',       default: 'Screw Retained' },
+  { header: 'Crown Material',          note: 'Zirconia / PFM / Metal / PFZ / Emax',   default: 'Zirconia' },
+  { header: 'Prosthetic Loading Date', note: 'DD-MM-YYYY  e.g. 01-05-2025',           dateCol: true },
+  { header: 'Consultant Prosthodontist', note: 'Visiting prosthodontist (if different from treating doctor)' },
+  { header: 'Dental Lab',              note: 'Name of lab that fabricated the crowns' },
+  { header: 'Clinical Notes',          note: 'Any clinical observations or adjustments' },
 ];
 
 /* Sample data rows for each sheet */
@@ -74,13 +75,13 @@ const PATIENT_SAMPLE = [
 ];
 
 const IMPLANT_SAMPLE = [
-  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '2025-01-15', '2025-04-20', '2025-07-15', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'Uneventful healing', ''],
-  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '2025-03-10', '', '2025-09-10', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', '', 'Watch bone graft site'],
+  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'Uneventful healing', ''],
+  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', '', 'Watch bone graft site'],
 ];
 
 const FPD_SAMPLE = [
-  ['John Doe', '13,14,15', 'Multiple', 'Screw Retained', 'Zirconia', '2025-05-01', 'Dr. Anita (Prosthodontist)', 'Precision Dental Lab', 'Patient satisfied with aesthetics'],
-  ['Priya Sharma', '35', 'Single', 'Cement Retained', 'Porcelain fused to metal', '2025-06-15', '', 'City Ceramics Lab', ''],
+  ['John Doe', '13,14,15', 'Multiple', 'Screw Retained', 'Zirconia', '01-05-2025', 'Dr. Anita (Prosthodontist)', 'Precision Dental Lab', 'Patient satisfied with aesthetics'],
+  ['Priya Sharma', '35', 'Single', 'Cement Retained', 'Porcelain fused to metal', '15-06-2025', '', 'City Ceramics Lab', ''],
 ];
 
 // Number of patient rows the dropdown will cover in Implants/FPD sheets
@@ -125,11 +126,10 @@ function downloadTemplate() {
 
   XLSX.utils.book_append_sheet(wb, patWs, 'Patients');
 
-  /* ── Helper: build Implant/FPD sheet with Patient Name linked to Patients sheet ──
-     Every data row in col A (rows 3 onwards, Excel 1-based) contains:
-       =Patients!A3   =Patients!A4   ... up to MAX_PATIENT_ROWS
-     As the doctor fills names in the Patients sheet, they appear here instantly.
-     Sample data in other columns still shows so the format is clear.
+  /* ── Helper: build Implant/FPD sheet ──
+     • Col A: =Patients!A{n} formula → auto-copies patient name from Patients sheet
+     • Cols with default: pre-filled for every blank data row (rows after sample)
+     • Date cols: formatted as text @, placeholder hint shown so Excel won't mangle DD-MM-YYYY
   */
   const makeLinkedSheet = (cols, sampleRows) => {
     const headers = [...cols.map(c => c.header)];
@@ -138,25 +138,47 @@ function downloadTemplate() {
     const notes = [...cols.map(c => c.note)];
     notes[0] = 'Auto-filled from Patients sheet col A. Fill Patients sheet first.';
 
-    // Build sample rows with col A removed (will be replaced by formulas below)
+    // Sample rows: strip col A (replaced by formula), keep rest
     const sampleWithoutName = sampleRows.map(row => ['', ...row.slice(1)]);
 
-    // Row layout: 0=headers, 1=notes, 2=blank spacer, 3..=sample data
+    // Row layout: 0=headers, 1=notes, 2=blank spacer, 3..=sample rows
     const data = [headers, notes, [], ...sampleWithoutName];
     const ws = XLSX.utils.aoa_to_sheet(data);
     styleSheet(ws, cols);
 
-    // Inject =Patients!A{n} formula for every data row (index 2 onwards = Excel row 3+)
-    // Row index r → Excel row r+1 → reference Patients!A(r+1)
+    const sampleCount = sampleRows.length;
+
+    // ── Inject formulas + defaults for every data row ──
     for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
-      const excelRow = r + 1; // convert 0-based index to 1-based Excel row
-      const cellAddr = XLSX.utils.encode_cell({ r, c: 0 });
-      ws[cellAddr] = { t: 'f', f: `Patients!A${excelRow}` };
+      const excelRow = r + 1;
+      const isBlankRow = r >= 2 + sampleCount; // rows after sample get defaults
+
+      // Col A → formula linking to Patients sheet
+      ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'f', f: `Patients!A${excelRow}` };
+
+      // Other columns
+      cols.forEach((col, c) => {
+        if (c === 0) return; // already handled above
+        const addr = XLSX.utils.encode_cell({ r, c });
+
+        if (col.dateCol) {
+          // Force text format so Excel doesn't auto-convert DD-MM-YYYY to a date serial
+          if (isBlankRow) {
+            ws[addr] = { t: 's', v: '', z: '@' };
+          } else if (ws[addr]) {
+            ws[addr].z = '@'; // apply text format to existing sample cell
+          }
+        } else if (isBlankRow && col.default !== undefined) {
+          // Pre-fill default value
+          ws[addr] = { t: 's', v: col.default };
+        }
+      });
     }
 
-    // Expand the sheet ref to cover all formula rows
+    // Expand the sheet ref to cover all rows
     const sheetRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
     sheetRange.e.r = Math.max(sheetRange.e.r, MAX_PATIENT_ROWS + 1);
+    sheetRange.e.c = Math.max(sheetRange.e.c, cols.length - 1);
     ws['!ref'] = XLSX.utils.encode_range(sheetRange);
 
     return ws;
@@ -179,8 +201,8 @@ function downloadTemplate() {
     ['6. Upload this file from the Account page → Bulk Import section.'],
     [''],
     ['IMPORTANT NOTES'],
-    ['• Patient Name dropdown in Implants/FPD sheets is linked to Patients sheet column A.'],
-    ['• Dates must be in YYYY-MM-DD format (e.g. 2025-03-15).'],
+    ['• Patient Name in Implants/FPD sheets is auto-filled from the Patients sheet col A.'],
+    ['• Dates must be in DD-MM-YYYY format (e.g. 15-03-2025). Type as text, not as a date.'],
     ['• Yes/No fields: type Yes or No (not TRUE/FALSE).'],
     ['• FPD Tooth Numbers: comma-separated (e.g. 13,14,15).'],
     ['• Consultant Surgeon / Prosthodontist: leave blank if not applicable.'],
