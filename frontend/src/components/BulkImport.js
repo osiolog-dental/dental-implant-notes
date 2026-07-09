@@ -125,41 +125,39 @@ function downloadTemplate() {
 
   XLSX.utils.book_append_sheet(wb, patWs, 'Patients');
 
-  /* ── Helper: build Implant/FPD sheet with auto-linked Patient Name column ──
-     Column A rows 3+ are formula cells: =IF(Patients!A3<>"",Patients!A3,"")
-     This means as names are typed in the Patients sheet they instantly appear
-     here. The doctor can also type a name directly to override.
+  /* ── Helper: build Implant/FPD sheet with Patient Name linked to Patients sheet ──
+     Every data row in col A (rows 3 onwards, Excel 1-based) contains:
+       =Patients!A3   =Patients!A4   ... up to MAX_PATIENT_ROWS
+     As the doctor fills names in the Patients sheet, they appear here instantly.
+     Sample data in other columns still shows so the format is clear.
   */
   const makeLinkedSheet = (cols, sampleRows) => {
-    const headers = cols.map(c => c.header);
-    // Mark col A header to make the link obvious
-    const linkedHeaders = [...headers];
-    linkedHeaders[0] = 'Patient Name (auto-linked from Patients sheet)';
+    const headers = [...cols.map(c => c.header)];
+    headers[0] = 'Patient Name ← from Patients sheet';
 
-    const notes = cols.map(c => c.note);
-    const linkedNotes = [...notes];
-    linkedNotes[0] = '⬅ Names typed in Patients sheet col A appear here automatically. You can also type directly.';
+    const notes = [...cols.map(c => c.note)];
+    notes[0] = 'Auto-filled from Patients sheet col A. Fill Patients sheet first.';
 
-    // Build data array: header, notes, blank separator, then sample rows
-    const data = [linkedHeaders, linkedNotes, [], ...sampleRows];
+    // Build sample rows with col A removed (will be replaced by formulas below)
+    const sampleWithoutName = sampleRows.map(row => ['', ...row.slice(1)]);
+
+    // Row layout: 0=headers, 1=notes, 2=blank spacer, 3..=sample data
+    const data = [headers, notes, [], ...sampleWithoutName];
     const ws = XLSX.utils.aoa_to_sheet(data);
     styleSheet(ws, cols);
 
-    // Inject formula cells for col A rows 3 to MAX_PATIENT_ROWS+2
-    // (row indices 2 to MAX_PATIENT_ROWS+1, 0-based)
-    // Skip the first sampleRows.length rows so sample data is preserved
-    const sampleCount = sampleRows.length;
-    for (let r = 2 + sampleCount; r < MAX_PATIENT_ROWS + 2; r++) {
-      // r=2 → Excel row 3, maps to Patients!A3
-      const patientsRow = r + 1; // Excel 1-based row in Patients sheet
+    // Inject =Patients!A{n} formula for every data row (index 2 onwards = Excel row 3+)
+    // Row index r → Excel row r+1 → reference Patients!A(r+1)
+    for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
+      const excelRow = r + 1; // convert 0-based index to 1-based Excel row
       const cellAddr = XLSX.utils.encode_cell({ r, c: 0 });
-      ws[cellAddr] = { t: 'str', f: `IF(Patients!A${patientsRow}<>"",Patients!A${patientsRow},"")` };
+      ws[cellAddr] = { t: 'f', f: `Patients!A${excelRow}` };
     }
 
-    // Extend the sheet range to cover the formula rows
-    const existingRange = XLSX.utils.decode_range(ws['!ref']);
-    existingRange.e.r = Math.max(existingRange.e.r, MAX_PATIENT_ROWS + 1);
-    ws['!ref'] = XLSX.utils.encode_range(existingRange);
+    // Expand the sheet ref to cover all formula rows
+    const sheetRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    sheetRange.e.r = Math.max(sheetRange.e.r, MAX_PATIENT_ROWS + 1);
+    ws['!ref'] = XLSX.utils.encode_range(sheetRange);
 
     return ws;
   };
