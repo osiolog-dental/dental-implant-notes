@@ -67,22 +67,42 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-      {/* Left Side - Image */}
-      <div 
-        className="hidden lg:flex lg:w-1/2 bg-cover bg-center relative"
-        style={{
-          backgroundImage: 'url(https://images.pexels.com/photos/1029624/pexels-photo-1029624.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940)'
-        }}
-      >
-        <div className="absolute inset-0 bg-[#2A4A44] opacity-55"></div>
-        <div className="relative z-10 flex items-center justify-center w-full p-12">
-          <div className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
-            <img src="/tooth_logo.png" alt="OSIOLOG logo" style={{ width: 80, height: 80, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
-            <h1 className="text-6xl font-bold mt-6 tracking-wide" style={{ fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.08em' }}>OSIOLOG</h1>
-            <div className="mt-1 h-0.5 w-16 bg-[#C27E70] rounded-full"></div>
-            <p className="text-lg mt-4 font-light tracking-widest uppercase opacity-95" style={{ letterSpacing: '0.18em' }}>Dental Implant Management System</p>
+    <div className="min-h-screen flex flex-col lg:flex-row" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+
+      {/* Left Panel — hexagon background + app icon */}
+      <div className="lg:w-1/2 relative flex items-center justify-center overflow-hidden"
+        style={{ background: 'linear-gradient(145deg, #1f3d38 0%, #2A4A44 50%, #1a3330 100%)', minHeight: 220 }}>
+
+        {/* Hexagon SVG tiled background */}
+        <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.18 }}>
+          <defs>
+            <pattern id="hex" x="0" y="0" width="56" height="97" patternUnits="userSpaceOnUse">
+              {/* Row 1 hex */}
+              <polygon points="28,2 54,16 54,44 28,58 2,44 2,16"
+                fill="none" stroke="#82A098" strokeWidth="1.5" />
+              {/* Row 2 hex offset */}
+              <polygon points="56,50 82,64 82,92 56,106 30,92 30,64"
+                fill="none" stroke="#82A098" strokeWidth="1.5" />
+              <polygon points="0,50 26,64 26,92 0,106 -26,92 -26,64"
+                fill="none" stroke="#82A098" strokeWidth="1.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#hex)" />
+        </svg>
+
+        {/* Branding content */}
+        <div className="relative z-10 flex flex-col items-center py-10 lg:py-0 px-8"
+          style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}>
+          {/* App icon in circle */}
+          <div className="rounded-full flex items-center justify-center mb-6 shadow-2xl"
+            style={{ width: 110, height: 110, background: 'rgba(255,255,255,0.12)', border: '2.5px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(8px)' }}>
+            <img src="/icon-512.png" alt="OSIOLOG" style={{ width: 80, height: 80, objectFit: 'contain', borderRadius: 16 }} />
           </div>
+          <h1 className="text-5xl lg:text-6xl font-bold text-white tracking-widest"
+            style={{ fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.12em' }}>OSIOLOG</h1>
+          <div className="mt-2 h-0.5 w-16 bg-[#C27E70] rounded-full" />
+          <p className="text-sm mt-4 font-light text-white/80 tracking-widest uppercase text-center"
+            style={{ letterSpacing: '0.18em' }}>Dental Implant Management System</p>
         </div>
       </div>
 
