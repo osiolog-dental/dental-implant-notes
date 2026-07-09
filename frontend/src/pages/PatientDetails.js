@@ -165,6 +165,7 @@ const PatientDetails = () => {
   const [isBulkImplantOpen, setIsBulkImplantOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'implant'|'fpd'|'abutment'|'overdenture', id, label }
   const [deleting, setDeleting] = useState(false);
+  const [failedImplantConfirm, setFailedImplantConfirm] = useState(null); // { toothNumber }
 
   const DELETE_ENDPOINTS = {
     implant: (recId) => `/api/implants/${recId}`,
@@ -385,6 +386,16 @@ const PatientDetails = () => {
   };
 
   const openImplantLog = (toothNumber) => {
+    // If an implant already exists on this tooth, ask if the previous one failed
+    const existing = implants.find(i => i.tooth_number === toothNumber);
+    if (existing) {
+      setFailedImplantConfirm({ toothNumber });
+      return;
+    }
+    doOpenImplantLog(toothNumber);
+  };
+
+  const doOpenImplantLog = (toothNumber) => {
     setSelectedTooth(toothNumber);
     const arch = toothNumber <= 28 ? 'Upper' : 'Lower';
     const tens = Math.floor(toothNumber / 10);
@@ -1020,6 +1031,41 @@ const PatientDetails = () => {
           title={`Delete ${deleteTarget?.label || 'record'}?`}
           description="This will permanently remove this record from the patient's history. This cannot be undone."
         />
+
+        {/* Failed Implant Confirmation Dialog */}
+        {failedImplantConfirm && (
+          <Dialog open={!!failedImplantConfirm} onOpenChange={(open) => { if (!open) setFailedImplantConfirm(null); }}>
+            <DialogContent className="max-w-sm" data-testid="failed-implant-confirm-dialog">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-semibold text-[#2A2F35]">Implant Already Recorded</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-[#5C6773] mt-1">
+                Tooth <strong>#{failedImplantConfirm.toothNumber}</strong> already has an implant on record.
+                Did the previous implant fail? Add a new implant only if the old one was removed.
+              </p>
+              <div className="flex gap-3 mt-4">
+                <button
+                  data-testid="failed-implant-cancel-btn"
+                  onClick={() => setFailedImplantConfirm(null)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-[#E5E5E2] text-sm font-semibold text-[#5C6773] hover:bg-[#F9F9F8] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  data-testid="failed-implant-confirm-btn"
+                  onClick={() => {
+                    const tn = failedImplantConfirm.toothNumber;
+                    setFailedImplantConfirm(null);
+                    doOpenImplantLog(tn);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-[#C27E70] text-white text-sm font-semibold hover:bg-[#b06d60] transition-colors"
+                >
+                  Yes, Add New Implant
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Implant Dialog (opened via chart tooth click) */}
         <div>

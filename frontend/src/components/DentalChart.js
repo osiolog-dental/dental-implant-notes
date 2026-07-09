@@ -195,13 +195,11 @@ export default function DentalChart({
         ) : hasImp ? (
           /* ── IMPLANT: screw in root zone, crown/fpd in crown zone ── */
           <>
-            <foreignObject x={sx + 6} y={rootY} width={SLOT - 12} height={ROOT_H} style={{ pointerEvents: 'none' }}>
-              <img src={implantSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-            </foreignObject>
+            <image href={implantSrc} x={sx + 6} y={rootY} width={SLOT - 12} height={ROOT_H}
+              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
             {(hasCrownOnImp || hasFpd) ? (
-              <foreignObject x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H} style={{ pointerEvents: 'none' }}>
-                <img src={hasFpd ? fpdSrc : crownSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-              </foreignObject>
+              <image href={hasFpd ? fpdSrc : crownSrc} x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
+                preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
             ) : (
               <line
                 x1={sx + 6} y1={up ? crownY : rootY}
@@ -214,12 +212,10 @@ export default function DentalChart({
         ) : hasFpd ? (
           /* ── FPD CROWN ONLY: green crown + natural root ── */
           <>
-            <foreignObject x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H} style={{ pointerEvents: 'none' }}>
-              <img src={rootSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-            </foreignObject>
-            <foreignObject x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H} style={{ pointerEvents: 'none' }}>
-              <img src={fpdSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-            </foreignObject>
+            <image href={rootSrc} x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H}
+              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
+            <image href={fpdSrc} x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
+              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
             {cfg.tint && (
               <rect x={sx + 2} y={rootY} width={SLOT - 4} height={slotH}
                 rx={4} fill={cfg.tint} style={{ pointerEvents: 'none' }} />
@@ -229,10 +225,9 @@ export default function DentalChart({
         ) : (
           /* ── NATURAL TOOTH: full tooth PNG ── */
           <>
-            <foreignObject x={sx + 2} y={slotTop} width={SLOT - 4} height={ROOT_H + CROWN_H}
-              style={{ pointerEvents: 'none', opacity: condition === 'healthy' ? 1 : 0.85 }}>
-              <img src={toothSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-            </foreignObject>
+            <image href={toothSrc} x={sx + 2} y={slotTop} width={SLOT - 4} height={ROOT_H + CROWN_H}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ pointerEvents: 'none', opacity: condition === 'healthy' ? 1 : 0.85 }} />
             {cfg.tint && (
               <rect x={sx + 2} y={slotTop} width={SLOT - 4} height={slotH}
                 rx={4} fill={cfg.tint} style={{ pointerEvents: 'none' }} />
