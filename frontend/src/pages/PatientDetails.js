@@ -66,6 +66,7 @@ const INITIAL_IMPLANT = {
 
 const INITIAL_FPD = {
   tooth_numbers: [],
+  tooth_roles: {},      // { [toothNumber]: 'abutment' | 'pontic' }
   prosthetic_loading_date: '',
   crown_count: 'Single',
   connected_implant_ids: [],
@@ -640,6 +641,7 @@ const PatientDetails = () => {
   const openEditFpd = (fpd) => {
     setFpdData({
       tooth_numbers: fpd.tooth_numbers || [],
+      tooth_roles: fpd.tooth_roles || {},
       prosthetic_loading_date: fpd.prosthetic_loading_date || '',
       crown_count: fpd.crown_count || 'Single',
       connected_implant_ids: fpd.connected_implant_ids || [],
@@ -1309,10 +1311,74 @@ const PatientDetails = () => {
                   </div>
                 </div>
 
+                {/* Bridge connection diagram — shown once teeth are selected */}
+                {fpdData.tooth_numbers.length > 0 && (
+                  <div className="rounded-xl border border-[#E5E5E2] bg-[#F9F9F8] p-4">
+                    <Label className="text-xs block mb-3">
+                      Bridge Connection
+                      <span className="text-[#9CA3AF] font-normal ml-1">— tap each tooth to mark as Abutment or Pontic</span>
+                    </Label>
+                    <div className="flex items-center gap-0 flex-wrap justify-center">
+                      {[...fpdData.tooth_numbers].sort((a, b) => a - b).map((tn, idx, arr) => {
+                        const role = fpdData.tooth_roles?.[tn] || 'abutment';
+                        const hasImpHere = implants.some(i => i.tooth_number === tn);
+                        const isAbutment = role === 'abutment';
+                        return (
+                          <div key={tn} className="flex items-center">
+                            {idx > 0 && (
+                              <div className="w-6 h-1 bg-[#16A34A] rounded-full mx-0.5" />
+                            )}
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                type="button"
+                                data-testid={`bridge-role-${tn}`}
+                                onClick={() => setFpdData(prev => ({
+                                  ...prev,
+                                  tooth_roles: {
+                                    ...(prev.tooth_roles || {}),
+                                    [tn]: (prev.tooth_roles?.[tn] || 'abutment') === 'abutment' ? 'pontic' : 'abutment',
+                                  }
+                                }))}
+                                className={`w-11 h-11 rounded-lg text-xs font-bold border-2 transition-colors relative ${
+                                  isAbutment
+                                    ? 'bg-[#0369A1] text-white border-[#0369A1]'
+                                    : 'bg-white text-[#16A34A] border-[#16A34A] border-dashed'
+                                }`}
+                              >
+                                {tn}
+                                {hasImpHere && (
+                                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#C27E70] rounded-full border-2 border-white" title="Implant present" />
+                                )}
+                              </button>
+                              <span className={`text-[9px] font-semibold uppercase tracking-wide ${isAbutment ? 'text-[#0369A1]' : 'text-[#16A34A]'}`}>
+                                {isAbutment ? 'Abut.' : 'Pontic'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-4 mt-3 justify-center">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-4 rounded bg-[#0369A1]" />
+                        <span className="text-[10px] text-[#5C6773]">Abutment (support tooth)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-4 rounded border-2 border-dashed border-[#16A34A]" />
+                        <span className="text-[10px] text-[#5C6773]">Pontic (suspended crown)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-full bg-[#C27E70]" />
+                        <span className="text-[10px] text-[#5C6773]">Implant</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Connected implants */}
                 {implants.length > 0 && (
                   <div>
-                    <Label className="text-xs">Connected Implants</Label>
+                    <Label className="text-xs">Connected Implants <span className="text-[#9CA3AF] font-normal">(implants this bridge is seated on)</span></Label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {implants.map(imp => (
                         <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#82A098] transition-colors">
@@ -1328,7 +1394,7 @@ const PatientDetails = () => {
                             }}
                             className={checkboxClass}
                           />
-                          <span>#{imp.tooth_number} ({imp.brand})</span>
+                          <span>#{imp.tooth_number} ({imp.brand || 'Implant'})</span>
                         </label>
                       ))}
                     </div>

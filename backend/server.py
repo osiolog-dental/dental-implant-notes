@@ -229,6 +229,7 @@ class ImplantStageUpdate(BaseModel):
 class FPDCreate(BaseModel):
     patient_id: str
     tooth_numbers: List[int]
+    tooth_roles: Optional[Dict[str, str]] = {}   # { "13": "abutment", "14": "pontic", "15": "abutment" }
     prosthetic_loading_date: Optional[str] = None
     crown_count: str = "Single"  # Single / Multiple
     connected_implant_ids: Optional[List[str]] = []
