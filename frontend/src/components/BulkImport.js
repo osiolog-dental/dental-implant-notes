@@ -20,7 +20,7 @@ const PATIENT_COLS = [
   { header: 'Medical History', note: 'Allergies, conditions, medications etc.' },
 ];
 
-// default: value pre-filled in every blank data row; dateCol: format as DD-MM-YYYY
+// archFormula/jawFormula: auto-filled from tooth number; dateCol: format as DD-MM-YYYY text
 const IMPLANT_COLS = [
   { header: 'Patient Name',            note: 'Auto-filled from Patients sheet (required)' },
   { header: 'Tooth Number',            note: 'FDI number e.g. 11, 16, 36 (required)' },
