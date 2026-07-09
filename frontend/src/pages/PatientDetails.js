@@ -1541,21 +1541,17 @@ const PatientDetails = () => {
             </DialogContent>
           </Dialog>
 
-        {/* FDI Dental Chart — high-fidelity SVG */}
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: 560 }}>
-            <DentalChart
-              implants={implants}
-              fpdRecords={fpdRecords}
-              toothConditions={toothConditions}
-              onMarkMissing={handleMarkMissing}
-              onImplantLog={openImplantLog}
-              onCrownLog={openCrownLog}
-              onAbutmentLog={openAbutmentLog}
-              onOverdentureLog={openOverdentureLog}
-            />
-          </div>
-        </div>
+        {/* FDI Dental Chart */}
+        <DentalChart
+          implants={implants}
+          fpdRecords={fpdRecords}
+          toothConditions={toothConditions}
+          onMarkMissing={handleMarkMissing}
+          onImplantLog={openImplantLog}
+          onCrownLog={openCrownLog}
+          onAbutmentLog={openAbutmentLog}
+          onOverdentureLog={openOverdentureLog}
+        />
 
         {/* Photo Vault link - below chart */}
         <div className="mt-4 pt-4 border-t border-[#E5E5E2]">

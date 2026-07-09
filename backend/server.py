@@ -1894,6 +1894,263 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
     return {"message": "Import complete", "created": results, "errors": errors}
 
 
+@api_router.post("/bulk-import-sheets")
+async def bulk_import_from_sheets(request: Request):
+    """
+    Import implant data directly from a public Google Sheet.
+    Accepts a Google Sheets URL, fetches the 'Patient Log' sheet as CSV,
+    and creates patients + implants in the DB.
+    Supports same-name consecutive rows = multiple implants for same patient.
+    """
+    import csv, io, urllib.request
+    user = await get_current_user(request)
+    uid = user["_id"]
+
+    body = await request.json()
+    sheet_url = (body.get("sheet_url") or "").strip()
+    if not sheet_url:
+        raise HTTPException(status_code=400, detail="sheet_url is required")
+
+    # Extract the sheet ID from any Google Sheets URL format
+    import re
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", sheet_url)
+    if not m:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL. Copy the URL from your browser's address bar.")
+    sheet_id = m.group(1)
+
+    # Fetch the first sheet (gid=0) as CSV — works for any publicly shared sheet
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+    try:
+        with urllib.request.urlopen(csv_url, timeout=15) as resp:
+            raw = resp.read().decode("utf-8-sig")
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read the Google Sheet. Make sure it is shared as 'Anyone with the link can view'."
+        )
+
+    reader = csv.reader(io.StringIO(raw))
+    all_rows = list(reader)
+    if not all_rows:
+        raise HTTPException(status_code=400, detail="The sheet appears to be empty.")
+
+    # Find header row — first row with 3+ non-empty values
+    header_idx = 0
+    for i, row in enumerate(all_rows[:5]):
+        if sum(1 for c in row if c.strip()) >= 3:
+            header_idx = i
+            break
+
+    raw_headers = all_rows[header_idx]
+
+    # Column alias map — matches reference sheet column names
+    COLUMN_ALIASES = {
+        "Patient Name":           ["Patient Name", "Name", "Patient"],
+        "Date of Surgery":        ["Date of Surgery", "Surgery Date", "Date"],
+        "Surgeon":                ["Surgeon", "Surgeon Name", "Doctor", "Operator"],
+        "Tooth / Site #":         ["Tooth / Site #", "Tooth Number", "Tooth", "Site", "Tooth#", "Tooth No"],
+        "Arch":                   ["Arch"],
+        "Jaw Region":             ["Jaw Region", "Region"],
+        "Implant Brand":          ["Implant Brand", "Brand", "Manufacturer"],
+        "Implant System":         ["Implant System", "System"],
+        "Implant Diameter (mm)":  ["Implant Diameter (mm)", "Diameter (mm)", "Diameter", "Size (Diameter mm)", "Size"],
+        "Implant Length (mm)":    ["Implant Length (mm)", "Length (mm)", "Length"],
+        "Cover Screw":            ["Cover Screw"],
+        "Healing Abutment":       ["Healing Abutment"],
+        "Bone Graft Used":        ["Bone Graft Used", "Bone Graft", "Graft"],
+        "Membrane Used":          ["Membrane Used", "Membrane"],
+        "Torque Value (Ncm)":     ["Torque Value (Ncm)", "Insertion Torque (Ncm)", "Torque"],
+        "ISQ Value":              ["ISQ Value", "ISQ"],
+        "Follow-up Date":         ["Follow-up Date", "Follow Up Date", "Followup Date"],
+        "Notes / Complications":  ["Notes / Complications", "Notes", "Clinical Notes", "Complications"],
+        "Clinic Name":            ["Clinic Name", "Clinic", "Hospital Name", "Hospital"],
+        "Clinic Address":         ["Clinic Address", "Hospital Address", "Address"],
+    }
+    alias_map = {}
+    for canon, variants in COLUMN_ALIASES.items():
+        for v in variants:
+            alias_map[v.lower().strip()] = canon
+
+    def norm(h):
+        return alias_map.get(h.lower().strip(), h.strip())
+
+    headers = [norm(h) for h in raw_headers]
+
+    # Skip header row and any notes/instruction row immediately after
+    data_rows = all_rows[header_idx + 1:]
+    if data_rows and all(not c.strip().replace(",", "").replace(".", "").isdigit() for c in data_rows[0] if c.strip()):
+        # If first data row looks like all-text (instructions row), skip it
+        first = [c for c in data_rows[0] if c.strip()]
+        if first and all(not any(ch.isdigit() for ch in c) for c in first):
+            data_rows = data_rows[1:]
+
+    def row_dict(row):
+        return {headers[i]: row[i].strip() if i < len(row) else "" for i in range(len(headers))}
+
+    def val(d, *keys):
+        for k in keys:
+            v = d.get(k, "").strip()
+            if v and v not in ("0", "-", "N/A", "n/a"):
+                return v
+        return None
+
+    def boolval(d, key):
+        return (d.get(key, "") or "").lower().strip() in ("yes", "true", "1", "y")
+
+    def parse_date(s):
+        if not s:
+            return None
+        s = s.strip()
+        for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return s or None
+
+    errors = []
+    results = {"patients": 0, "implants": 0, "fpd": 0}
+    patient_name_map = {}  # name_lower → patient_id
+    clinic_name_map  = {}  # name_lower → clinic_id
+
+    # Load existing patients for this doctor to avoid duplicates
+    async for p in db.patients.find({"doctor_id": uid}, {"_id": 1, "name": 1}):
+        patient_name_map[p["name"].lower().strip()] = str(p["_id"])
+
+    # Load existing clinics
+    async for c in db.clinics.find({"doctor_id": uid}, {"_id": 1, "name": 1}):
+        clinic_name_map[c["name"].lower().strip()] = str(c["_id"])
+
+    async def resolve_clinic_gs(clinic_name, clinic_address=""):
+        if not clinic_name:
+            return None
+        key = clinic_name.strip().lower()
+        if key in clinic_name_map:
+            return clinic_name_map[key]
+        doc = {
+            "doctor_id": uid,
+            "name": clinic_name.strip(),
+            "address": (clinic_address or "").strip(),
+            "created_at": datetime.now(timezone.utc),
+        }
+        res = await db.clinics.insert_one(doc)
+        cid = str(res.inserted_id)
+        clinic_name_map[key] = cid
+        return cid
+
+    last_pname = None
+
+    for i, raw_row in enumerate(data_rows, start=header_idx + 2):
+        if not any(c.strip() for c in raw_row):
+            continue  # skip fully blank rows
+
+        rd = row_dict(raw_row)
+
+        # Patient name carry-forward: blank name = same patient as previous row
+        pname = val(rd, "Patient Name")
+        if pname:
+            last_pname = pname
+        else:
+            pname = last_pname
+        if not pname:
+            errors.append(f"Row {i}: No patient name — skipped")
+            continue
+
+        pname_key = pname.lower().strip()
+
+        # Create patient if not seen yet
+        if pname_key not in patient_name_map:
+            pdoc = {
+                "doctor_id": uid,
+                "name": pname,
+                "age": 0,
+                "gender": "Other",
+                "phone": "",
+                "email": None,
+                "address": "",
+                "medical_history": "",
+                "created_at": datetime.now(timezone.utc),
+            }
+            res = await db.patients.insert_one(pdoc)
+            patient_name_map[pname_key] = str(res.inserted_id)
+            results["patients"] += 1
+
+        pid = patient_name_map[pname_key]
+
+        # Parse tooth number
+        raw_tooth = val(rd, "Tooth / Site #") or ""
+        raw_tooth = raw_tooth.replace("#", "").strip()
+        try:
+            tooth = int(float(raw_tooth))
+        except Exception:
+            errors.append(f"Row {i}: Invalid tooth number '{raw_tooth}' — skipped")
+            continue
+
+        # Arch / Jaw from sheet (already filled in the reference doc)
+        arch = val(rd, "Arch") or ("Upper" if tooth < 30 else "Lower")
+        jaw = val(rd, "Jaw Region") or ("Anterior" if tooth % 10 <= 3 else "Posterior")
+
+        diameter_raw = val(rd, "Implant Diameter (mm)")
+        length_raw   = val(rd, "Implant Length (mm)")
+        torque_raw   = val(rd, "Torque Value (Ncm)")
+        isq_raw      = val(rd, "ISQ Value")
+
+        try: diameter = float(diameter_raw) if diameter_raw else None
+        except: diameter = None
+        try: length = float(length_raw) if length_raw else None
+        except: length = None
+        try: torque = float(torque_raw) if torque_raw else None
+        except: torque = None
+        try: isq = float(isq_raw) if isq_raw else None
+        except: isq = None
+
+        surgeon = val(rd, "Surgeon")
+        surgery_date = parse_date(val(rd, "Date of Surgery"))
+        follow_up    = parse_date(val(rd, "Follow-up Date"))
+
+        clinic_id = await resolve_clinic_gs(val(rd, "Clinic Name"), val(rd, "Clinic Address"))
+
+        implant_doc = {
+            "doctor_id": uid,
+            "patient_id": pid,
+            "tooth_number": tooth,
+            "brand": val(rd, "Implant Brand") or "",
+            "implant_system": val(rd, "Implant System"),
+            "size": str(diameter) if diameter else "",
+            "length": str(length) if length else "",
+            "diameter_mm": diameter,
+            "length_mm": length,
+            "insertion_torque": torque,
+            "arch": arch,
+            "jaw_region": jaw,
+            "cover_screw": boolval(rd, "Cover Screw"),
+            "healing_abutment": boolval(rd, "Healing Abutment"),
+            "bone_graft": val(rd, "Bone Graft Used"),
+            "membrane_used": boolval(rd, "Membrane Used"),
+            "isq_value": isq,
+            "surgery_date": surgery_date,
+            "follow_up_date": follow_up,
+            "surgeon_name": surgeon,
+            "clinical_notes": val(rd, "Notes / Complications"),
+            "clinic_id": clinic_id,
+            "implant_type": "Single",
+            "connection_type": "",
+            "surgical_approach": "Flapless",
+            "implant_outcome": "Pending",
+            "osseointegration_success": False,
+            "peri_implant_health": False,
+            "current_stage": 1,
+            "osseointegration_days": 90,
+            "clinical_photos": [],
+            "radiographs": [],
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.implants.insert_one(implant_doc)
+        results["implants"] += 1
+
+    return {"message": "Import complete", "created": results, "errors": errors}
+
+
 app.include_router(api_router)
 
 # Startup event
