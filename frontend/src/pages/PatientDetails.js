@@ -1122,7 +1122,7 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Row 5: Surgery Date, Follow-up, Prosthetic Loading, Surgeon */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Surgery Date</Label>
                     <Input type="date" value={formData.surgery_date} onChange={(e) => updateField('surgery_date', e.target.value)} className="mt-1" />
@@ -1130,10 +1130,6 @@ const PatientDetails = () => {
                   <div>
                     <Label className="text-xs">Follow-up Date</Label>
                     <Input type="date" value={formData.follow_up_date} onChange={(e) => updateField('follow_up_date', e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Prosthetic Loading Date</Label>
-                    <Input type="date" value={formData.prosthetic_loading_date} onChange={(e) => updateField('prosthetic_loading_date', e.target.value)} className="mt-1" />
                   </div>
                   <div>
                     <Label className="text-xs">Surgeon Name</Label>
@@ -1199,25 +1195,9 @@ const PatientDetails = () => {
                 </div>
 
                 {/* Notes */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Clinical Notes</Label>
-                    <textarea value={formData.clinical_notes} onChange={(e) => updateField('clinical_notes', e.target.value)} rows={3} className={`mt-1 ${selectClass}`} placeholder="Clinical observations..." />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Additional Notes</Label>
-                    <textarea value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} data-testid="notes-input" rows={3} className={`mt-1 ${selectClass}`} placeholder="General notes..." />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Site-Specific Notes</Label>
-                    <textarea value={formData.site_specific_notes} onChange={(e) => updateField('site_specific_notes', e.target.value)} rows={2} className={`mt-1 ${selectClass}`} placeholder="Site healing patterns..." />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Complication Remarks</Label>
-                    <textarea value={formData.complication_remarks} onChange={(e) => updateField('complication_remarks', e.target.value)} rows={2} className={`mt-1 ${selectClass}`} placeholder="Any complications..." />
-                  </div>
+                <div>
+                  <Label className="text-xs">Clinical Notes</Label>
+                  <textarea value={formData.clinical_notes} onChange={(e) => updateField('clinical_notes', e.target.value)} rows={3} className={`mt-1 ${selectClass}`} placeholder="Clinical observations, complications, remarks..." data-testid="notes-input" />
                 </div>
 
                 <Button type="submit" data-testid="submit-implant-button" className="w-full bg-[#82A098] hover:bg-[#6B8A82] text-white">
