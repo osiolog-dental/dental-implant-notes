@@ -278,7 +278,7 @@ export default function DentalChart({
   });
 
   return (
-    <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E5E5E2', overflow: 'hidden' }}>
+    <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E5E5E2' }}>
 
       {/* Action buttons — vertical list, always fully visible */}
       {mode !== 'fpd' && (
@@ -316,10 +316,10 @@ export default function DentalChart({
         </div>
       )}
 
-      {/* SVG chart */}
-      <div style={{ overflowX: 'auto' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%"
-          style={{ display: 'block', minWidth: 600 }}
+      {/* SVG chart — fixed pixel width so click coordinates match SVG coordinates exactly */}
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}
+          style={{ display: 'block' }}
           aria-label="FDI Dental Chart">
 
           <rect width={W} height={H} fill="#FFFFFF" />
