@@ -31,8 +31,8 @@ const IMPLANT_COLS = [
   { header: 'Insertion Torque (Ncm)',  note: 'Number e.g. 35' },
   { header: 'Connection Type',         note: 'e.g. Internal Hex, Conical' },
   { header: 'Surgical Approach',       note: 'Flapless / Flap',                        default: 'Flapless' },
-  { header: 'Arch',                    note: 'Upper / Lower',                           default: 'Upper' },
-  { header: 'Jaw Region',              note: 'Anterior / Posterior',                    default: 'Posterior' },
+  { header: 'Arch',                    note: 'Auto-filled: Upper (11-28) / Lower (31-48)',  archFormula: true },
+  { header: 'Jaw Region',             note: 'Auto-filled: Anterior (x1-x3) / Posterior (x4-x8)', jawFormula: true },
   { header: 'Implant System',          note: 'Product line / system name' },
   { header: 'Bone Graft',              note: 'Autograft / Xenograft / None',            default: 'None' },
   { header: 'Sinus Lift Type',         note: 'Lateral / Crestal / None',               default: 'None' },
@@ -77,8 +77,8 @@ const PATIENT_SAMPLE = [
 ];
 
 const IMPLANT_SAMPLE = [
-  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'City Dental Clinic', '123 MG Road, Chennai', 'Uneventful healing', ''],
-  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', 'Smile Care Centre', '456 Brigade Rd, Bengaluru', '', 'Watch bone graft site'],
+  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', '', '', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'City Dental Clinic', '123 MG Road, Chennai', 'Uneventful healing', ''],
+  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', '', '', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', 'Smile Care Centre', '456 Brigade Rd, Bengaluru', '', 'Watch bone graft site'],
 ];
 
 const FPD_SAMPLE = [
@@ -158,17 +158,27 @@ function downloadTemplate() {
       // Col A → formula linking to Patients sheet
       ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'f', f: `Patients!A${excelRow}` };
 
+      // Tooth Number column is always index 1 → Excel col B
+      const toothCol = XLSX.utils.encode_col(1); // "B"
+      const toothCell = `${toothCol}${excelRow}`;
+
       // Other columns
       cols.forEach((col, c) => {
         if (c === 0) return; // already handled above
         const addr = XLSX.utils.encode_cell({ r, c });
 
-        if (col.dateCol) {
+        if (col.archFormula) {
+          // Upper = quadrant 1 or 2 (tooth 11-28), Lower = quadrant 3 or 4 (31-48)
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(AND(INT(${toothCell}/10)>=1,INT(${toothCell}/10)<=2),"Upper","Lower"))` };
+        } else if (col.jawFormula) {
+          // Anterior = last digit 1-3, Posterior = last digit 4-8
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(MOD(${toothCell},10)<=3,"Anterior","Posterior"))` };
+        } else if (col.dateCol) {
           // Force text format so Excel doesn't auto-convert DD-MM-YYYY to a date serial
           if (isBlankRow) {
             ws[addr] = { t: 's', v: '', z: '@' };
           } else if (ws[addr]) {
-            ws[addr].z = '@'; // apply text format to existing sample cell
+            ws[addr].z = '@';
           }
         } else if (isBlankRow && col.default !== undefined) {
           // Pre-fill default value
