@@ -1551,6 +1551,7 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
     contents = await file.read()
     try:
         wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+        wb_formulas = openpyxl.load_workbook(io.BytesIO(contents), data_only=False)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Excel file")
 
@@ -1558,18 +1559,73 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         if sheet_name not in wb.sheetnames:
             return []
         ws = wb[sheet_name]
-        headers = [str(c.value).strip() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        all_rows = list(ws.iter_rows(min_row=1, values_only=True))
+        if not all_rows:
+            return []
+
+        # Row 1 = headers. Strip arrow suffixes added by template (e.g. "Patient Name ← from Patients sheet")
+        raw_headers = all_rows[0]
+        headers = []
+        for h in raw_headers:
+            if h is None:
+                headers.append("")
+            else:
+                # Normalise: strip everything from ← onwards, strip whitespace
+                clean = str(h).split("←")[0].split("<-")[0].strip()
+                headers.append(clean)
+
+        # Row 2 may be a notes/instruction row — skip it if it looks like one
+        # (all values are short hint strings, not real data)
+        data_start = 1  # 0-based index into all_rows; default = row 2
+        if len(all_rows) > 1:
+            second = all_rows[1]
+            non_null = [v for v in second if v is not None]
+            # Notes row: values are strings that look like hints, not numbers/dates
+            all_strings = all(isinstance(v, str) for v in non_null)
+            if all_strings and len(non_null) > 0:
+                data_start = 2  # skip notes row → data starts row 3
+
+        # Also load the formula workbook for this sheet so we can read
+        # patient names from formula cells (=Patients!A3 etc.) when
+        # the file was never opened in Excel (data_only returns None)
+        ws_formula = wb_formulas[sheet_name] if sheet_name in wb_formulas.sheetnames else None
+        pat_ws_formula = wb_formulas["Patients"] if "Patients" in wb_formulas.sheetnames else None
+
+        def resolve_patient_name_from_formula(excel_row_1based):
+            """If col A of this row is a formula referencing Patients sheet, resolve it."""
+            if ws_formula is None or pat_ws_formula is None:
+                return None
+            cell = ws_formula.cell(row=excel_row_1based, column=1)
+            if cell.value and isinstance(cell.value, str) and cell.value.startswith("="):
+                # Extract row number from formula like =IF(Patients!A5="","",Patients!A5)
+                import re
+                m = re.search(r'Patients!A(\d+)', cell.value)
+                if m:
+                    src_row = int(m.group(1))
+                    src_cell = pat_ws_formula.cell(row=src_row, column=1)
+                    if src_cell.value:
+                        return str(src_cell.value).strip()
+            return None
+
         rows = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        for idx, row in enumerate(all_rows[data_start:]):
             if all(v is None for v in row):
                 continue
-            rows.append(dict(zip(headers, row)))
+            row_dict = dict(zip(headers, row))
+            # Fix patient name if formula cell returned None
+            if not row_dict.get("Patient Name") or str(row_dict.get("Patient Name", "")).strip() in ("", "0", "None"):
+                excel_row = data_start + idx + 1  # 1-based row in sheet
+                resolved = resolve_patient_name_from_formula(excel_row)
+                if resolved:
+                    row_dict["Patient Name"] = resolved
+            rows.append(row_dict)
         return rows
 
     def val(row, *keys, default=None):
         for k in keys:
+            # Try exact key and also "Patient Name" when header has been normalised
             v = row.get(k)
-            if v is not None and str(v).strip() != "":
+            if v is not None and str(v).strip() != "" and str(v).strip() != "0":
                 return str(v).strip()
         return default
 
