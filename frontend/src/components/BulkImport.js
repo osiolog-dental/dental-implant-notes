@@ -83,19 +83,14 @@ const FPD_SAMPLE = [
   ['Priya Sharma', '35', 'Single', 'Cement Retained', 'Porcelain fused to metal', '2025-06-15', '', 'City Ceramics Lab', ''],
 ];
 
+// Number of patient rows the dropdown will cover in Implants/FPD sheets
+const MAX_PATIENT_ROWS = 500;
+
 function downloadTemplate() {
   const wb = XLSX.utils.book_new();
 
-  const makeSheet = (cols, sampleRows) => {
-    const headers = cols.map(c => c.header);
-    const notes = cols.map(c => c.note);
-    const data = [headers, notes, [], ...sampleRows];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-
-    // Column widths
+  const styleSheet = (ws, cols) => {
     ws['!cols'] = cols.map(() => ({ wch: 22 }));
-
-    // Style header row (row 0) — bold teal
     const range = XLSX.utils.decode_range(ws['!ref']);
     for (let C = range.s.c; C <= range.e.c; C++) {
       const hCell = XLSX.utils.encode_cell({ r: 0, c: C });
@@ -109,7 +104,6 @@ function downloadTemplate() {
           right:  { style: 'thin', color: { rgb: 'CCCCCC' } },
         },
       };
-      // Note row style (row 1) — light grey italic
       const nCell = XLSX.utils.encode_cell({ r: 1, c: C });
       if (ws[nCell]) {
         ws[nCell].s = {
@@ -119,36 +113,80 @@ function downloadTemplate() {
         };
       }
     }
-
-    // Freeze header + note rows
     ws['!freeze'] = { xSplit: 0, ySplit: 2 };
+  };
+
+  /* ── Patients sheet ── */
+  const patHeaders = PATIENT_COLS.map(c => c.header);
+  const patNotes   = PATIENT_COLS.map(c => c.note);
+  const patData    = [patHeaders, patNotes, [], ...PATIENT_SAMPLE];
+  const patWs      = XLSX.utils.aoa_to_sheet(patData);
+  styleSheet(patWs, PATIENT_COLS);
+
+  XLSX.utils.book_append_sheet(wb, patWs, 'Patients');
+
+  /* ── Helper: build Implant/FPD sheet with auto-linked Patient Name column ──
+     Column A rows 3+ are formula cells: =IF(Patients!A3<>"",Patients!A3,"")
+     This means as names are typed in the Patients sheet they instantly appear
+     here. The doctor can also type a name directly to override.
+  */
+  const makeLinkedSheet = (cols, sampleRows) => {
+    const headers = cols.map(c => c.header);
+    // Mark col A header to make the link obvious
+    const linkedHeaders = [...headers];
+    linkedHeaders[0] = 'Patient Name (auto-linked from Patients sheet)';
+
+    const notes = cols.map(c => c.note);
+    const linkedNotes = [...notes];
+    linkedNotes[0] = '⬅ Names typed in Patients sheet col A appear here automatically. You can also type directly.';
+
+    // Build data array: header, notes, blank separator, then sample rows
+    const data = [linkedHeaders, linkedNotes, [], ...sampleRows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    styleSheet(ws, cols);
+
+    // Inject formula cells for col A rows 3 to MAX_PATIENT_ROWS+2
+    // (row indices 2 to MAX_PATIENT_ROWS+1, 0-based)
+    // Skip the first sampleRows.length rows so sample data is preserved
+    const sampleCount = sampleRows.length;
+    for (let r = 2 + sampleCount; r < MAX_PATIENT_ROWS + 2; r++) {
+      // r=2 → Excel row 3, maps to Patients!A3
+      const patientsRow = r + 1; // Excel 1-based row in Patients sheet
+      const cellAddr = XLSX.utils.encode_cell({ r, c: 0 });
+      ws[cellAddr] = { t: 'str', f: `IF(Patients!A${patientsRow}<>"",Patients!A${patientsRow},"")` };
+    }
+
+    // Extend the sheet range to cover the formula rows
+    const existingRange = XLSX.utils.decode_range(ws['!ref']);
+    existingRange.e.r = Math.max(existingRange.e.r, MAX_PATIENT_ROWS + 1);
+    ws['!ref'] = XLSX.utils.encode_range(existingRange);
+
     return ws;
   };
 
-  XLSX.utils.book_append_sheet(wb, makeSheet(PATIENT_COLS, PATIENT_SAMPLE), 'Patients');
-  XLSX.utils.book_append_sheet(wb, makeSheet(IMPLANT_COLS, IMPLANT_SAMPLE), 'Implants');
-  XLSX.utils.book_append_sheet(wb, makeSheet(FPD_COLS, FPD_SAMPLE), 'FPD');
+  XLSX.utils.book_append_sheet(wb, makeLinkedSheet(IMPLANT_COLS, IMPLANT_SAMPLE), 'Implants');
+  XLSX.utils.book_append_sheet(wb, makeLinkedSheet(FPD_COLS,     FPD_SAMPLE),     'FPD');
 
   // Instructions sheet
   const instrData = [
     ['OSIOLOG — Bulk Import Template'],
     [''],
     ['HOW TO USE THIS FILE'],
-    ['1. Fill in the "Patients" sheet first — one row per patient.'],
-    ['2. Fill "Implants" sheet — one row per implant. Patient Name must exactly match the Patients sheet.'],
-    ['3. Fill "FPD" sheet — one row per FPD/crown record. Patient Name must exactly match.'],
+    ['1. Fill in the "Patients" sheet first — one row per patient (column A = Patient Name).'],
+    ['2. The "Implants" and "FPD" sheets column A will automatically show the same names.'],
+    ['   You do not need to retype patient names — they are pulled from the Patients sheet.'],
+    ['3. You can also type a name directly in Implants/FPD col A if needed.'],
     ['4. Row 1 = column headers (do not edit). Row 2 = field notes (you may delete before uploading).'],
     ['5. Sample data in rows 3-4 show the format — replace with your real data.'],
     ['6. Upload this file from the Account page → Bulk Import section.'],
     [''],
     ['IMPORTANT NOTES'],
-    ['• Patient Name must be identical across Patients, Implants, and FPD sheets.'],
+    ['• Patient Name dropdown in Implants/FPD sheets is linked to Patients sheet column A.'],
     ['• Dates must be in YYYY-MM-DD format (e.g. 2025-03-15).'],
     ['• Yes/No fields: type Yes or No (not TRUE/FALSE).'],
     ['• FPD Tooth Numbers: comma-separated (e.g. 13,14,15).'],
     ['• Consultant Surgeon / Prosthodontist: leave blank if not applicable.'],
     ['• Dental Lab: name of the lab that made the crowns (FPD sheet only).'],
-    ['• Warranty card photos must be uploaded manually from the FPD record after import.'],
     ['• Photos must be uploaded manually from the patient page after import.'],
     ['• You can upload this file multiple times — duplicate patients are NOT re-created.'],
   ];
