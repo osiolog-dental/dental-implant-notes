@@ -23,7 +23,7 @@ const PATIENT_COLS = [
 // archFormula/jawFormula: auto-filled from tooth number; dateCol: format as DD-MM-YYYY text
 const IMPLANT_COLS = [
   { header: 'Patient Name',            note: 'Auto-filled from Patients sheet (required)' },
-  { header: 'Tooth Number',            note: 'FDI number e.g. 11, 16, 36 (required)' },
+  { header: 'Tooth Number',            note: 'One FDI tooth number per row e.g. 16. For multiple implants add a new row each.' },
   { header: 'Implant Type',            note: 'Single / Multiple / Full Arch' },
   { header: 'Brand',                   note: 'e.g. Straumann, Nobel Biocare' },
   { header: 'Size (Diameter mm)',      note: 'e.g. 3.3' },
@@ -77,8 +77,8 @@ const PATIENT_SAMPLE = [
 ];
 
 const IMPLANT_SAMPLE = [
-  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', '', '', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'City Dental Clinic', '123 MG Road, Chennai', 'Uneventful healing', ''],
-  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', '', '', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', 'Smile Care Centre', '456 Brigade Rd, Bengaluru', '', 'Watch bone graft site'],
+  ['John Doe', 16, '', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', '', '', 'BLT', 'None', 'None', '', '', '', '', '', '', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', '', '', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'City Dental Clinic', '123 MG Road, Chennai', 'Uneventful healing', ''],
+  ['Priya Sharma', 46, '', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', '', '', 'Active', 'Xenograft', 'None', '', '', '', '', '', '', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', '', '', 'CN-002', '', 'Smile Care Centre', '456 Brigade Rd, Bengaluru', '', 'Watch bone graft site'],
 ];
 
 const FPD_SAMPLE = [
@@ -150,41 +150,28 @@ function downloadTemplate() {
 
     const sampleCount = sampleRows.length;
 
-    // ── Inject formulas + defaults for every data row ──
+    // ── Inject formulas for every data row ──
     for (let r = 2; r < MAX_PATIENT_ROWS + 2; r++) {
       const excelRow = r + 1;
-      const isBlankRow = r >= 2 + sampleCount; // rows after sample get defaults
 
-      // Col A → formula linking to Patients sheet
-      ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'f', f: `Patients!A${excelRow}` };
+      // Col A → =Patients!A{n}  (blank when Patients row is empty)
+      ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'f', f: `IF(Patients!A${excelRow}="","",Patients!A${excelRow})` };
 
-      // Tooth Number column is always index 1 → Excel col B
-      const toothCol = XLSX.utils.encode_col(1); // "B"
-      const toothCell = `${toothCol}${excelRow}`;
+      // Tooth Number is col B (index 1)
+      const toothCell = `B${excelRow}`;
 
-      // Other columns
       cols.forEach((col, c) => {
-        if (c === 0) return; // already handled above
+        if (c === 0) return;
         const addr = XLSX.utils.encode_cell({ r, c });
 
         if (col.archFormula) {
-          // Extract first tooth number from cell (handles "16", "16,26,36" etc.)
-          // IFERROR wraps in case cell is blank or has unexpected text
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IFERROR(IF(AND(INT(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1))/10)>=1,INT(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1))/10)<=2),"Upper","Lower"),""))` };
+          // One tooth per row: Upper = quadrant 1-2 (11-28), Lower = 3-4 (31-48)
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(AND(INT(${toothCell}/10)>=1,INT(${toothCell}/10)<=2),"Upper","Lower"))` };
         } else if (col.jawFormula) {
-          // Anterior = last digit 1-3, Posterior = last digit 4-8, based on first tooth
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IFERROR(IF(MOD(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1)),10)<=3,"Anterior","Posterior"),""))` };
-        } else if (col.dateCol) {
-          // Force text format so Excel doesn't auto-convert DD-MM-YYYY to a date serial
-          if (isBlankRow) {
-            ws[addr] = { t: 's', v: '', z: '@' };
-          } else if (ws[addr]) {
-            ws[addr].z = '@';
-          }
-        } else if (isBlankRow && col.default !== undefined) {
-          // Pre-fill default value
-          ws[addr] = { t: 's', v: col.default };
+          // Anterior = last digit 1-3, Posterior = 4-8
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(MOD(${toothCell},10)<=3,"Anterior","Posterior"))` };
         }
+        // All other columns: leave untouched — no prefill, no empty cell injection
       });
     }
 
