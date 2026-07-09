@@ -168,11 +168,12 @@ function downloadTemplate() {
         const addr = XLSX.utils.encode_cell({ r, c });
 
         if (col.archFormula) {
-          // Upper = quadrant 1 or 2 (tooth 11-28), Lower = quadrant 3 or 4 (31-48)
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(AND(INT(${toothCell}/10)>=1,INT(${toothCell}/10)<=2),"Upper","Lower"))` };
+          // Extract first tooth number from cell (handles "16", "16,26,36" etc.)
+          // IFERROR wraps in case cell is blank or has unexpected text
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IFERROR(IF(AND(INT(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1))/10)>=1,INT(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1))/10)<=2),"Upper","Lower"),""))` };
         } else if (col.jawFormula) {
-          // Anterior = last digit 1-3, Posterior = last digit 4-8
-          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IF(MOD(${toothCell},10)<=3,"Anterior","Posterior"))` };
+          // Anterior = last digit 1-3, Posterior = last digit 4-8, based on first tooth
+          ws[addr] = { t: 'f', f: `IF(${toothCell}="","",IFERROR(IF(MOD(VALUE(LEFT(TRIM(${toothCell}),FIND(",",TRIM(${toothCell})&",")-1)),10)<=3,"Anterior","Posterior"),""))` };
         } else if (col.dateCol) {
           // Force text format so Excel doesn't auto-convert DD-MM-YYYY to a date serial
           if (isBlankRow) {
