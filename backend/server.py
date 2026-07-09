@@ -386,7 +386,8 @@ async def get_ads():
 @api_router.get("/subscription/status")
 async def get_subscription_status(request: Request):
     user = await get_current_user(request)
-    plan = user.get("plan_type", "free")
+    # Beta testers get full Pro access regardless of their plan_type
+    plan = "pro" if user.get("is_beta_tester") else user.get("plan_type", "free")
     plan_end = user.get("plan_end")
 
     # Calculate storage used: sum file sizes in uploads/dentalhub/
@@ -416,6 +417,28 @@ async def get_subscription_status(request: Request):
         "limit_mb": limit_mb,
         "used_pct": round(min(used_mb / limit_mb * 100, 100), 1) if limit_mb else 0,
     }
+
+OWNER_EMAILS = {"midhilesh.krishna@gmail.com", "midhilesh163@gmail.com"}
+
+@api_router.post("/admin/beta-tester")
+async def toggle_beta_tester(request: Request):
+    """Owner-only: grant or revoke beta tester (full Pro) access for a user by email."""
+    caller = await get_current_user(request)
+    if caller.get("email") not in OWNER_EMAILS:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    body = await request.json()
+    target_email = body.get("email", "").strip().lower()
+    enable = body.get("enable", True)
+    if not target_email:
+        raise HTTPException(status_code=400, detail="email required")
+    result = await db.users.update_one(
+        {"email": target_email},
+        {"$set": {"is_beta_tester": enable}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=f"No user found with email {target_email}")
+    action = "granted" if enable else "revoked"
+    return {"message": f"Beta tester access {action} for {target_email}"}
 
 @api_router.post("/subscription/upgrade")
 async def upgrade_subscription(request: Request):

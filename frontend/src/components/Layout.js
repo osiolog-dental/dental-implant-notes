@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
 import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
+import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
 import AIChatBox from './AIChatBox';
@@ -89,6 +90,13 @@ const Layout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [isFree, setIsFree] = useState(true);
+
+  useEffect(() => {
+    client.get('/api/subscription/status')
+      .then(r => { setIsFree((r.data?.plan || 'free') === 'free'); })
+      .catch(() => setIsFree(true));
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -156,6 +164,9 @@ const Layout = () => {
             );
           })}
         </nav>
+
+        {/* Sidebar ad — free plan only */}
+        {isFree && <ExternalAdBanner variant="sidebar" />}
       </aside>
 
       {/* Main Content Area */}
@@ -229,7 +240,12 @@ const Layout = () => {
           <div className="flex-1">
             <Outlet />
           </div>
-          <ExternalAdBanner />
+          {/* Bottom ad card — free plan, mobile only (sidebar handles desktop) */}
+          {isFree && (
+            <div className="md:hidden">
+              <ExternalAdBanner variant="bottom" />
+            </div>
+          )}
         </main>
       </div>
 

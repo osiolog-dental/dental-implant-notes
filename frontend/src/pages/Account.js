@@ -862,6 +862,74 @@ export default function Account() {
         </div>
       )}
 
+      {/* Beta Tester Management — owner only */}
+      {['midhilesh.krishna@gmail.com', 'midhilesh163@gmail.com'].includes(user?.email) && (
+        <BetaTesterPanel />
+      )}
+
+    </div>
+  );
+}
+
+function BetaTesterPanel() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const toggle = async (enable) => {
+    const target = email.trim().toLowerCase();
+    if (!target) { toast.error('Enter an email address'); return; }
+    setLoading(true);
+    try {
+      const res = await client.post('/api/admin/beta-tester', { email: target, enable });
+      toast.success(res.data.message);
+      setEmail('');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 bg-white rounded-xl border border-[#E5E5E2] overflow-hidden" data-testid="beta-tester-panel">
+      <div className="px-6 py-4 border-b border-[#E5E5E2] flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-[#C27E70]" />
+        <h2 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+          Beta Tester Access
+        </h2>
+        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-[#FDF6F4] text-[#C27E70] border border-[#E8C9C0] font-semibold uppercase tracking-wide">Owner only</span>
+      </div>
+      <div className="p-6">
+        <p className="text-sm text-[#5C6773] mb-4">
+          Grant a user full Pro access for testing — bypasses subscription, no charge.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="user@email.com"
+            data-testid="beta-email-input"
+            className="flex-1 text-sm px-3 py-2 rounded-lg border border-[#E5E5E2] focus:outline-none focus:ring-2 focus:ring-[#82A098] focus:border-transparent"
+          />
+          <button
+            data-testid="beta-grant-btn"
+            onClick={() => toggle(true)}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-[#82A098] text-white text-sm font-semibold hover:bg-[#6B8A82] transition-colors disabled:opacity-50"
+          >
+            Grant
+          </button>
+          <button
+            data-testid="beta-revoke-btn"
+            onClick={() => toggle(false)}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg border border-[#E5E5E2] text-[#5C6773] text-sm font-semibold hover:border-[#C27E70] hover:text-[#C27E70] transition-colors disabled:opacity-50"
+          >
+            Revoke
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
