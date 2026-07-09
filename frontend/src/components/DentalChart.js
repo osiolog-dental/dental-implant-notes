@@ -171,6 +171,9 @@ export default function DentalChart({
         style={{ cursor: actionMode || mode === 'fpd' ? 'crosshair' : 'pointer' }}
         data-testid={`fdi-tooth-${n}`}
       >
+        {/* Full-slot transparent hit area — ensures clicks always register */}
+        <rect x={sx} y={slotTop} width={SLOT} height={slotH} fill="transparent" />
+
         {/* Hover ring */}
         {isHov && actionMode && !isMissing && (
           <rect x={sx + 1} y={slotTop + 1} width={SLOT - 2} height={slotH - 2}
