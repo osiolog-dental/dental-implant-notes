@@ -52,6 +52,8 @@ const IMPLANT_COLS = [
   { header: 'Peri-Implant Health',     note: 'Yes / No',                               default: 'No' },
   { header: 'Case Number',             note: 'Your internal case reference' },
   { header: 'Consultant Surgeon',      note: 'Visiting/consultant surgeon (if different from treating doctor)' },
+  { header: 'Clinic Name',             note: 'Name of clinic where surgery was done (must match your Clinics list)' },
+  { header: 'Clinic Address',          note: 'Address of the clinic (only needed if clinic is new)' },
   { header: 'Clinical Notes',          note: 'Any additional clinical notes' },
   { header: 'Notes',                   note: 'General notes' },
 ];
@@ -75,8 +77,8 @@ const PATIENT_SAMPLE = [
 ];
 
 const IMPLANT_SAMPLE = [
-  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'Uneventful healing', ''],
-  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', '', 'Watch bone graft site'],
+  ['John Doe', 16, 'Single', 'Straumann', '4.1', '10', 35, 'Internal Hex', 'Flapless', 'Upper', 'Posterior', 'BLT', 'None', 'None', 'No', 'No', 'No', 'No', 'Yes', 'No', 72, '15-01-2025', '20-04-2025', '15-07-2025', 'Dr. Suresh', 'Success', 'Yes', 'Yes', 'CN-001', 'Dr. Ramesh (Oral Surgeon)', 'City Dental Clinic', '123 MG Road, Chennai', 'Uneventful healing', ''],
+  ['Priya Sharma', 46, 'Single', 'Nobel Biocare', '3.5', '11.5', 30, 'Conical', 'Flap', 'Lower', 'Posterior', 'Active', 'Xenograft', 'None', 'No', 'No', 'No', 'Yes', 'No', 'No', 68, '10-03-2025', '', '10-09-2025', 'Dr. Suresh', 'Pending', 'No', 'No', 'CN-002', '', 'Smile Care Centre', '456 Brigade Rd, Bengaluru', '', 'Watch bone graft site'],
 ];
 
 const FPD_SAMPLE = [

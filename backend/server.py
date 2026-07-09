@@ -1628,6 +1628,29 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
         if key not in patient_name_map:
             patient_name_map[key] = str(p["_id"])
 
+    # ── BUILD CLINIC MAP (name → _id), create new clinics on the fly ──
+    clinic_name_map = {}  # clinic name (lower) → _id string
+    async for c in db.clinics.find({"doctor_id": uid}, {"_id": 1, "name": 1}):
+        clinic_name_map[c["name"].lower()] = str(c["_id"])
+
+    async def resolve_clinic(clinic_name, clinic_address=""):
+        if not clinic_name:
+            return None
+        key = clinic_name.strip().lower()
+        if key in clinic_name_map:
+            return clinic_name_map[key]
+        # Create new clinic
+        doc = {
+            "doctor_id": uid,
+            "name": clinic_name.strip(),
+            "address": clinic_address.strip() if clinic_address else "",
+            "created_at": datetime.now(timezone.utc),
+        }
+        result = await db.clinics.insert_one(doc)
+        cid = str(result.inserted_id)
+        clinic_name_map[key] = cid
+        return cid
+
     # ── IMPLANTS ──
     for i, row in enumerate(sheet_rows("Implants"), start=2):
         pname = val(row, "Patient Name", "patient_name")
@@ -1679,6 +1702,7 @@ async def bulk_import(file: UploadFile = File(...), request: Request = None):
             "clinical_notes": val(row, "Clinical Notes"),
             "case_number": val(row, "Case Number"),
             "consultant_surgeon": val(row, "Consultant Surgeon"),
+            "clinic_id": await resolve_clinic(val(row, "Clinic Name"), val(row, "Clinic Address")),
             "current_stage": 1,
             "osseointegration_days": 90,
             "clinical_photos": [],
