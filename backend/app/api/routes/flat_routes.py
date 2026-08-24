@@ -728,11 +728,59 @@ async def restore_backup(
     if payload.get("version") not in ("2.0",):
         raise HTTPException(status_code=400, detail="Unsupported backup version")
 
+    import re
+    from datetime import date as _date
+
     from app.models.clinic import Clinic
     from app.models.implant import Implant as ImplantModel
     from app.models.fpd import ProstheticFPD as FPDModel
 
+    def _str(raw: dict, key: str) -> str | None:
+        v = raw.get(key)
+        return v if v not in (None, "None") else None
+
+    def _int(raw: dict, key: str) -> int | None:
+        v = _str(raw, key)
+        return int(v) if v is not None else None
+
+    def _float(raw: dict, key: str) -> float | None:
+        v = _str(raw, key)
+        return float(v) if v is not None else None
+
+    def _bool(raw: dict, key: str) -> bool | None:
+        v = _str(raw, key)
+        return v == "True" if v is not None else None
+
+    def _date_(raw: dict, key: str) -> _date | None:
+        v = _str(raw, key)
+        return _date.fromisoformat(v) if v is not None else None
+
+    def _int_list(raw: dict, key: str) -> list[int]:
+        v = _str(raw, key)
+        return [int(x) for x in re.findall(r"-?\d+", v)] if v else []
+
+    def _uuid_list(raw: dict, key: str) -> list[uuid.UUID]:
+        v = _str(raw, key)
+        if not v:
+            return []
+        return [uuid.UUID(x) for x in re.findall(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", v
+        )]
+
     inserted = {"patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0}
+
+    # Clinics first — implants reference clinic_id.
+    for raw in payload.get("clinics", []):
+        cid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not await db.get(Clinic, cid):
+            db.add(Clinic(
+                id=cid,
+                org_id=current_user.org_id,
+                name=raw.get("name", "Unknown Clinic"),
+                address=_str(raw, "address"),
+            ))
+            inserted["clinics"] += 1
+    await db.flush()
 
     for raw in payload.get("patients", []):
         pid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
@@ -743,15 +791,88 @@ async def restore_backup(
                 org_id=current_user.org_id,
                 doctor_id=current_user.id,
                 name=raw.get("name", "Unknown"),
-                age=int(raw["age"]) if raw.get("age") else None,
-                gender=raw.get("gender"),
-                phone=raw.get("phone"),
-                email=raw.get("email"),
-                address=raw.get("address"),
-                medical_history=raw.get("medical_history"),
+                age=_int(raw, "age"),
+                gender=_str(raw, "gender"),
+                phone=_str(raw, "phone"),
+                email=_str(raw, "email"),
+                address=_str(raw, "address"),
+                medical_history=_str(raw, "medical_history"),
             )
             db.add(p)
             inserted["patients"] += 1
+    await db.flush()
+
+    for raw in payload.get("implants", []):
+        iid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(ImplantModel, iid):
+            continue
+        db.add(ImplantModel(
+            id=iid,
+            case_id=uuid.UUID(raw["case_id"]) if _str(raw, "case_id") else None,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            tooth_number=_int(raw, "tooth_number"),
+            implant_type=_str(raw, "implant_type"),
+            brand=_str(raw, "brand"),
+            size=_str(raw, "size"),
+            length=_float(raw, "length"),
+            insertion_torque=_float(raw, "insertion_torque"),
+            connection_type=_str(raw, "connection_type"),
+            surgical_approach=_str(raw, "surgical_approach"),
+            bone_graft=_str(raw, "bone_graft"),
+            sinus_lift_type=_str(raw, "sinus_lift_type"),
+            is_pterygoid=_bool(raw, "is_pterygoid") or False,
+            is_zygomatic=_bool(raw, "is_zygomatic") or False,
+            is_subperiosteal=_bool(raw, "is_subperiosteal") or False,
+            arch=_str(raw, "arch"),
+            jaw_region=_str(raw, "jaw_region"),
+            implant_system=_str(raw, "implant_system"),
+            cover_screw=_bool(raw, "cover_screw"),
+            healing_abutment=_bool(raw, "healing_abutment"),
+            membrane_used=_bool(raw, "membrane_used"),
+            diameter_mm=_float(raw, "diameter_mm"),
+            length_mm=_float(raw, "length_mm"),
+            isq_value=_float(raw, "isq_value"),
+            implant_outcome=_str(raw, "implant_outcome"),
+            osseointegration_success=_bool(raw, "osseointegration_success"),
+            peri_implant_health=_str(raw, "peri_implant_health"),
+            surgery_date=_date_(raw, "surgery_date"),
+            follow_up_date=_date_(raw, "follow_up_date"),
+            prosthetic_loading_date=_date_(raw, "prosthetic_loading_date"),
+            surgeon_name=_str(raw, "surgeon_name"),
+            consultant_surgeon=_str(raw, "consultant_surgeon"),
+            notes=_str(raw, "notes"),
+            clinical_notes=_str(raw, "clinical_notes"),
+            current_stage=_int(raw, "current_stage") or 1,
+            osseointegration_days=_int(raw, "osseointegration_days") or 90,
+            stage_2_date=_date_(raw, "stage_2_date"),
+            stage_3_date=_date_(raw, "stage_3_date"),
+            tag_image=_str(raw, "tag_image"),
+            clinic_id=_str(raw, "clinic_id"),
+        ))
+        inserted["implants"] += 1
+    await db.flush()
+
+    for raw in payload.get("fpd_records", []):
+        fid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(FPDModel, fid):
+            continue
+        db.add(FPDModel(
+            id=fid,
+            case_id=uuid.UUID(raw["case_id"]) if _str(raw, "case_id") else None,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            tooth_numbers=_int_list(raw, "tooth_numbers"),
+            prosthetic_loading_date=_date_(raw, "prosthetic_loading_date"),
+            crown_count=_str(raw, "crown_count"),
+            connected_implant_ids=_uuid_list(raw, "connected_implant_ids"),
+            crown_type=_str(raw, "crown_type"),
+            material=_str(raw, "material"),
+            crown_material=_str(raw, "crown_material"),
+            clinical_notes=_str(raw, "clinical_notes"),
+            consultant_prosthodontist=_str(raw, "consultant_prosthodontist"),
+            lab_name=_str(raw, "lab_name"),
+            warranty_image_url=_str(raw, "warranty_image_url"),
+        ))
+        inserted["fpd_records"] += 1
 
     await db.flush()
     return {"inserted": inserted}
