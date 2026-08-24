@@ -505,7 +505,9 @@ async def analytics_overview(
     clinics_result = await db.execute(
         select(Clinic).where(Clinic.org_id == current_user.org_id)
     )
-    total_clinics = len(clinics_result.scalars().all())
+    all_clinics = list(clinics_result.scalars().all())
+    total_clinics = len(all_clinics)
+    clinic_name_by_id = {str(c.id): c.name for c in all_clinics}
 
     type_counts: dict[str, int] = {}
     for imp in all_implants:
@@ -513,12 +515,67 @@ async def analytics_overview(
         type_counts[t] = type_counts.get(t, 0) + 1
     implant_types = [{"_id": t, "count": c} for t, c in type_counts.items()]
 
+    dimension_counts: dict[str, int] = {}
+    dimension_failed_counts: dict[str, int] = {}
+    for imp in all_implants:
+        if imp.diameter_mm is not None and imp.length_mm is not None:
+            dim = f"{float(imp.diameter_mm):g}×{float(imp.length_mm):g}"
+            dimension_counts[dim] = dimension_counts.get(dim, 0) + 1
+            if imp.implant_outcome == "Failed":
+                dimension_failed_counts[dim] = dimension_failed_counts.get(dim, 0) + 1
+    implant_dimensions = sorted(
+        ({"_id": d, "count": c} for d, c in dimension_counts.items()),
+        key=lambda row: -row["count"],
+    )
+    implant_dimensions_failed = sorted(
+        ({"_id": d, "count": c} for d, c in dimension_failed_counts.items()),
+        key=lambda row: -row["count"],
+    )
+
+    # Group brand names case-insensitively (e.g. "Genesis" and "genesis" are the
+    # same brand) while keeping the most-common capitalization as the display label.
+    # Also tally how many of each brand's implants failed, for the secondary bar.
+    brand_variant_counts: dict[str, int] = {}
+    brand_variant_failed: dict[str, int] = {}
+    for imp in all_implants:
+        if imp.brand and imp.brand.strip():
+            b = imp.brand.strip()
+            brand_variant_counts[b] = brand_variant_counts.get(b, 0) + 1
+            if imp.implant_outcome == "Failed":
+                brand_variant_failed[b] = brand_variant_failed.get(b, 0) + 1
+
+    brand_groups: dict[str, dict] = {}
+    for variant, count in brand_variant_counts.items():
+        key = variant.lower()
+        group = brand_groups.setdefault(key, {"label": variant, "label_count": 0, "total": 0, "failed": 0})
+        group["total"] += count
+        group["failed"] += brand_variant_failed.get(variant, 0)
+        if count > group["label_count"]:
+            group["label"] = variant
+            group["label_count"] = count
+    implant_brands = sorted(
+        ({"_id": g["label"], "count": g["total"], "failed": g["failed"]} for g in brand_groups.values()),
+        key=lambda row: -row["count"],
+    )
+    clinic_counts: dict[str, int] = {}
+    for imp in all_implants:
+        name = clinic_name_by_id.get(imp.clinic_id, "No Clinic") if imp.clinic_id else "No Clinic"
+        clinic_counts[name] = clinic_counts.get(name, 0) + 1
+    implant_clinics = sorted(
+        ({"_id": n, "count": c} for n, c in clinic_counts.items()),
+        key=lambda row: -row["count"],
+    )
+
     return {
         "total_patients": total_patients,
         "total_implants": total_implants,
         "pending_osseointegration": pending_osseointegration,
         "total_clinics": total_clinics,
         "implant_types": implant_types,
+        "implant_dimensions": implant_dimensions,
+        "implant_dimensions_failed": implant_dimensions_failed,
+        "implant_brands": implant_brands,
+        "implant_clinics": implant_clinics,
     }
 
 

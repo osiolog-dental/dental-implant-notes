@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendUp, Users, Tooth, CurrencyDollar, Plus, Trash, PencilSimple, Check, X, Tag, Package, Stethoscope } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
@@ -470,10 +470,10 @@ const Analytics = () => {
     </div>
   );
 
-  const COLORS = ['#82A098', '#C27E70', '#7B9EBB', '#E8A76C'];
-  const implantTypeData = overview?.implant_types?.map((type, index) => ({
-    name: type._id || 'Unknown', value: type.count, color: COLORS[index % COLORS.length],
-  })) || [];
+  const implantDimensionData = overview?.implant_dimensions?.map(d => ({ name: d._id, value: d.count })) || [];
+  const implantDimensionFailedData = overview?.implant_dimensions_failed?.map(d => ({ name: d._id, value: d.count })) || [];
+  const implantBrandData = overview?.implant_brands?.map(b => ({ name: b._id, value: b.count, failed: b.failed || 0 })) || [];
+  const implantClinicData = overview?.implant_clinics?.map(c => ({ name: c._id, value: c.count })) || [];
 
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -554,37 +554,71 @@ const Analytics = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {implantTypeData.length > 0 && (
-              <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
-                <h2 className="text-xl font-medium text-[#2A2F35] mb-6" style={{ fontFamily: 'Work Sans, sans-serif' }}>Implant Types</h2>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie data={implantTypeData} cx="50%" cy="50%" labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={100} dataKey="value">
-                      {implantTypeData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            {implantTypeData.length > 0 && (
-              <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
-                <h2 className="text-xl font-medium text-[#2A2F35] mb-6" style={{ fontFamily: 'Work Sans, sans-serif' }}>Implant Count by Type</h2>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={implantTypeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" />
-                    <XAxis dataKey="name" tick={{ fill: '#5C6773' }} />
-                    <YAxis tick={{ fill: '#5C6773' }} />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#82A098" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
+          {implantDimensionData.length > 0 && (
+            <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-medium text-[#2A2F35] mb-1" style={{ fontFamily: 'Work Sans, sans-serif' }}>Most Used Implant Dimensions</h2>
+              <p className="text-xs text-[#5C6773] mb-6">Diameter × Length (mm){implantDimensionData.length > 15 ? ` — top 15 of ${implantDimensionData.length}` : ''}</p>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={implantDimensionData.slice(0, 15)} margin={{ bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" />
+                  <XAxis dataKey="name" tick={{ fill: '#5C6773', fontSize: 12 }} angle={-45} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fill: '#5C6773' }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Implants" fill="#82A098" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {implantDimensionFailedData.length > 0 && (
+            <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-medium text-[#2A2F35] mb-1" style={{ fontFamily: 'Work Sans, sans-serif' }}>Failed Implants by Dimension</h2>
+              <p className="text-xs text-[#5C6773] mb-6">Diameter × Length (mm){implantDimensionFailedData.length > 15 ? ` — top 15 of ${implantDimensionFailedData.length}` : ''}</p>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={implantDimensionFailedData.slice(0, 15)} margin={{ bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" />
+                  <XAxis dataKey="name" tick={{ fill: '#5C6773', fontSize: 12 }} angle={-45} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fill: '#5C6773' }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Failed" fill="#DC2626" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {implantBrandData.length > 0 && (
+            <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-medium text-[#2A2F35] mb-1" style={{ fontFamily: 'Work Sans, sans-serif' }}>Most Used Implant Brands</h2>
+              <p className="text-xs text-[#5C6773] mb-6">{implantBrandData.length > 15 ? `Top 15 of ${implantBrandData.length} brands` : 'By number of implants placed, with failures per brand'}</p>
+              <ResponsiveContainer width="100%" height={360}>
+                <BarChart data={implantBrandData.slice(0, 15)} margin={{ bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" />
+                  <XAxis dataKey="name" tick={{ fill: '#5C6773', fontSize: 12 }} angle={-45} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fill: '#5C6773' }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: 44 }} />
+                  <Bar dataKey="value" name="Total Implants" fill="#82A098" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="failed" name="Failed" fill="#DC2626" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {implantClinicData.length > 0 && (
+            <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-medium text-[#2A2F35] mb-1" style={{ fontFamily: 'Work Sans, sans-serif' }}>Implants Placed by Clinic</h2>
+              <p className="text-xs text-[#5C6773] mb-6">{implantClinicData.length > 15 ? `Top 15 of ${implantClinicData.length} clinics` : 'Number of implants placed at each clinic'}</p>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={implantClinicData.slice(0, 15)} margin={{ bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E2" />
+                  <XAxis dataKey="name" tick={{ fill: '#5C6773', fontSize: 12 }} angle={-45} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fill: '#5C6773' }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Implants" fill="#7B9EBB" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
             <h2 className="text-xl font-medium text-[#2A2F35] mb-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>Financial Summary</h2>
