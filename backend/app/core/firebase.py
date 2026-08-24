@@ -91,6 +91,7 @@ def verify_id_token(id_token: str) -> dict[str, Any]:
             audience=project_id,
             issuer=f"{_ISSUER_PREFIX}{project_id}",
             options={"verify_exp": True},
+            leeway=60,
         )
     except jwt.ExpiredSignatureError as exc:
         raise ValueError("Firebase token has expired") from exc

@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: osiolog-backend
+    runtime: python
+    plan: starter
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: FRONTEND_URL
+        value: https://app.osiolog.com
+      - key: AWS_REGION
+        value: ap-south-1
+      # Everything below holds a secret or environment-specific value —
+      # set these in the Render dashboard (Environment tab), not here.
+      - key: DATABASE_URL
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_BUCKET_NAME
+        sync: false
+      - key: VAPID_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Deliberately NOT set: FIREBASE_SECRET_NAME, AWS_SSM_PREFIX.
+      # Leaving these empty makes the AWS Secrets Manager / SSM bootstrap
+      # in app/core/config.py no-op, since Render has no access to those
+      # AWS services and secrets are set directly as env vars here instead.

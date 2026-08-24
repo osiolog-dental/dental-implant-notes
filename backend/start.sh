@@ -7,6 +7,6 @@ alembic upgrade head
 echo "[start] Starting uvicorn..."
 exec uvicorn app.main:app \
   --host 0.0.0.0 \
-  --port 8002 \
+  --port ${PORT:-8002} \
   --workers 2 \
   --log-level info

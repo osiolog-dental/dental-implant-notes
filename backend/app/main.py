@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
-from app.api.routes import health, auth, users, clinics, patients, cases, implants, fpd, dashboard, notifications, audit, abutment, overdenture, flat_routes
+from app.api.routes import health, auth, users, clinics, patients, cases, implants, fpd, dashboard, notifications, audit, abutment, overdenture, flat_routes, chat, implant_log_import, implant_log_scan
 
 logger = logging.getLogger("dentalhub")
 
@@ -116,6 +116,9 @@ def create_app() -> FastAPI:
     app.include_router(audit.router, prefix="/api")
     app.include_router(abutment.router, prefix="/api")
     app.include_router(overdenture.router, prefix="/api")
+    app.include_router(chat.router, prefix="/api")
+    app.include_router(implant_log_import.router, prefix="/api")
+    app.include_router(implant_log_scan.router, prefix="/api")
 
     return app
 
