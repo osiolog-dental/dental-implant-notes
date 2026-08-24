@@ -18,6 +18,7 @@ import Subscription from './pages/Subscription';
 import DoctorPublicProfile from './pages/DoctorPublicProfile';
 import CompleteProfile from './pages/CompleteProfile';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import PrintImplantLogSheet from './pages/PrintImplantLogSheet';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -33,6 +34,7 @@ function App() {
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/profile/:doctorId" element={<DoctorPublicProfile />} />
+          <Route path="/print/implant-log-sheet" element={<ProtectedRoute><PrintImplantLogSheet /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="patients" element={<Patients />} />

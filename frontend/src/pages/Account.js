@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import client from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import BulkImport from '../components/BulkImport';
+import PatientImplantLogForm from '../components/PatientImplantLogForm';
 import {
   User, Envelope, Phone, MapPin, Certificate,
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
@@ -790,8 +790,8 @@ export default function Account() {
         </div>
       )}
 
-      {/* Bulk Import */}
-      <BulkImport />
+      {/* Add Patient & Implant Log */}
+      <PatientImplantLogForm />
 
       {/* Danger Zone */}
       <div className="mt-5 bg-white rounded-xl border border-red-200 overflow-hidden">
