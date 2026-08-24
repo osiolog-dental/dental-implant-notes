@@ -40,8 +40,9 @@ def create_app() -> FastAPI:
         "https://osiolog.com",
         "https://www.osiolog.com",
         "https://dev.osiolog.com",
-        "https://osiolog.com",
-        "https://www.osiolog.com",
+        # Render's default *.onrender.com URL for the frontend — until the
+        # osiolog.com custom domain is wired up, this is what's actually used.
+        "https://osiolog-dental-implant-logging.onrender.com",
         # Capacitor mobile apps
         "capacitor://localhost",
         "ionic://localhost",
