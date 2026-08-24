@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChatCircleDots, X, PaperPlaneTilt, Robot, User, ArrowSquareOut, Spinner } from '@phosphor-icons/react';
+import { ChatCircleDots, X, PaperPlaneTilt, Robot, User, ArrowSquareOut, Spinner, ArrowClockwise, ArrowCounterClockwise } from '@phosphor-icons/react';
 import client from '../api/client';
+import { getPatient } from '../api/patients';
 import { toast } from 'sonner';
 
 const SUGGESTIONS = [
@@ -11,23 +12,51 @@ const SUGGESTIONS = [
   'What is the healing time after sinus lift?',
 ];
 
-function MessageBubble({ msg }) {
+const INITIAL_MESSAGE = {
+  role: 'assistant',
+  content: 'Hi! I\'m your OSIOLOG assistant. I can help you add patients, log implants, look up clinical info, or summarise a patient\'s history.\n\nWhat would you like to do?',
+};
+
+// Turn an axios error into a human-readable reason.
+function errorReason(err) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail[0]?.msg || 'The message could not be processed.';
+  }
+  if (err?.message === 'Network Error') return 'Network error — check your connection.';
+  if (err?.response?.status === 404) return 'The chat service is unavailable on this server.';
+  return 'Something went wrong. Please try again.';
+}
+
+function MessageBubble({ msg, onRetry }) {
   const isUser = msg.role === 'user';
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isUser ? 'bg-[#82A098]' : 'bg-[#F0EDE8] border border-[#E5E5E2]'}`}>
         {isUser
           ? <User size={14} weight="fill" className="text-white" />
-          : <Robot size={14} weight="fill" className="text-[#82A098]" />
+          : <Robot size={14} weight="fill" className={msg.error ? 'text-[#C27E70]' : 'text-[#82A098]'} />
         }
       </div>
       <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
         isUser
           ? 'bg-[#82A098] text-white rounded-tr-sm'
-          : 'bg-white border border-[#E5E5E2] text-[#2A2F35] rounded-tl-sm'
+          : msg.error
+            ? 'bg-[#FBF4F2] border border-[#C27E70] text-[#2A2F35] rounded-tl-sm'
+            : 'bg-white border border-[#E5E5E2] text-[#2A2F35] rounded-tl-sm'
       }`}>
         {msg.content}
         {msg.action && <ActionChip action={msg.action} />}
+        {msg.error && onRetry && (
+          <button
+            onClick={onRetry}
+            data-testid="ai-chat-retry"
+            className="mt-2 flex items-center gap-1 text-xs font-medium text-[#C27E70] bg-white border border-[#E5E5E2] px-2 py-1 rounded-lg hover:border-[#C27E70] transition-colors"
+          >
+            <ArrowClockwise size={12} /> Retry
+          </button>
+        )}
       </div>
     </div>
   );
@@ -62,12 +91,10 @@ function ActionChip({ action }) {
 
 export default function AIChatBox() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([{
-    role: 'assistant',
-    content: 'Hi! I\'m your OSIOLOG assistant. I can help you add patients, log implants, look up clinical info, or summarise a patient\'s history.\n\nWhat would you like to do?',
-  }]);
+  const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [patientName, setPatientName] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const location = useLocation();
@@ -76,12 +103,51 @@ export default function AIChatBox() {
   const patientIdMatch = location.pathname.match(/\/patients\/([^/]+)/);
   const contextPatientId = patientIdMatch ? patientIdMatch[1] : null;
 
+  // Resolve the patient's name for the header chip — fail silently to generic text
+  useEffect(() => {
+    setPatientName(null);
+    if (!contextPatientId) return;
+    let cancelled = false;
+    getPatient(contextPatientId)
+      .then(p => { if (!cancelled && p?.name) setPatientName(p.name); })
+      .catch(() => { /* keep the generic "Viewing patient context" label */ });
+    return () => { cancelled = true; };
+  }, [contextPatientId]);
+
   useEffect(() => {
     if (open) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, messages]);
+
+  // POST a conversation (already ending with a user message) to the backend.
+  const postMessages = async (history) => {
+    setLoading(true);
+    try {
+      const res = await client.post('/api/chat', {
+        messages: history
+          .filter(m => !m.error)
+          .map(m => ({ role: m.role, content: m.content })),
+        patient_id: contextPatientId,
+      });
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: res.data.content,
+        action: res.data.action,
+      }]);
+    } catch (err) {
+      const reason = errorReason(err);
+      toast.error(`Chat failed — ${reason}`);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: reason,
+        error: true,
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const send = async (text) => {
     const trimmed = (text || input).trim();
@@ -91,32 +157,31 @@ export default function AIChatBox() {
     const userMsg = { role: 'user', content: trimmed };
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
-    setLoading(true);
+    await postMessages(nextMessages);
+  };
 
-    try {
-      const res = await client.post('/api/chat', {
-        messages: nextMessages.map(m => ({ role: m.role, content: m.content })),
-        patient_id: contextPatientId,
-      });
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: res.data.content,
-        action: res.data.action,
-      }]);
-    } catch (err) {
-      toast.error('Chat failed — please try again');
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Sorry, something went wrong. Please try again.',
-      }]);
-    } finally {
-      setLoading(false);
-    }
+  // Re-send the conversation after a failure: drop trailing error bubbles so
+  // the history ends with the user's last message, then post it again.
+  const retry = async () => {
+    if (loading) return;
+    const base = [...messages];
+    while (base.length && base[base.length - 1].error) base.pop();
+    if (!base.length || base[base.length - 1].role !== 'user') return;
+    setMessages(base);
+    await postMessages(base);
+  };
+
+  const clearConversation = () => {
+    if (loading) return;
+    setMessages([INITIAL_MESSAGE]);
+    setInput('');
   };
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
+
+  const lastIndex = messages.length - 1;
 
   return (
     <>
@@ -148,12 +213,24 @@ export default function AIChatBox() {
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <Robot size={18} weight="fill" className="text-white" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white leading-tight">OSIOLOG Assistant</p>
-              <p className="text-[10px] text-white/70">
-                {contextPatientId ? 'Viewing patient context' : 'Ask me anything'}
+              <p className="text-[10px] text-white/70 truncate">
+                {contextPatientId
+                  ? (patientName ? `Viewing: ${patientName}` : 'Viewing patient context')
+                  : 'Ask me anything'}
               </p>
             </div>
+            {messages.length > 1 && (
+              <button
+                onClick={clearConversation}
+                data-testid="ai-chat-clear"
+                className="text-white/70 hover:text-white p-1"
+                title="Clear conversation"
+              >
+                <ArrowCounterClockwise size={16} />
+              </button>
+            )}
             <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white p-1">
               <X size={16} />
             </button>
@@ -161,7 +238,13 @@ export default function AIChatBox() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-            {messages.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
+            {messages.map((msg, i) => (
+              <MessageBubble
+                key={i}
+                msg={msg}
+                onRetry={msg.error && i === lastIndex ? retry : undefined}
+              />
+            ))}
             {loading && (
               <div className="flex gap-2">
                 <div className="w-7 h-7 rounded-full bg-[#F0EDE8] border border-[#E5E5E2] flex items-center justify-center flex-shrink-0">

@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     # Push notifications
     VAPID_KEY: str = ""  # Firebase Web Push VAPID key (from Firebase Console > Project Settings > Cloud Messaging)
 
+    # AI chat (Claude) — when unset, /api/chat replies with a friendly
+    # "not configured" message instead of erroring.
+    ANTHROPIC_API_KEY: str = ""
+
     # App
     FRONTEND_URL: str = "http://localhost:3000"
     ENVIRONMENT: str = "development"
