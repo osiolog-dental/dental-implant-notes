@@ -84,11 +84,24 @@ const Patients = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (patient.phone && patient.phone.includes(searchQuery)) ||
-    (patient.email && patient.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const matchesSearch = (patient, rawQuery) => {
+    const query = rawQuery.trim().toLowerCase();
+    if (!query) return true;
+    if (patient.phone && patient.phone.includes(rawQuery.trim())) return true;
+    if (patient.email && patient.email.toLowerCase().includes(query)) return true;
+
+    const nameLower = patient.name.toLowerCase();
+    if (nameLower.includes(query)) return true;
+
+    // Word-by-word match: every word typed just needs to appear somewhere in the
+    // name, in any order — handles irregular spacing/word order in older records
+    // (e.g. searching "lakshmi padmavathi" should still find "K Lakshmi Padmavathi").
+    const nameWords = nameLower.split(/\s+/).filter(Boolean);
+    const queryWords = query.split(/\s+/).filter(Boolean);
+    return queryWords.every(qw => nameWords.some(nw => nw.includes(qw)));
+  };
+
+  const filteredPatients = patients.filter(patient => matchesSearch(patient, searchQuery));
 
   const sortedPatients = [...filteredPatients].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -278,31 +291,47 @@ const Patients = () => {
                       <Link
                         to={`/patients/${patient.id || patient._id}`}
                         data-testid={`patient-card-${patient.id || patient._id}`}
-                        className="block bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
+                        className="flex md:block items-center gap-3 bg-white border border-[#E5E5E2] rounded-xl px-3 py-2.5 md:p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
                       >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
+                        {/* Compact row — mobile only */}
+                        <div className="flex md:hidden items-center gap-3 flex-1 min-w-0">
+                          <div className="w-9 h-9 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-sm shrink-0">
                             {patient.name.charAt(0)}
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
-                            patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {patient.gender}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-medium text-[#2A2F35] truncate">{patient.name}</h3>
+                            <p className="text-xs text-[#5C6773] truncate">
+                              {patient.age ? `${patient.age}y` : ''}{patient.age && patient.gender ? ' · ' : ''}{patient.gender || ''}
+                            </p>
+                          </div>
                         </div>
-                        <h3 className="text-lg font-medium text-[#2A2F35] mb-1 pr-6">{patient.name}</h3>
-                        <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
-                        <div className="space-y-1">
-                          <p className="text-sm text-[#5C6773]">{patient.phone}</p>
-                          {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
+
+                        {/* Full card — tablet/desktop */}
+                        <div className="hidden md:block w-full">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
+                              {patient.name.charAt(0)}
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
+                              patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {patient.gender}
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-medium text-[#2A2F35] mb-1 pr-6">{patient.name}</h3>
+                          <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
+                          <div className="space-y-1">
+                            <p className="text-sm text-[#5C6773]">{patient.phone}</p>
+                            {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
+                          </div>
                         </div>
                       </Link>
                       <button
                         data-testid={`delete-patient-${patient.id || patient._id}`}
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(patient); }}
-                        className="absolute top-4 right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                        className="absolute top-2 right-2 md:top-4 md:right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-all"
                         title="Delete patient"
                       >
                         <Trash size={16} weight="bold" />
