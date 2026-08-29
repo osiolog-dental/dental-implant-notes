@@ -1,11 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import client from '../api/client';
 import { getClinics, createClinic } from '../api/clinics';
 import { createPatient } from '../api/patients';
-
-const SHEET_NAME = 'Patient & Implant Log';
 
 const fieldInput = "mt-1 w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const cellInput = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-md text-xs focus:ring-2 focus:ring-[#82A098] focus:outline-none";
@@ -14,70 +11,37 @@ const cellInput = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-m
 // Excel template (download / upload)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Row/column layout here MUST match backend/app/api/routes/implant_log_import.py
-function buildTemplateRows() {
-  const rows = [];
-  rows[0] = ['OSIOLOG — Patient & Implant Log'];
-  rows[1] = [];
-  rows[2] = ['Patient Name *', ''];              // row 3 → B3
-  rows[3] = ['Age', ''];                          // row 4 → B4
-  rows[4] = ['Gender (Male/Female/Other)', ''];   // row 5 → B5
-  rows[5] = ['Phone', ''];                        // row 6 → B6
-  rows[6] = ['Email', ''];                        // row 7 → B7
-  rows[7] = ['Address', ''];                      // row 8 → B8
-  rows[8] = ['Medical History', ''];              // row 9 → B9
-  rows[9] = ['Clinic Name', ''];                  // row 10 → B10
-  rows[10] = ['Surgeon', ''];                     // row 11 → B11
-  rows[11] = [];
-  rows[12] = [                                    // row 13 — implant table header
-    'Tooth #', 'Type', 'Brand', 'Diameter (mm)', 'Length (mm)', 'Torque (Ncm)',
-    'Connection', 'Approach', 'Arch', 'Region', 'Surgery Date (DD-MM-YYYY)',
-    'Cover Screw (Y/N)', 'Healing Abutment (Y/N)', 'Notes',
-  ];
-  for (let i = 0; i < 12; i++) rows[13 + i] = [];  // rows 14–25 — blank implant rows
-  return rows;
-}
-
-function downloadTemplate() {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(buildTemplateRows());
-  ws['!cols'] = [
-    { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
-    { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 22 },
-    { wch: 16 }, { wch: 18 }, { wch: 24 },
-  ];
-  XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME);
-
-  const instrRows = [
-    ['OSIOLOG — Patient & Implant Log — Instructions'],
-    [''],
-    ['One file = one patient.'],
-    ['• Fill in the Patient section (rows 3–11) at the top of the "Patient & Implant Log" sheet.'],
-    ['• Patient Name is required — a file with no name is skipped on upload.'],
-    ['• Below that, the Implant Log table has 12 rows — fill in as many as apply, leave the rest blank.'],
-    ['• A row only counts if Tooth # is filled in.'],
-    ['• Date format: DD-MM-YYYY (e.g. 15-01-2024)'],
-    ['• Arch: Upper or Lower'],
-    ['• Region: Anterior or Posterior'],
-    ['• Cover Screw / Healing Abutment: Yes or No'],
-    ['• Clinic Name: created automatically if it does not already exist'],
-    [''],
-    ['Uploading:'],
-    ['• Fill out one copy of this file per patient (e.g. one implant visit each).'],
-    ['• On the app, select all the filled files at once — they upload and import together.'],
-    ['• Each file creates one new patient plus their implant log rows.'],
-  ];
-  const wsInstr = XLSX.utils.aoa_to_sheet(instrRows);
-  wsInstr['!cols'] = [{ wch: 70 }];
-  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instructions');
-
-  XLSX.writeFile(wb, 'OSIOLOG_Patient_Implant_Log_Template.xlsx');
+// Generated server-side (columns, dropdowns, and the conditional-formatting
+// highlight all live in backend/app/api/routes/implant_log_import.py) so the
+// highlight-N-rows-below-a-patient logic can use real Excel formulas.
+async function downloadTemplate() {
+  const res = await client.get('/api/implant-log-import/template', { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'OSIOLOG_Bulk_Implant_Log_Template.xlsx');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 function ExcelMethod() {
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [result, setResult] = useState(null);
+
+  const handleDownloadTemplate = async () => {
+    setDownloading(true);
+    try {
+      await downloadTemplate();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not download template');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleUpload = async (fileList) => {
     if (!fileList || fileList.length === 0) return;
@@ -108,7 +72,7 @@ function ExcelMethod() {
   return (
     <div>
       <p className="text-sm text-[#5C6773] mb-5">
-        Download one template per patient, fill it in offline, then upload all the filled files together — one file per patient.
+        Download the template, fill in as many patients as you like on one sheet, then upload it back.
       </p>
 
       <div className="flex items-start gap-4 mb-5">
@@ -116,17 +80,18 @@ function ExcelMethod() {
         <div className="flex-1">
           <p className="text-sm font-semibold text-[#2A2F35] mb-1">Download the template</p>
           <p className="text-xs text-[#5C6773] mb-3">
-            Make one copy per patient. Each copy holds that patient's details plus up to 12 implant log rows.
+            One row per implant. The sheet's Instructions tab explains how to group multiple implants under the same patient visit.
           </p>
           <button
             data-testid="download-implant-log-template-btn"
-            onClick={downloadTemplate}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#EEF4F3] text-[#82A098] border border-[#C8DCD8] hover:bg-[#DDF0EC] transition-colors"
+            onClick={handleDownloadTemplate}
+            disabled={downloading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#EEF4F3] text-[#82A098] border border-[#C8DCD8] hover:bg-[#DDF0EC] transition-colors disabled:opacity-60"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Download Patient &amp; Implant Log Template
+            {downloading ? 'Preparing…' : 'Download Bulk Implant Log Template'}
           </button>
         </div>
       </div>
@@ -134,8 +99,8 @@ function ExcelMethod() {
       <div className="flex items-start gap-4">
         <div className="w-7 h-7 rounded-full bg-[#C27E70] text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-[#2A2F35] mb-1">Upload your filled files</p>
-          <p className="text-xs text-[#5C6773] mb-3">Select multiple files at once — each one becomes a new patient with their implant log.</p>
+          <p className="text-sm font-semibold text-[#2A2F35] mb-1">Upload your filled sheet</p>
+          <p className="text-xs text-[#5C6773] mb-3">Select the filled-in file — every patient and implant on it imports together.</p>
           <label
             data-testid="upload-implant-log-label"
             className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-dashed border-[#E5E5E2] hover:border-[#C27E70] hover:bg-[#FDF8F6] cursor-pointer transition-all group"
