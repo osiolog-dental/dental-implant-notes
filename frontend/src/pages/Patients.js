@@ -90,6 +90,23 @@ const Patients = () => {
     (patient.email && patient.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const sortedPatients = [...filteredPatients].sort((a, b) => a.name.localeCompare(b.name));
+
+  const groupedPatients = {};
+  sortedPatients.forEach(patient => {
+    const first = patient.name.trim().charAt(0).toUpperCase();
+    const letter = /[A-Z]/.test(first) ? first : '#';
+    if (!groupedPatients[letter]) groupedPatients[letter] = [];
+    groupedPatients[letter].push(patient);
+  });
+  const letterKeys = Object.keys(groupedPatients).sort();
+  const availableLetters = new Set(letterKeys);
+  const JUMP_LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+
+  const scrollToLetter = (letter) => {
+    document.getElementById(`patients-letter-${letter}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
       <div className="flex items-center justify-between mb-6 md:mb-8">
@@ -242,7 +259,7 @@ const Patients = () => {
         </div>
       ) : filteredPatients.length === 0 ? (
         <div className="text-center py-12 bg-white border border-[#E5E5E2] rounded-xl">
-          <img 
+          <img
             src="https://images.pexels.com/photos/6502343/pexels-photo-6502343.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
             alt="No patients"
             className="w-48 h-48 object-cover rounded-xl mx-auto mb-4 opacity-50"
@@ -250,43 +267,75 @@ const Patients = () => {
           <p className="text-[#5C6773]">No patients found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPatients.map((patient) => (
-            <div key={patient.id || patient._id} className="relative group">
-              <Link
-                to={`/patients/${patient.id || patient._id}`}
-                data-testid={`patient-card-${patient.id || patient._id}`}
-                className="block bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
-                    {patient.name.charAt(0)}
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
-                    patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {patient.gender}
-                  </span>
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0 space-y-6">
+            {letterKeys.map(letter => (
+              <div key={letter} id={`patients-letter-${letter}`}>
+                <h2 className="text-sm font-bold text-[#82A098] mb-3 sticky top-0 bg-[#F9F9F8] py-1 z-10">{letter}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {groupedPatients[letter].map((patient) => (
+                    <div key={patient.id || patient._id} className="relative group">
+                      <Link
+                        to={`/patients/${patient.id || patient._id}`}
+                        data-testid={`patient-card-${patient.id || patient._id}`}
+                        className="block bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm hover:shadow-md hover:border-[#82A098] transition-all duration-200"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="w-12 h-12 rounded-full bg-[#82A098] flex items-center justify-center text-white font-medium text-lg overflow-hidden shrink-0">
+                            {patient.name.charAt(0)}
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' :
+                            patient.gender === 'Female' ? 'bg-pink-100 text-pink-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {patient.gender}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-medium text-[#2A2F35] mb-1 pr-6">{patient.name}</h3>
+                        <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
+                        <div className="space-y-1">
+                          <p className="text-sm text-[#5C6773]">{patient.phone}</p>
+                          {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
+                        </div>
+                      </Link>
+                      <button
+                        data-testid={`delete-patient-${patient.id || patient._id}`}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(patient); }}
+                        className="absolute top-4 right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Delete patient"
+                      >
+                        <Trash size={16} weight="bold" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <h3 className="text-lg font-medium text-[#2A2F35] mb-1 pr-6">{patient.name}</h3>
-                <p className="text-sm text-[#5C6773] mb-3">{patient.age} years old</p>
-                <div className="space-y-1">
-                  <p className="text-sm text-[#5C6773]">{patient.phone}</p>
-                  {patient.email && <p className="text-sm text-[#5C6773]">{patient.email}</p>}
-                </div>
-              </Link>
+              </div>
+            ))}
+          </div>
+
+          {/* A-Z quick jump */}
+          <div
+            className="hidden sm:flex flex-col items-center sticky top-24 self-start py-2 px-1 bg-white border border-[#E5E5E2] rounded-xl shadow-sm shrink-0"
+            data-testid="patients-alpha-jump"
+          >
+            {JUMP_LETTERS.map(letter => (
               <button
-                data-testid={`delete-patient-${patient.id || patient._id}`}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(patient); }}
-                className="absolute top-4 right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                title="Delete patient"
+                key={letter}
+                type="button"
+                onClick={() => scrollToLetter(letter)}
+                disabled={!availableLetters.has(letter)}
+                data-testid={`alpha-jump-${letter}`}
+                className={`text-[10px] leading-tight w-5 h-4 text-center font-semibold rounded transition-colors ${
+                  availableLetters.has(letter)
+                    ? 'text-[#82A098] hover:bg-[#EEF4F3] cursor-pointer'
+                    : 'text-[#D1D5DB] cursor-default'
+                }`}
               >
-                <Trash size={16} weight="bold" />
+                {letter}
               </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
