@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, MagnifyingGlass, Trash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -116,8 +116,45 @@ const Patients = () => {
   const availableLetters = new Set(letterKeys);
   const JUMP_LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
 
-  const scrollToLetter = (letter) => {
-    document.getElementById(`patients-letter-${letter}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const scrollToLetter = (letter, smooth = true) => {
+    document.getElementById(`patients-letter-${letter}`)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  };
+
+  // A-Z edge strip: dragging along it live-scrolls; a plain tap (no movement)
+  // opens the bigger letter-grid picker instead, since the strip's own letters
+  // are too small to tap precisely (matches the native Contacts app pattern).
+  const sidebarRef = useRef(null);
+  const pressStateRef = useRef({ pressed: false, dragging: false, startY: 0 });
+  const [showLetterPicker, setShowLetterPicker] = useState(false);
+
+  const letterFromClientY = (clientY) => {
+    const el = sidebarRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const relY = clientY - rect.top;
+    const idx = Math.min(JUMP_LETTERS.length - 1, Math.max(0, Math.floor((relY / rect.height) * JUMP_LETTERS.length)));
+    return JUMP_LETTERS[idx];
+  };
+
+  const handleSidebarPointerDown = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pressStateRef.current = { pressed: true, dragging: false, startY: e.clientY };
+  };
+
+  const handleSidebarPointerMove = (e) => {
+    const state = pressStateRef.current;
+    if (!state.pressed) return;
+    if (Math.abs(e.clientY - state.startY) > 6) state.dragging = true;
+    if (state.dragging) {
+      const letter = letterFromClientY(e.clientY);
+      if (letter && availableLetters.has(letter)) scrollToLetter(letter, false);
+    }
+  };
+
+  const handleSidebarPointerUp = () => {
+    const state = pressStateRef.current;
+    if (state.pressed && !state.dragging) setShowLetterPicker(true);
+    pressStateRef.current = { pressed: false, dragging: false, startY: 0 };
   };
 
   return (
@@ -343,22 +380,55 @@ const Patients = () => {
             ))}
           </div>
 
-          {/* A-Z quick jump */}
+          {/* A-Z fast-scroll strip — pinned to the screen edge, like a phone's Contacts app.
+              Drag up/down to live-scroll; a plain tap opens the bigger letter picker below. */}
           <div
-            className="hidden sm:flex flex-col items-center sticky top-24 self-start py-2 px-1 bg-white border border-[#E5E5E2] rounded-xl shadow-sm shrink-0"
+            ref={sidebarRef}
+            onPointerDown={handleSidebarPointerDown}
+            onPointerMove={handleSidebarPointerMove}
+            onPointerUp={handleSidebarPointerUp}
+            onPointerCancel={handleSidebarPointerUp}
+            style={{ touchAction: 'none' }}
+            className="fixed right-0.5 top-24 bottom-20 z-30 flex flex-col justify-center items-center gap-[1px] select-none"
             data-testid="patients-alpha-jump"
+          >
+            {JUMP_LETTERS.map(letter => (
+              <span
+                key={letter}
+                data-testid={`alpha-jump-${letter}`}
+                className={`text-[9px] leading-[11px] w-4 text-center font-semibold ${
+                  availableLetters.has(letter) ? 'text-[#82A098]' : 'text-[#D1D5DB]'
+                }`}
+              >
+                {letter}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Letter picker popup — bigger, easier-to-tap boxes, opened by tapping the edge strip */}
+      {showLetterPicker && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
+          onClick={() => setShowLetterPicker(false)}
+          data-testid="letter-picker-overlay"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-4 grid grid-cols-6 gap-2 max-w-xs"
+            onClick={(e) => e.stopPropagation()}
           >
             {JUMP_LETTERS.map(letter => (
               <button
                 key={letter}
                 type="button"
-                onClick={() => scrollToLetter(letter)}
                 disabled={!availableLetters.has(letter)}
-                data-testid={`alpha-jump-${letter}`}
-                className={`text-[10px] leading-tight w-5 h-4 text-center font-semibold rounded transition-colors ${
+                onClick={() => { scrollToLetter(letter); setShowLetterPicker(false); }}
+                data-testid={`letter-picker-${letter}`}
+                className={`w-9 h-9 rounded-lg text-sm font-semibold flex items-center justify-center transition-colors ${
                   availableLetters.has(letter)
-                    ? 'text-[#82A098] hover:bg-[#EEF4F3] cursor-pointer'
-                    : 'text-[#D1D5DB] cursor-default'
+                    ? 'bg-[#EEF4F3] text-[#82A098] hover:bg-[#DDF0EC] cursor-pointer'
+                    : 'bg-[#F5F5F4] text-[#D1D5DB] cursor-default'
                 }`}
               >
                 {letter}
