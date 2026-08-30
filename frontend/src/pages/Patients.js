@@ -396,7 +396,7 @@ const Patients = () => {
               <span
                 key={letter}
                 data-testid={`alpha-jump-${letter}`}
-                className={`text-[9px] leading-[11px] w-4 text-center font-semibold ${
+                className={`text-[11px] leading-[13px] w-5 text-center font-semibold ${
                   availableLetters.has(letter) ? 'text-[#82A098]' : 'text-[#D1D5DB]'
                 }`}
               >
