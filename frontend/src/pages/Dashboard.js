@@ -6,7 +6,7 @@ import {
   XCircle, Warning, Heartbeat, X, Tooth
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getDashboardSummary, getDueForSecondStage, getAllImplants } from '../api/dashboard';
+import { getAnalyticsOverview, getDueForSecondStage, getAllImplants } from '../api/dashboard';
 import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -143,7 +143,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     try {
       const [summary, patientsData, dueData, implantsData] = await Promise.all([
-        getDashboardSummary(),
+        getAnalyticsOverview(),
         getPatients({ perPage: 100 }),
         getDueForSecondStage().catch(() => []),
         getAllImplants().catch(() => []),
