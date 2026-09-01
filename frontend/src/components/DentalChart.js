@@ -211,10 +211,19 @@ export default function DentalChart({
           </>
 
         ) : hasFpd ? (
-          /* ── FPD CROWN ONLY: green crown + natural root ── */
+          /* ── FPD CROWN: green crown on top. Below it, a natural root if this
+             tooth is a live abutment — but if it's marked missing (a suspended
+             pontic with nothing under the bridge), show an empty-ridge ghost
+             outline instead of a root, since there's no tooth there. ── */
           <>
-            <image href={rootSrc} x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H}
-              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
+            {isMissing ? (
+              <rect x={sx + 8} y={rootY + 6} width={SLOT - 16} height={ROOT_H - 12}
+                rx={6} fill="rgba(200,210,218,0.12)"
+                stroke="rgba(150,165,178,0.30)" strokeWidth={1} strokeDasharray="3,3" />
+            ) : (
+              <image href={rootSrc} x={sx + 4} y={rootY} width={SLOT - 8} height={ROOT_H}
+                preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
+            )}
             <image href={fpdSrc} x={sx + 2} y={crownY} width={SLOT - 4} height={CROWN_H}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: 'none' }} />
             {cfg.tint && (

@@ -770,6 +770,7 @@ const PatientDetails = () => {
             editingFpdId={editingFpdId}
             implants={implants}
             fpdRecords={fpdRecords}
+            toothConditions={toothConditions}
             warrantyFile={warrantyFile}
             setWarrantyFile={setWarrantyFile}
           />

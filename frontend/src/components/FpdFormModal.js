@@ -24,6 +24,7 @@ export default function FpdFormModal({
   editingFpdId,
   implants,
   fpdRecords,
+  toothConditions,
   warrantyFile,
   setWarrantyFile,
 }) {
@@ -40,6 +41,7 @@ export default function FpdFormModal({
             <DentalChart
               implants={implants}
               fpdRecords={fpdRecords}
+              toothConditions={toothConditions}
               selectedTeeth={fpdData.tooth_numbers}
               onToothToggle={onToothToggle}
               mode="fpd"
