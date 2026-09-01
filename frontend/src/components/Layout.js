@@ -249,8 +249,8 @@ const Layout = () => {
         </main>
       </div>
 
-      {/* AI Chat */}
-      <AIChatBox />
+      {/* AI Chat — hidden until it's set up */}
+      {false && <AIChatBox />}
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">
