@@ -51,3 +51,4 @@ class Patient(Base):
     fpd_records: Mapped[list["ProstheticFPD"]] = relationship("ProstheticFPD", back_populates="patient")  # noqa: F821
     abutments: Mapped[list["Abutment"]] = relationship("Abutment", back_populates="patient")  # noqa: F821
     overdentures: Mapped[list["Overdenture"]] = relationship("Overdenture", back_populates="patient")  # noqa: F821
+    full_mouth_rehabs: Mapped[list["FullMouthRehab"]] = relationship("FullMouthRehab", back_populates="patient")  # noqa: F821

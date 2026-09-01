@@ -84,6 +84,7 @@ export default function DentalChart({
   onCrownLog,
   onAbutmentLog,
   onOverdentureLog,
+  onFullMouthRehabLog,
   selectedTeeth   = [],
   onToothToggle,
   mode            = 'view',
@@ -312,10 +313,18 @@ export default function DentalChart({
   return (
     <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E5E5E2' }}>
 
-      {/* Action buttons — vertical list, always fully visible */}
+      {/* Action buttons — vertical list, always fully visible.
+          Single column on narrow screens (buttons were too wide side-by-side
+          on mobile), two columns once there's room. */}
       {mode !== 'fpd' && (
         <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #F0EDE8' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <style>{`
+            .fdi-action-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+            @media (min-width: 480px) {
+              .fdi-action-grid { grid-template-columns: 1fr 1fr; }
+            }
+          `}</style>
+          <div className="fdi-action-grid">
             <button data-testid="action-missing"
               style={btnStyle('missing', '#2563EB', '#2563EB')}
               onClick={() => toggleAction('missing')}>+ Missing Tooth</button>
@@ -336,6 +345,14 @@ export default function DentalChart({
                 border: '1.5px solid #7C3AED',
               }}
               onClick={() => { toggleAction(null); onOverdentureLog?.(); }}>+ Overdenture</button>
+            <button data-testid="action-full-mouth-rehab"
+              style={{
+                ...btnStyle(null, '#4F46E5', '#4F46E5'),
+                background: actionMode === 'full-mouth-rehab' ? '#4F46E5' : 'transparent',
+                color: actionMode === 'full-mouth-rehab' ? '#fff' : '#4F46E5',
+                border: '1.5px solid #4F46E5',
+              }}
+              onClick={() => { toggleAction(null); onFullMouthRehabLog?.(); }}>+ Full Mouth Rehab</button>
           </div>
           {actionMode && (
             <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>

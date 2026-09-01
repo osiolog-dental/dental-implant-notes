@@ -15,10 +15,12 @@ import ImplantFormModal from '../components/ImplantFormModal';
 import FpdFormModal from '../components/FpdFormModal';
 import AbutmentFormModal from '../components/AbutmentFormModal';
 import OverdentureFormModal from '../components/OverdentureFormModal';
+import FullMouthRehabFormModal from '../components/FullMouthRehabFormModal';
 import ImplantRecordsSection from '../components/ImplantRecordsSection';
 import FpdRecordsSection from '../components/FpdRecordsSection';
 import AbutmentRecordsSection from '../components/AbutmentRecordsSection';
 import OverdentureRecordsSection from '../components/OverdentureRecordsSection';
+import FullMouthRehabRecordsSection from '../components/FullMouthRehabRecordsSection';
 
 const INITIAL_IMPLANT = {
   tooth_number: '',
@@ -91,6 +93,14 @@ const INITIAL_OVERDENTURE = {
   clinic_id: '',
 };
 
+const INITIAL_FULL_MOUTH_REHAB = {
+  rehab_type: 'Upper FMR',
+  connected_implant_ids: [],
+  prosthetic_loading_date: '',
+  clinical_notes: '',
+  clinic_id: '',
+};
+
 const PatientDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -109,12 +119,16 @@ const PatientDetails = () => {
   const [missingConfirm, setMissingConfirm] = useState(null); // { toothNumber, action: 'mark'|'revert' }
   const [abutmentRecords, setAbutmentRecords] = useState([]);
   const [overdentureRecords, setOverdentureRecords] = useState([]);
+  const [fullMouthRehabRecords, setFullMouthRehabRecords] = useState([]);
   const [isAbutmentOpen, setIsAbutmentOpen] = useState(false);
   const [isOverdentureOpen, setIsOverdentureOpen] = useState(false);
+  const [isFullMouthRehabOpen, setIsFullMouthRehabOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
+  const [rehabData, setRehabData] = useState({ ...INITIAL_FULL_MOUTH_REHAB });
   const [editingAbutmentId, setEditingAbutmentId] = useState(null);
   const [editingOverdentureId, setEditingOverdentureId] = useState(null);
+  const [editingRehabId, setEditingRehabId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -124,7 +138,7 @@ const PatientDetails = () => {
   const [pdfProgress, setPdfProgress] = useState('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [isBulkImplantOpen, setIsBulkImplantOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'implant'|'fpd'|'abutment'|'overdenture', id, label }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'implant'|'fpd'|'abutment'|'overdenture'|'full_mouth_rehab', id, label }
   const [deleting, setDeleting] = useState(false);
   const [failedImplantConfirm, setFailedImplantConfirm] = useState(null); // { toothNumber }
 
@@ -133,6 +147,7 @@ const PatientDetails = () => {
     fpd: (recId) => `/api/fpd-records/${recId}`,
     abutment: (recId) => `/api/abutment-records/${recId}`,
     overdenture: (recId) => `/api/overdenture-records/${recId}`,
+    full_mouth_rehab: (recId) => `/api/full-mouth-rehab-records/${recId}`,
   };
 
   const handleConfirmDelete = async () => {
@@ -156,13 +171,14 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
         client.get(`/api/clinics`),
         client.get(`/api/abutment-records?patient_id=${id}`),
         client.get(`/api/overdenture-records?patient_id=${id}`),
+        client.get(`/api/full-mouth-rehab-records?patient_id=${id}`),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -170,6 +186,7 @@ const PatientDetails = () => {
       setClinics(clinicsRes.data);
       setAbutmentRecords(abutmentRes.data);
       setOverdentureRecords(overdentureRes.data);
+      setFullMouthRehabRecords(rehabRes.data);
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -383,6 +400,12 @@ const PatientDetails = () => {
     setIsOverdentureOpen(true);
   };
 
+  const openFullMouthRehabLog = () => {
+    setRehabData({ ...INITIAL_FULL_MOUTH_REHAB });
+    setEditingRehabId(null);
+    setIsFullMouthRehabOpen(true);
+  };
+
   const handleSubmitAbutment = async (e) => {
     e.preventDefault();
     try {
@@ -453,6 +476,38 @@ const PatientDetails = () => {
     });
     setEditingOverdentureId(rec.id);
     setIsOverdentureOpen(true);
+  };
+
+  const handleSubmitFullMouthRehab = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = { ...rehabData, patient_id: id };
+      if (editingRehabId) {
+        await client.put(`/api/full-mouth-rehab-records/${editingRehabId}`, payload);
+        toast.success('Full mouth rehab record updated');
+      } else {
+        await client.post(`/api/full-mouth-rehab-records`, payload);
+        toast.success('Full mouth rehab record added');
+      }
+      setIsFullMouthRehabOpen(false);
+      setRehabData({ ...INITIAL_FULL_MOUTH_REHAB });
+      setEditingRehabId(null);
+      fetchAll();
+    } catch (error) {
+      toast.error(editingRehabId ? 'Failed to update full mouth rehab record' : 'Failed to add full mouth rehab record');
+    }
+  };
+
+  const openEditFullMouthRehab = (rec) => {
+    setRehabData({
+      rehab_type: rec.rehab_type || 'Upper FMR',
+      connected_implant_ids: rec.connected_implant_ids || [],
+      prosthetic_loading_date: rec.prosthetic_loading_date || '',
+      clinical_notes: rec.clinical_notes || '',
+      clinic_id: rec.clinic_id || '',
+    });
+    setEditingRehabId(rec.id);
+    setIsFullMouthRehabOpen(true);
   };
 
   const toggleOverdentureTooth = (tooth) => {
@@ -649,6 +704,11 @@ const PatientDetails = () => {
     if (!open) { setOverdentureData({ ...INITIAL_OVERDENTURE }); setEditingOverdentureId(null); }
   };
 
+  const handleFullMouthRehabOpenChange = (open) => {
+    setIsFullMouthRehabOpen(open);
+    if (!open) { setRehabData({ ...INITIAL_FULL_MOUTH_REHAB }); setEditingRehabId(null); }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -799,6 +859,17 @@ const PatientDetails = () => {
           onToothToggle={toggleOverdentureTooth}
         />
 
+        {/* Full Mouth Rehab Log Dialog */}
+        <FullMouthRehabFormModal
+          open={isFullMouthRehabOpen}
+          onOpenChange={handleFullMouthRehabOpenChange}
+          rehabData={rehabData}
+          setRehabData={setRehabData}
+          onSubmit={handleSubmitFullMouthRehab}
+          editingRehabId={editingRehabId}
+          implants={implants}
+        />
+
         {/* FDI Dental Chart — high-fidelity SVG */}
         <div className="overflow-x-auto">
           <div style={{ minWidth: 560 }}>
@@ -811,6 +882,7 @@ const PatientDetails = () => {
               onCrownLog={openCrownLog}
               onAbutmentLog={openAbutmentLog}
               onOverdentureLog={openOverdentureLog}
+              onFullMouthRehabLog={openFullMouthRehabLog}
             />
           </div>
         </div>
@@ -855,6 +927,13 @@ const PatientDetails = () => {
       <OverdentureRecordsSection
         overdentureRecords={overdentureRecords}
         onEdit={openEditOverdenture}
+        onDelete={setDeleteTarget}
+      />
+
+      {/* Full Mouth Rehab Records */}
+      <FullMouthRehabRecordsSection
+        rehabRecords={fullMouthRehabRecords}
+        onEdit={openEditFullMouthRehab}
         onDelete={setDeleteTarget}
       />
 
