@@ -318,7 +318,7 @@ const Patients = () => {
         </div>
       ) : (
         <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex-1 min-w-0 space-y-6 pr-9 md:pr-0">
             {letterKeys.map(letter => (
               <div key={letter} id={`patients-letter-${letter}`}>
                 <h2 className="text-sm font-bold text-[#82A098] mb-3 sticky top-0 bg-[#F9F9F8] py-1 z-10">{letter}</h2>
@@ -368,7 +368,7 @@ const Patients = () => {
                       <button
                         data-testid={`delete-patient-${patient.id || patient._id}`}
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(patient); }}
-                        className="absolute top-2 right-2 md:top-4 md:right-4 p-1.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                        className="absolute top-2 right-2 md:top-4 md:right-4 p-2.5 rounded-md bg-white/80 hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-all"
                         title="Delete patient"
                       >
                         <Trash size={16} weight="bold" />
@@ -389,14 +389,14 @@ const Patients = () => {
             onPointerUp={handleSidebarPointerUp}
             onPointerCancel={handleSidebarPointerUp}
             style={{ touchAction: 'none' }}
-            className="fixed right-0.5 top-24 bottom-20 z-30 flex flex-col justify-center items-center gap-[1px] select-none"
+            className="fixed right-0 top-24 bottom-20 z-30 w-8 flex flex-col justify-center items-center gap-[1px] select-none bg-white/90 border-l border-y border-[#E5E5E2] rounded-l-lg shadow-sm"
             data-testid="patients-alpha-jump"
           >
             {JUMP_LETTERS.map(letter => (
               <span
                 key={letter}
                 data-testid={`alpha-jump-${letter}`}
-                className={`text-[11px] leading-[13px] w-5 text-center font-semibold ${
+                className={`text-[12px] leading-[14px] w-full text-center font-semibold ${
                   availableLetters.has(letter) ? 'text-[#82A098]' : 'text-[#D1D5DB]'
                 }`}
               >
