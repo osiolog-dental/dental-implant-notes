@@ -15,7 +15,7 @@ import ImplantFormModal from '../components/ImplantFormModal';
 import FpdFormModal from '../components/FpdFormModal';
 import AbutmentFormModal from '../components/AbutmentFormModal';
 import OverdentureFormModal from '../components/OverdentureFormModal';
-import FullMouthRehabFormModal from '../components/FullMouthRehabFormModal';
+import FullMouthRehabFormModal, { archForRehabType } from '../components/FullMouthRehabFormModal';
 import ImplantRecordsSection from '../components/ImplantRecordsSection';
 import FpdRecordsSection from '../components/FpdRecordsSection';
 import AbutmentRecordsSection from '../components/AbutmentRecordsSection';
@@ -99,7 +99,15 @@ const INITIAL_FULL_MOUTH_REHAB = {
   prosthetic_loading_date: '',
   clinical_notes: '',
   clinic_id: '',
+  mark_missing: true, // UI-only; not sent to the backend
 };
+
+const UPPER_ARCH_TEETH = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
+const LOWER_ARCH_TEETH = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
+const teethForArch = (arch) => arch === 'upper' ? UPPER_ARCH_TEETH
+  : arch === 'lower' ? LOWER_ARCH_TEETH
+  : arch === 'both' ? [...UPPER_ARCH_TEETH, ...LOWER_ARCH_TEETH]
+  : [];
 
 const PatientDetails = () => {
   const { id } = useParams();
@@ -178,7 +186,8 @@ const PatientDetails = () => {
         client.get(`/api/clinics`),
         client.get(`/api/abutment-records?patient_id=${id}`),
         client.get(`/api/overdenture-records?patient_id=${id}`),
-        client.get(`/api/full-mouth-rehab-records?patient_id=${id}`),
+        // Non-critical: don't let a hiccup on this newer endpoint break the whole page.
+        client.get(`/api/full-mouth-rehab-records?patient_id=${id}`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -481,7 +490,9 @@ const PatientDetails = () => {
   const handleSubmitFullMouthRehab = async (e) => {
     e.preventDefault();
     try {
-      const payload = { ...rehabData, patient_id: id };
+      // eslint-disable-next-line no-unused-vars
+      const { mark_missing, ...cleanRehab } = rehabData;
+      const payload = { ...cleanRehab, patient_id: id };
       if (editingRehabId) {
         await client.put(`/api/full-mouth-rehab-records/${editingRehabId}`, payload);
         toast.success('Full mouth rehab record updated');
@@ -489,6 +500,19 @@ const PatientDetails = () => {
         await client.post(`/api/full-mouth-rehab-records`, payload);
         toast.success('Full mouth rehab record added');
       }
+
+      const arch = archForRehabType(rehabData.rehab_type);
+      if (mark_missing && arch) {
+        const updated = { ...toothConditions };
+        teethForArch(arch).forEach(tn => { updated[tn] = { condition: 'missing' }; });
+        setToothConditions(updated);
+        try {
+          await client.patch(`/api/patients/${id}/tooth-conditions`, { tooth_conditions: updated });
+        } catch {
+          toast.warning('Rehab record saved, but marking teeth missing failed — update the chart manually');
+        }
+      }
+
       setIsFullMouthRehabOpen(false);
       setRehabData({ ...INITIAL_FULL_MOUTH_REHAB });
       setEditingRehabId(null);
@@ -505,6 +529,7 @@ const PatientDetails = () => {
       prosthetic_loading_date: rec.prosthetic_loading_date || '',
       clinical_notes: rec.clinical_notes || '',
       clinic_id: rec.clinic_id || '',
+      mark_missing: false, // don't re-trigger on every edit — only on first log
     });
     setEditingRehabId(rec.id);
     setIsFullMouthRehabOpen(true);

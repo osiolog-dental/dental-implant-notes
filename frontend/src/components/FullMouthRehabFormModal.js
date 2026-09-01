@@ -19,6 +19,26 @@ const REHAB_TYPES = [
   'Malo Bridge',
 ];
 
+const UPPER_TEETH = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
+const LOWER_TEETH = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
+
+// FMR of an arch implies that arch's natural teeth are gone — Upper/Lower/Both
+// FMR name the arch outright; Hybrid Denture/Malo Bridge don't, so we leave
+// arch undetermined for those rather than guess.
+export function archForRehabType(rehabType) {
+  if (rehabType === 'Upper FMR') return 'upper';
+  if (rehabType === 'Lower FMR') return 'lower';
+  if (rehabType === 'Both U/L FMR') return 'both';
+  return null;
+}
+
+function archTeeth(arch) {
+  if (arch === 'upper') return UPPER_TEETH;
+  if (arch === 'lower') return LOWER_TEETH;
+  if (arch === 'both') return [...UPPER_TEETH, ...LOWER_TEETH];
+  return [];
+}
+
 export default function FullMouthRehabFormModal({
   open,
   onOpenChange,
@@ -28,6 +48,15 @@ export default function FullMouthRehabFormModal({
   editingRehabId,
   implants,
 }) {
+  const arch = archForRehabType(rehabData.rehab_type);
+  const archLabel = arch === 'upper' ? 'upper' : arch === 'lower' ? 'lower' : arch === 'both' ? 'upper and lower' : null;
+  const teethForArch = archTeeth(arch);
+  // When the arch is known, only show implants actually in that arch — that's
+  // the "multiple implants in the upper arch" the FMR is meant to cover.
+  const visibleImplants = arch
+    ? implants.filter(imp => teethForArch.includes(imp.tooth_number))
+    : implants;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -50,12 +79,27 @@ export default function FullMouthRehabFormModal({
             </select>
           </div>
 
-          {/* Connected implants */}
-          {implants.length > 0 && (
+          {arch && (
+            <label className="flex items-start gap-2 text-xs bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg p-3 cursor-pointer">
+              <input type="checkbox"
+                checked={rehabData.mark_missing}
+                onChange={e => setRehabData(p => ({ ...p, mark_missing: e.target.checked }))}
+                data-testid="full-mouth-rehab-mark-missing"
+                className="w-4 h-4 mt-0.5 text-[#4F46E5] border-[#E5E5E2] rounded focus:ring-[#4F46E5]"
+              />
+              <span>
+                <span className="font-medium text-[#3730A3]">Mark all {archLabel} teeth as missing</span>
+                <span className="block text-[#5C6773] mt-0.5">A {rehabData.rehab_type} means the natural {archLabel} teeth are gone — this updates the chart to match, on save.</span>
+              </span>
+            </label>
+          )}
+
+          {/* Connected implants — filtered to the FMR's arch when known */}
+          {visibleImplants.length > 0 ? (
             <div>
-              <Label className="text-xs">Connected Implant(s)</Label>
+              <Label className="text-xs">Connected Implant(s){arch ? ` — ${archLabel} arch` : ''}</Label>
               <div className="flex flex-wrap gap-2 mt-1">
-                {implants.map(imp => (
+                {visibleImplants.map(imp => (
                   <label key={imp.id} className="flex items-center gap-1.5 text-sm border border-[#E5E5E2] rounded-md px-2.5 py-1.5 cursor-pointer hover:border-[#4F46E5] transition-colors">
                     <input type="checkbox"
                       checked={rehabData.connected_implant_ids.includes(imp.id)}
@@ -72,6 +116,10 @@ export default function FullMouthRehabFormModal({
                 ))}
               </div>
             </div>
+          ) : arch && (
+            <p className="text-xs text-[#B45309] bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-2.5">
+              No implants logged in the {archLabel} arch yet — log those on the chart first if this rehab is implant-supported.
+            </p>
           )}
 
           <div>
