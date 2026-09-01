@@ -1,7 +1,7 @@
-# Osioloc — Claude Code Guide
+# Osiolog — Claude Code Guide
 
 ## What This App Is
-**Osioloc** (formerly DentalHub) is a full-stack dental implant case management system for dentists and implantologists. It ships as a web app AND native iOS + Android app via Capacitor.
+**Osiolog** (formerly DentalHub) is a full-stack dental implant case management system for dentists and implantologists. It ships as a web app AND native iOS + Android app via Capacitor.
 
 ---
 
