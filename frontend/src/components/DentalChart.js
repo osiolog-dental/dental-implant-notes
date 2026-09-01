@@ -103,6 +103,9 @@ export default function DentalChart({
     return m;
   }, [fpdRecords]);
 
+  const zygomaticImplants = useMemo(() => implants.filter(i => i.is_zygomatic), [implants]);
+  const pterygoidImplants = useMemo(() => implants.filter(i => i.is_pterygoid), [implants]);
+
   const handleToothClick = n => {
     if (mode === 'fpd') { onToothToggle?.(n); return; }
     if (actionMode === 'missing') onMarkMissing?.(n);
@@ -134,6 +137,14 @@ export default function DentalChart({
     const hasCrownOnImp = hasImp && !!imp.prosthetic_loading_date;
     const isSel      = selectedTeeth.includes(n);
     const isHov      = hov === n;
+
+    /* Zygomatic/pterygoid implants anchor outside the normal tooth socket —
+       flag them distinctly since a routine implant-screw graphic at this
+       tooth number would otherwise look like an ordinary case. */
+    const isZygomatic = hasImp && !!imp.is_zygomatic;
+    const isPterygoid = hasImp && !!imp.is_pterygoid;
+    const specialColor = isZygomatic ? '#D97706' : isPterygoid ? '#DB2777' : null;
+    const specialLabel  = isZygomatic ? 'Z' : isPterygoid ? 'P' : null;
 
     /* Zone top-Y for crown and root in this arch */
     const crownY = up ? U_CROWN_Y : L_CROWN_Y;
@@ -252,6 +263,19 @@ export default function DentalChart({
           </>
         )}
 
+        {/* Zygomatic/pterygoid flag — persistent outline + corner badge */}
+        {specialColor && (
+          <>
+            <rect x={sx + 1} y={slotTop + 1} width={SLOT - 2} height={slotH - 2}
+              rx={5} fill="none" stroke={specialColor} strokeWidth={1.5} strokeDasharray="3,2"
+              style={{ pointerEvents: 'none' }} />
+            <circle cx={sx + SLOT - 9} cy={slotTop + 9} r={8} fill={specialColor} style={{ pointerEvents: 'none' }} />
+            <text x={sx + SLOT - 9} y={slotTop + 12.5} textAnchor="middle" fontSize={10} fontWeight="800"
+              fill="#FFFFFF" fontFamily="'IBM Plex Sans',sans-serif"
+              style={{ userSelect: 'none', pointerEvents: 'none' }}>{specialLabel}</text>
+          </>
+        )}
+
         {/* ── NUMBER BOX ── */}
         {(() => {
           const ny = up ? U_NUM_Y : L_NUM_Y;
@@ -354,6 +378,8 @@ export default function DentalChart({
             { color: '#0369A1', border: '#024f7c', label: 'Implant' },
             { color: '#16A34A', border: '#0f7234', label: 'Crown/FPD' },
             { color: 'rgba(195,208,218,0.25)', border: '#9CA3AF', label: 'Missing', dashed: true },
+            ...(zygomaticImplants.length ? [{ color: '#D97706', border: '#B45309', label: 'Zygomatic' }] : []),
+            ...(pterygoidImplants.length ? [{ color: '#DB2777', border: '#BE185D', label: 'Pterygoid' }] : []),
           ].map(({ color, border, label, dashed }, i) => (
             <g key={label} transform={`translate(${LM + i * 130} ${LEGEND_Y})`}>
               <rect width={12} height={12} rx={2}
@@ -365,6 +391,24 @@ export default function DentalChart({
           ))}
         </svg>
       </div>
+
+      {/* Zygomatic/pterygoid summary — these anchor outside the normal tooth
+          socket, so a consolidated list is clearer than reading it off the
+          chart tooth-by-tooth. */}
+      {mode !== 'fpd' && (zygomaticImplants.length > 0 || pterygoidImplants.length > 0) && (
+        <div style={{ padding: '10px 14px 12px', borderTop: '1px solid #F0EDE8', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {zygomaticImplants.length > 0 && (
+            <p style={{ fontSize: 12, color: '#92400E', margin: 0 }}>
+              <span style={{ fontWeight: 700 }}>Zygomatic</span> — tooth {zygomaticImplants.map(i => i.tooth_number).join(', ')}
+            </p>
+          )}
+          {pterygoidImplants.length > 0 && (
+            <p style={{ fontSize: 12, color: '#9D174D', margin: 0 }}>
+              <span style={{ fontWeight: 700 }}>Pterygoid</span> — tooth {pterygoidImplants.map(i => i.tooth_number).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
