@@ -16,11 +16,13 @@ import FpdFormModal from '../components/FpdFormModal';
 import AbutmentFormModal from '../components/AbutmentFormModal';
 import OverdentureFormModal from '../components/OverdentureFormModal';
 import FullMouthRehabFormModal, { archForRehabType } from '../components/FullMouthRehabFormModal';
+import ExtractedTeethFormModal from '../components/ExtractedTeethFormModal';
 import ImplantRecordsSection from '../components/ImplantRecordsSection';
 import FpdRecordsSection from '../components/FpdRecordsSection';
 import AbutmentRecordsSection from '../components/AbutmentRecordsSection';
 import OverdentureRecordsSection from '../components/OverdentureRecordsSection';
 import FullMouthRehabRecordsSection from '../components/FullMouthRehabRecordsSection';
+import ExtractedTeethRecordsSection from '../components/ExtractedTeethRecordsSection';
 
 const INITIAL_IMPLANT = {
   tooth_number: '',
@@ -102,6 +104,17 @@ const INITIAL_FULL_MOUTH_REHAB = {
   mark_missing: true, // UI-only; not sent to the backend
 };
 
+const INITIAL_EXTRACTION = {
+  tooth_numbers: [],
+  extraction_date: '',
+  bone_graft: '',
+  membrane_used: false,
+  planned_future_implant: false,
+  reminder_days: '',
+  clinic_id: '',
+  clinical_notes: '',
+};
+
 const UPPER_ARCH_TEETH = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
 const LOWER_ARCH_TEETH = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
 const teethForArch = (arch) => arch === 'upper' ? UPPER_ARCH_TEETH
@@ -128,15 +141,19 @@ const PatientDetails = () => {
   const [abutmentRecords, setAbutmentRecords] = useState([]);
   const [overdentureRecords, setOverdentureRecords] = useState([]);
   const [fullMouthRehabRecords, setFullMouthRehabRecords] = useState([]);
+  const [extractionRecords, setExtractionRecords] = useState([]);
   const [isAbutmentOpen, setIsAbutmentOpen] = useState(false);
   const [isOverdentureOpen, setIsOverdentureOpen] = useState(false);
   const [isFullMouthRehabOpen, setIsFullMouthRehabOpen] = useState(false);
+  const [isExtractionOpen, setIsExtractionOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
   const [rehabData, setRehabData] = useState({ ...INITIAL_FULL_MOUTH_REHAB });
+  const [extractionData, setExtractionData] = useState({ ...INITIAL_EXTRACTION });
   const [editingAbutmentId, setEditingAbutmentId] = useState(null);
   const [editingOverdentureId, setEditingOverdentureId] = useState(null);
   const [editingRehabId, setEditingRehabId] = useState(null);
+  const [editingExtractionId, setEditingExtractionId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -156,6 +173,7 @@ const PatientDetails = () => {
     abutment: (recId) => `/api/abutment-records/${recId}`,
     overdenture: (recId) => `/api/overdenture-records/${recId}`,
     full_mouth_rehab: (recId) => `/api/full-mouth-rehab-records/${recId}`,
+    tooth_extraction: (recId) => `/api/tooth-extractions/${recId}`,
   };
 
   const handleConfirmDelete = async () => {
@@ -179,15 +197,16 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
         client.get(`/api/clinics`),
         client.get(`/api/abutment-records?patient_id=${id}`),
         client.get(`/api/overdenture-records?patient_id=${id}`),
-        // Non-critical: don't let a hiccup on this newer endpoint break the whole page.
+        // Non-critical: don't let a hiccup on these newer endpoints break the whole page.
         client.get(`/api/full-mouth-rehab-records?patient_id=${id}`).catch(() => ({ data: [] })),
+        client.get(`/api/tooth-extractions?patient_id=${id}`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -196,6 +215,7 @@ const PatientDetails = () => {
       setAbutmentRecords(abutmentRes.data);
       setOverdentureRecords(overdentureRes.data);
       setFullMouthRehabRecords(rehabRes.data);
+      setExtractionRecords(extractionRes.data);
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -415,6 +435,12 @@ const PatientDetails = () => {
     setIsFullMouthRehabOpen(true);
   };
 
+  const openExtractedTeethLog = () => {
+    setExtractionData({ ...INITIAL_EXTRACTION });
+    setEditingExtractionId(null);
+    setIsExtractionOpen(true);
+  };
+
   const handleSubmitAbutment = async (e) => {
     e.preventDefault();
     try {
@@ -545,6 +571,80 @@ const PatientDetails = () => {
           : [...prev.tooth_numbers, tooth].sort((a, b) => a - b)
       };
     });
+  };
+
+  const toggleExtractionTooth = (tooth) => {
+    setExtractionData(prev => {
+      const exists = prev.tooth_numbers.includes(tooth);
+      return {
+        ...prev,
+        tooth_numbers: exists
+          ? prev.tooth_numbers.filter(t => t !== tooth)
+          : [...prev.tooth_numbers, tooth].sort((a, b) => a - b)
+      };
+    });
+  };
+
+  const handleSubmitExtraction = async (e) => {
+    e.preventDefault();
+    if (extractionData.tooth_numbers.length === 0) {
+      toast.error('Select at least one extracted tooth');
+      return;
+    }
+    try {
+      const payload = {
+        ...extractionData,
+        patient_id: id,
+        reminder_days: extractionData.reminder_days ? parseInt(extractionData.reminder_days, 10) : null,
+      };
+      if (editingExtractionId) {
+        await client.put(`/api/tooth-extractions/${editingExtractionId}`, payload);
+        toast.success('Extraction record updated');
+      } else {
+        await client.post(`/api/tooth-extractions`, payload);
+        toast.success('Extraction record added');
+      }
+
+      // Same tooth, same date as a logged implant — very likely an immediate
+      // placement. Flag it rather than leaving it ambiguous in the records.
+      const sameDayImplants = implants.filter(imp =>
+        extractionData.tooth_numbers.includes(imp.tooth_number) &&
+        imp.surgery_date === extractionData.extraction_date &&
+        imp.surgical_approach !== 'Immediate Placement'
+      );
+      if (sameDayImplants.length > 0) {
+        const teethList = sameDayImplants.map(i => i.tooth_number).join(', ');
+        const plural = sameDayImplants.length > 1;
+        if (window.confirm(`Tooth ${teethList} already ${plural ? 'have' : 'has an'} implant${plural ? 's' : ''} logged on this same date — mark ${plural ? 'them' : 'it'} as Immediate Placement?`)) {
+          await Promise.all(sameDayImplants.map(imp =>
+            client.patch(`/api/implants/${imp.id}`, { surgical_approach: 'Immediate Placement' })
+          ));
+          toast.success('Marked as immediate placement');
+        }
+      }
+
+      setIsExtractionOpen(false);
+      setExtractionData({ ...INITIAL_EXTRACTION });
+      setEditingExtractionId(null);
+      fetchAll();
+    } catch (error) {
+      toast.error(editingExtractionId ? 'Failed to update extraction record' : 'Failed to add extraction record');
+    }
+  };
+
+  const openEditExtraction = (rec) => {
+    setExtractionData({
+      tooth_numbers: rec.tooth_numbers || [],
+      extraction_date: rec.extraction_date || '',
+      bone_graft: rec.bone_graft || '',
+      membrane_used: rec.membrane_used || false,
+      planned_future_implant: rec.planned_future_implant || false,
+      reminder_days: rec.reminder_days != null ? String(rec.reminder_days) : '',
+      clinic_id: rec.clinic_id || '',
+      clinical_notes: rec.clinical_notes || '',
+    });
+    setEditingExtractionId(rec.id);
+    setIsExtractionOpen(true);
   };
 
   const handleSubmitImplant = async (e) => {
@@ -734,6 +834,11 @@ const PatientDetails = () => {
     if (!open) { setRehabData({ ...INITIAL_FULL_MOUTH_REHAB }); setEditingRehabId(null); }
   };
 
+  const handleExtractionOpenChange = (open) => {
+    setIsExtractionOpen(open);
+    if (!open) { setExtractionData({ ...INITIAL_EXTRACTION }); setEditingExtractionId(null); }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -895,6 +1000,17 @@ const PatientDetails = () => {
           implants={implants}
         />
 
+        {/* Extracted Teeth Log Dialog */}
+        <ExtractedTeethFormModal
+          open={isExtractionOpen}
+          onOpenChange={handleExtractionOpenChange}
+          extractionData={extractionData}
+          setExtractionData={setExtractionData}
+          onSubmit={handleSubmitExtraction}
+          editingExtractionId={editingExtractionId}
+          onToothToggle={toggleExtractionTooth}
+        />
+
         {/* FDI Dental Chart — high-fidelity SVG */}
         <div className="overflow-x-auto">
           <div style={{ minWidth: 560 }}>
@@ -908,6 +1024,7 @@ const PatientDetails = () => {
               onAbutmentLog={openAbutmentLog}
               onOverdentureLog={openOverdentureLog}
               onFullMouthRehabLog={openFullMouthRehabLog}
+              onExtractedTeethLog={openExtractedTeethLog}
             />
           </div>
         </div>
@@ -959,6 +1076,13 @@ const PatientDetails = () => {
       <FullMouthRehabRecordsSection
         rehabRecords={fullMouthRehabRecords}
         onEdit={openEditFullMouthRehab}
+        onDelete={setDeleteTarget}
+      />
+
+      {/* Extraction Records */}
+      <ExtractedTeethRecordsSection
+        extractionRecords={extractionRecords}
+        onEdit={openEditExtraction}
         onDelete={setDeleteTarget}
       />
 

@@ -85,6 +85,7 @@ export default function DentalChart({
   onAbutmentLog,
   onOverdentureLog,
   onFullMouthRehabLog,
+  onExtractedTeethLog,
   selectedTeeth   = [],
   onToothToggle,
   mode            = 'view',
@@ -328,6 +329,14 @@ export default function DentalChart({
             <button data-testid="action-missing"
               style={btnStyle('missing', '#2563EB', '#2563EB')}
               onClick={() => toggleAction('missing')}>+ Missing Tooth</button>
+            <button data-testid="action-extracted-teeth"
+              style={{
+                ...btnStyle(null, '#2563EB', '#2563EB'),
+                background: actionMode === 'extracted-teeth' ? '#2563EB' : 'transparent',
+                color: actionMode === 'extracted-teeth' ? '#fff' : '#2563EB',
+                border: '1.5px solid #2563EB',
+              }}
+              onClick={() => { toggleAction(null); onExtractedTeethLog?.(); }}>+ Extracted Teeth</button>
             <button data-testid="action-implant"
               style={btnStyle('implant', '#64748B', '#0369A1')}
               onClick={() => toggleAction('implant')}>+ Dental Implant</button>

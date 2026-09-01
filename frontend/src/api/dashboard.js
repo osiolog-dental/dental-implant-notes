@@ -12,5 +12,8 @@ export const getAnalyticsFinancial = () =>
 export const getDueForSecondStage = () =>
   client.get('/api/implants/due-for-second-stage').then(r => r.data);
 
+export const getDueForImplant = () =>
+  client.get('/api/tooth-extractions/due/for-implant').then(r => r.data);
+
 export const getAllImplants = () =>
   client.get('/api/implants/all').then(r => r.data);

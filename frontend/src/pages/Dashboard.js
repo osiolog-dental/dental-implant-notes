@@ -6,7 +6,7 @@ import {
   XCircle, Warning, Heartbeat, X, Tooth
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getAnalyticsOverview, getDueForSecondStage, getAllImplants } from '../api/dashboard';
+import { getAnalyticsOverview, getDueForSecondStage, getAllImplants, getDueForImplant } from '../api/dashboard';
 import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -135,6 +135,7 @@ const Dashboard = () => {
   const [patients, setPatients] = useState([]);
   const [allImplants, setAllImplants] = useState([]);
   const [dueImplants, setDueImplants] = useState([]);
+  const [dueExtractions, setDueExtractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null); // null | 'active' | 'completed' | 'guarded' | 'failed'
 
@@ -142,17 +143,19 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [summary, patientsData, dueData, implantsData] = await Promise.all([
+      const [summary, patientsData, dueData, implantsData, dueExtractionData] = await Promise.all([
         getAnalyticsOverview(),
         getPatients({ perPage: 100 }),
         getDueForSecondStage().catch(() => []),
         getAllImplants().catch(() => []),
+        getDueForImplant().catch(() => []),
       ]);
       setAnalytics(summary);
       const patientList = patientsData.items ?? patientsData;
       setPatients(patientList);
       setDueImplants(dueData);
       setAllImplants(implantsData);
+      setDueExtractions(dueExtractionData);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');
@@ -333,6 +336,47 @@ const Dashboard = () => {
                   <div className="text-right shrink-0 ml-3">
                     <p className="text-xs font-semibold text-[#C27E70]">Day {item.days_elapsed}</p>
                     <p className="text-[10px] text-[#5C6773]">of {item.osseointegration_days} days</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Ready-for-Implant Reminders (extraction sites healed & waiting) ── */}
+        {dueExtractions.length > 0 && (
+          <div data-testid="implant-placement-reminders">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell size={18} className="text-[#2563EB]" weight="fill" />
+              <h3 className="text-base font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+                Ready for Implant Placement
+              </h3>
+              <span className="ml-auto bg-[#2563EB] text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                {dueExtractions.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {dueExtractions.map((item) => (
+                <Link
+                  key={item.extraction_id}
+                  to={`/patients/${item.patient_id}`}
+                  data-testid={`implant-placement-alert-${item.extraction_id}`}
+                  className="flex items-center justify-between bg-[#EFF6FF] border border-[#2563EB]/30 rounded-xl px-4 py-3 hover:border-[#2563EB] hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#2563EB] flex items-center justify-center text-white font-bold text-xs shrink-0">
+                      {item.tooth_numbers.join(',')}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#2A2F35]">{item.patient_name}</p>
+                      <p className="text-xs text-[#5C6773]">
+                        Extracted {item.extraction_date} · Tooth {item.tooth_numbers.join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-xs font-semibold text-[#2563EB]">Day {item.days_elapsed}</p>
+                    <p className="text-[10px] text-[#5C6773]">of {item.reminder_days} days</p>
                   </div>
                 </Link>
               ))}

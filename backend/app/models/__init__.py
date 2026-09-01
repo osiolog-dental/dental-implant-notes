@@ -8,11 +8,12 @@ from app.models.fpd import ProstheticFPD
 from app.models.abutment import Abutment
 from app.models.overdenture import Overdenture
 from app.models.full_mouth_rehab import FullMouthRehab
+from app.models.tooth_extraction import ToothExtraction
 from app.models.audit import AuditEvent, DeviceToken, Invite
 
 __all__ = [
     "Organization", "User", "Clinic", "Patient",
     "Case", "CaseImage", "Implant", "ProstheticFPD",
-    "Abutment", "Overdenture", "FullMouthRehab",
+    "Abutment", "Overdenture", "FullMouthRehab", "ToothExtraction",
     "AuditEvent", "DeviceToken", "Invite",
 ]
