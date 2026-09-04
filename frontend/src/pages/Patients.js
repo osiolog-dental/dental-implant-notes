@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, MagnifyingGlass, Trash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import {
@@ -17,6 +17,7 @@ import client from '../api/client';
 import { getPatients, createPatient } from '../api/patients';
 
 const Patients = () => {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,8 +52,8 @@ const Patients = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await createPatient({ ...formData, age: parseInt(formData.age) });
-      toast.success('Patient added successfully');
+      const patient = await createPatient({ ...formData, age: parseInt(formData.age) });
+      toast.success('Patient added — opening their record...');
       setIsDialogOpen(false);
       setFormData({
         name: '',
@@ -63,7 +64,7 @@ const Patients = () => {
         address: '',
         medical_history: ''
       });
-      fetchPatients();
+      navigate(`/patients/${patient.id || patient._id}`);
     } catch (error) {
       toast.error('Failed to add patient');
     }
