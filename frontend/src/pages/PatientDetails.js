@@ -372,9 +372,10 @@ const PatientDetails = () => {
         { tooth_conditions: updated }
       );
       const count = selectedTeeth.length;
+      const noun = count > 1 ? 'teeth' : 'tooth';
       toast.success(action === 'mark'
-        ? `${count} tooth${count > 1 ? 'teeth' : ''} marked as missing`
-        : `${count} tooth${count > 1 ? 'teeth' : ''} restored`);
+        ? `${count} ${noun} marked as missing`
+        : `${count} ${noun} restored`);
     } catch {
       toast.error('Failed to save tooth status');
     }
