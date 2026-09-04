@@ -164,7 +164,13 @@ async def request_upload_url(
     db.add(image_row)
     await db.flush()
 
-    upload_url = s3_service.generate_upload_url(key, body.content_type)
+    try:
+        upload_url = s3_service.generate_upload_url(key, body.content_type)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo storage isn't configured on the server. Contact support.",
+        )
     return UploadUrlResponse(image_id=image_id, upload_url=upload_url)
 
 

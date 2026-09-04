@@ -144,11 +144,14 @@ class Settings(BaseSettings):
     FIREBASE_SECRET_NAME: str = ""           # AWS Secrets Manager secret name for service account JSON
     FIREBASE_API_KEY: str = ""               # Firebase Web API key (for REST API calls like account deletion)
 
-    # AWS / S3
+    # Object storage (S3-compatible — AWS S3 or Cloudflare R2).
+    # For R2: set AWS_S3_ENDPOINT_URL to your R2 endpoint and AWS_REGION to "auto".
+    # Leave AWS_S3_ENDPOINT_URL blank to use real AWS S3.
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_S3_BUCKET_NAME: str = ""
     AWS_REGION: str = "ap-south-1"
+    AWS_S3_ENDPOINT_URL: str = ""
 
     # SSM (production only — tells _load_ssm_into_env where to look)
     AWS_SSM_PREFIX: str = ""
