@@ -605,6 +605,18 @@ const PatientDetails = () => {
         toast.success('Extraction record added');
       }
 
+      // An extracted tooth is a missing tooth — mark it on the chart. (If it
+      // also gets an implant, the chart already shows the implant over a
+      // "missing" condition, so this is safe even for immediate placements.)
+      const updatedConditions = { ...toothConditions };
+      extractionData.tooth_numbers.forEach(tn => { updatedConditions[tn] = { condition: 'missing' }; });
+      setToothConditions(updatedConditions);
+      try {
+        await client.patch(`/api/patients/${id}/tooth-conditions`, { tooth_conditions: updatedConditions });
+      } catch {
+        toast.warning('Extraction saved, but marking teeth missing failed — update the chart manually');
+      }
+
       // Same tooth, same date as a logged implant — very likely an immediate
       // placement. Flag it rather than leaving it ambiguous in the records.
       const sameDayImplants = implants.filter(imp =>
