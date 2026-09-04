@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /patients
+Disallow: /analytics
+Disallow: /clinics
+Disallow: /account
+Disallow: /backup
+Disallow: /subscription
+
+Sitemap: https://www.osiolog.com/sitemap.xml

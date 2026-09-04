@@ -20,6 +20,7 @@ import CompleteProfile from './pages/CompleteProfile';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import PrintImplantLogSheet from './pages/PrintImplantLogSheet';
 import ProtectedRoute from './components/ProtectedRoute';
+import HomeGate from './components/HomeGate';
 import Layout from './components/Layout';
 
 function App() {
@@ -35,7 +36,7 @@ function App() {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/profile/:doctorId" element={<DoctorPublicProfile />} />
           <Route path="/print/implant-log-sheet" element={<ProtectedRoute><PrintImplantLogSheet /></ProtectedRoute>} />
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/" element={<HomeGate><Layout /></HomeGate>}>
             <Route index element={<Dashboard />} />
             <Route path="patients" element={<Patients />} />
             <Route path="patients/:id" element={<PatientDetails />} />
