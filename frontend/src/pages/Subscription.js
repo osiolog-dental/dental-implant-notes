@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import client from '../api/client';
+import { useLocale } from '../contexts/LocaleContext';
 import {
   CheckCircle, X, Crown, Buildings, User,
   HardDrive, ArrowRight, Star,
@@ -18,11 +19,13 @@ const PLANS = [
     storageMB: 500,
     priceMonthly: 0,
     priceYearly: 0,
+    priceMonthlyINR: 0,
+    priceYearlyINR: 0,
     color: '#6B7280',
     bg: '#F9F9F8',
     border: '#E5E5E2',
     features: [
-      'Up to 10 patients',
+      'Up to 50 patients',
       '500 MB photo storage',
       'FDI dental chart',
       'Implant & FPD logs',
@@ -46,6 +49,8 @@ const PLANS = [
     storageMB: 5120,
     priceMonthly: 12,
     priceYearly: 99,
+    priceMonthlyINR: 112,
+    priceYearlyINR: 999,
     color: '#82A098',
     bg: '#EEF4F3',
     border: '#82A098',
@@ -72,6 +77,8 @@ const PLANS = [
     storageMB: 20480,
     priceMonthly: 29,
     priceYearly: 249,
+    priceMonthlyINR: 1499,
+    priceYearlyINR: 12999,
     color: '#C27E70',
     bg: '#FDF6F4',
     border: '#C27E70',
@@ -119,6 +126,9 @@ function StorageMeter({ usedMB, limitMB, color }) {
 }
 
 export default function Subscription() {
+  const { country } = useLocale();
+  const isIndia = country.currency === 'INR';
+  const currencySymbol = isIndia ? '₹' : '$';
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
   const [status, setStatus] = useState(null);
   const [upgrading, setUpgrading] = useState(null);
@@ -215,9 +225,12 @@ export default function Subscription() {
         {PLANS.map(plan => {
           const Icon = plan.icon;
           const isCurrent = plan.key === currentPlan;
-          const price = billing === 'yearly' ? plan.priceYearly : plan.priceMonthly;
-          const perMonth = billing === 'yearly' && plan.priceYearly > 0
-            ? (plan.priceYearly / 12).toFixed(0)
+          const price = billing === 'yearly'
+            ? (isIndia ? plan.priceYearlyINR : plan.priceYearly)
+            : (isIndia ? plan.priceMonthlyINR : plan.priceMonthly);
+          const yearlyPrice = isIndia ? plan.priceYearlyINR : plan.priceYearly;
+          const perMonth = billing === 'yearly' && yearlyPrice > 0
+            ? (yearlyPrice / 12).toFixed(0)
             : null;
 
           return (
@@ -262,11 +275,11 @@ export default function Subscription() {
                 ) : (
                   <>
                     <div className="flex items-end gap-1">
-                      <span className="text-3xl font-bold text-[#2A2F35]">${price}</span>
+                      <span className="text-3xl font-bold text-[#2A2F35]">{currencySymbol}{price}</span>
                       <span className="text-sm text-[#5C6773] mb-1">/{billing === 'yearly' ? 'yr' : 'mo'}</span>
                     </div>
                     {perMonth && (
-                      <p className="text-xs text-[#5C6773]">${perMonth}/month billed yearly</p>
+                      <p className="text-xs text-[#5C6773]">{currencySymbol}{perMonth}/month billed yearly</p>
                     )}
                   </>
                 )}

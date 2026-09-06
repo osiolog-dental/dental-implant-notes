@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
   CheckCircle, Star, Buildings, User, ArrowRight,
@@ -45,9 +46,10 @@ const PLANS = [
     color: '#6B7280',
     bg: '#F9F9F8',
     border: '#E5E5E2',
-    price: '$0',
+    priceUSD: '$0',
+    priceINR: '₹0',
     period: '',
-    features: ['Up to 10 patients', '500 MB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
+    features: ['Up to 50 patients', '500 MB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
   },
   {
     key: 'pro',
@@ -56,7 +58,8 @@ const PLANS = [
     color: '#82A098',
     bg: '#EEF4F3',
     border: '#82A098',
-    price: '$12',
+    priceUSD: '$12',
+    priceINR: '₹112',
     period: '/month',
     badge: 'Most Popular',
     features: ['Unlimited patients', '5 GB photo storage', 'Everything in Free', 'Google Drive backup', 'Analytics dashboard', 'Priority email support'],
@@ -68,7 +71,8 @@ const PLANS = [
     color: '#C27E70',
     bg: '#FDF6F4',
     border: '#C27E70',
-    price: '$29',
+    priceUSD: '$29',
+    priceINR: '₹1,499',
     period: '/month',
     badge: 'Best Value',
     features: ['Unlimited patients', '20 GB photo storage', 'Everything in Pro', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
@@ -78,6 +82,8 @@ const PLANS = [
 const navLink = "text-sm font-medium text-[#5C6773] hover:text-[#2A2F35] transition-colors";
 
 export default function Landing() {
+  const { country } = useLocale();
+  const isIndia = country.currency === 'INR';
   return (
     <div style={{ fontFamily: 'IBM Plex Sans, sans-serif' }} className="bg-[#F9F9F8] text-[#2A2F35]">
       {/* Nav */}
@@ -176,7 +182,7 @@ export default function Landing() {
                 <span className="font-semibold">{plan.name}</span>
               </div>
               <p className="mb-5">
-                <span className="text-3xl font-bold">{plan.price}</span>
+                <span className="text-3xl font-bold">{isIndia ? plan.priceINR : plan.priceUSD}</span>
                 <span className="text-sm text-[#5C6773]">{plan.period}</span>
               </p>
               <ul className="space-y-2.5 mb-6 flex-1">
