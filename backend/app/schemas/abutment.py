@@ -14,6 +14,7 @@ class AbutmentBase(BaseModel):
     placement_date: date | None = None
     clinical_notes: str | None = None
     clinic_id: uuid.UUID | None = None
+    tag_image: str | None = None
 
     @field_validator('placement_date', mode='before')
     @classmethod

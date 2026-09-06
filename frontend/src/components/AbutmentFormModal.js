@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ImplantTagScanner from './ImplantTagScanner';
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
@@ -51,6 +52,13 @@ export default function AbutmentFormModal({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4 mt-2">
+          <ImplantTagScanner
+            tagImage={abutmentData.tag_image}
+            onImageCapture={(img) => setAbutmentData(p => ({ ...p, tag_image: img }))}
+            label="Abutment Tag / Package Label"
+            uploadHint="Upload abutment tag photo"
+          />
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Tooth Number *</Label>

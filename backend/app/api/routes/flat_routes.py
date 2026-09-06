@@ -253,7 +253,7 @@ async def list_patient_photos(
             CaseImage.status == "uploaded",
         )
         .order_by(CaseImage.uploaded_at.desc())
-        .limit(20)
+        .limit(60)
     )
     images = result.scalars().all()
 
@@ -261,7 +261,12 @@ async def list_patient_photos(
     for img in images:
         try:
             url = s3_service.generate_download_url(img.s3_key)
-            photos.append({"url": url, "content_type": img.content_type, "uploaded_at": img.uploaded_at.isoformat()})
+            photos.append({
+                "url": url,
+                "content_type": img.content_type,
+                "category": img.category,
+                "uploaded_at": img.uploaded_at.isoformat(),
+            })
         except Exception:
             continue
     return photos

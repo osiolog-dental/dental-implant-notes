@@ -2,11 +2,10 @@
  * PatientReportPDF
  * Generates a clinical PDF report for a patient including:
  *   - Patient summary & contact info
- *   - Implant records (all fields)
- *   - FPD / Crown records
- *   - Clinical photos (grid, 2 per row)
- *   - Radiographs (grid, 2 per row)
- *   - Extra vault photos (grid, 3 per row)
+ *   - Implant records (all fields + tag/package label image)
+ *   - Abutment records (+ tag/package label image)
+ *   - FPD / Crown records (+ warranty image)
+ *   - Photo Vault images (clinical photos & radiographs, grid)
  *
  * Uses jsPDF (no external server needed — fully client-side).
  */
@@ -25,11 +24,27 @@ const C = {
   bg:       [249, 249, 248],   // #F9F9F8
 };
 
-/* Convert any accessible URL to base64 data-URL via client (Firebase token attached) */
+/*
+ * Convert an image reference to a base64 data-URL.
+ * - Already a data: URL (e.g. tag images captured client-side) → returned as-is.
+ * - Absolute http(s) URL (e.g. a presigned S3/R2 download URL) → fetched directly,
+ *   NOT through `client`, since it's a foreign origin that doesn't need/want a
+ *   Firebase auth header.
+ * - Relative API path → fetched through `client` (Firebase token attached).
+ */
 async function toBase64(url) {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url;
   try {
-    const res = await client.get(url, { responseType: 'blob' });
-    const blob = res.data;
+    let blob;
+    if (/^https?:\/\//i.test(url)) {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      blob = await res.blob();
+    } else {
+      const res = await client.get(url, { responseType: 'blob' });
+      blob = res.data;
+    }
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -39,6 +54,15 @@ async function toBase64(url) {
   } catch {
     return null;
   }
+}
+
+/* jsPDF needs an explicit format ('JPEG'/'PNG'/'WEBP') — infer it from the data URL */
+function imageFormatFromDataUrl(dataUrl) {
+  const m = /^data:image\/(\w+);/i.exec(dataUrl || '');
+  const ext = m ? m[1].toLowerCase() : 'jpeg';
+  if (ext === 'png') return 'PNG';
+  if (ext === 'webp') return 'WEBP';
+  return 'JPEG';
 }
 
 /* Wrap text to fit within maxWidth, return array of lines */
@@ -109,6 +133,10 @@ export async function generatePatientPDF({
   patient,
   implants = [],
   fpdRecords = [],
+  abutmentRecords = [],
+  overdentureRecords = [],
+  fullMouthRehabRecords = [],
+  extractionRecords = [],
   extraPhotos = [],
   clinics = [],
   chartImage = null,
@@ -312,6 +340,89 @@ export async function generatePatientPDF({
         y += noteLines.length * 4 + 4;
       }
 
+      /* Implant tag / package label image (stored as a base64 data URL — no fetch needed) */
+      if (imp.tag_image) {
+        y = checkY(doc, y, 30, pages);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setTextColor(...C.mid);
+        doc.text('Implant Tag:', margin + 2, y + 3);
+        try {
+          doc.addImage(imp.tag_image, imageFormatFromDataUrl(imp.tag_image), margin + 2, y + 5, 24, 24);
+        } catch {
+          // corrupt/unsupported image data — skip silently
+        }
+        y += 24 + 6;
+      }
+
+      y += 5;
+      doc.setDrawColor(...C.light);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
+    }
+  }
+
+  /* ════════════════════════════════════════
+     ABUTMENT RECORDS
+  ════════════════════════════════════════ */
+  if (abutmentRecords.length > 0) {
+    y = checkY(doc, y, 20, pages);
+    y = sectionHeading(doc, `Abutment Records  (${abutmentRecords.length})`, y);
+
+    for (const ab of abutmentRecords) {
+      y = checkY(doc, y, 30, pages);
+
+      filledRect(doc, margin, y, contentW, 7, [253, 243, 227]);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...[201, 132, 10]);
+      doc.text(`Tooth #${ab.tooth_number ?? '—'}  —  ${ab.abutment_type || ''}`, margin + 3, y + 5);
+      y += 10;
+      doc.setTextColor(...C.dark);
+
+      const connectedNames = (ab.connected_implant_ids || [])
+        .map(iid => implants.find(i => i.id === iid))
+        .filter(Boolean)
+        .map(i => `Tooth #${i.tooth_number}${i.brand ? ` (${i.brand})` : ''}`)
+        .join(', ');
+
+      const abFields = [
+        ['Placement Date',    ab.placement_date],
+        ['Connected Implant', connectedNames || null],
+      ].filter(([, v]) => v);
+
+      for (let i = 0; i < abFields.length; i += 2) {
+        const lh = kvRow(doc, abFields[i][0], abFields[i][1], margin + 2, y + 3.5, col - 2);
+        const rh = abFields[i + 1]
+          ? kvRow(doc, abFields[i + 1][0], abFields[i + 1][1], margin + col + 2, y + 3.5, col - 2)
+          : 0;
+        y += Math.max(lh, rh) + 2;
+      }
+
+      if (ab.clinical_notes) {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C.mid);
+        const noteLines = wrapText(doc, ab.clinical_notes, contentW - 6);
+        doc.text(noteLines, margin + 2, y + 3);
+        y += noteLines.length * 4 + 4;
+      }
+
+      /* Abutment tag / package label image (base64 data URL — no fetch needed) */
+      if (ab.tag_image) {
+        y = checkY(doc, y, 30, pages);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setTextColor(...C.mid);
+        doc.text('Abutment Tag:', margin + 2, y + 3);
+        try {
+          doc.addImage(ab.tag_image, imageFormatFromDataUrl(ab.tag_image), margin + 2, y + 5, 24, 24);
+        } catch {
+          // corrupt/unsupported image data — skip silently
+        }
+        y += 24 + 6;
+      }
+
       y += 5;
       doc.setDrawColor(...C.light);
       doc.line(margin, y, pageW - margin, y);
@@ -360,12 +471,127 @@ export async function generatePatientPDF({
         doc.text(noteLines, margin + 2, y + 3);
         y += noteLines.length * 4 + 4;
       }
+
+      /* Crown warranty image, if one was uploaded (stored as an S3/R2 key,
+         resolved by the backend into a fresh presigned URL on every read) */
+      if (fpd.warranty_image_url) {
+        onProgress?.('Loading crown warranty image...');
+        const warrantyB64 = await toBase64(fpd.warranty_image_url);
+        if (warrantyB64) {
+          y = checkY(doc, y, 30, pages);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bolditalic');
+          doc.setTextColor(...C.mid);
+          doc.text('Crown Warranty:', margin + 2, y + 3);
+          try {
+            doc.addImage(warrantyB64, imageFormatFromDataUrl(warrantyB64), margin + 2, y + 5, 24, 24);
+          } catch {
+            // corrupt/unsupported image data — skip silently
+          }
+          y += 24 + 6;
+        }
+      }
+
       y += 5;
       doc.setDrawColor(...C.light);
       doc.line(margin, y, pageW - margin, y);
       y += 4;
     }
   }
+
+  /* ════════════════════════════════════════
+     HELPER: render a simple key/value record section
+     (used for Overdenture / Full Mouth Rehab / Extracted Teeth — no images)
+  ════════════════════════════════════════ */
+  function renderSimpleSection(title, records, headerColor, headerBg, getHeader, getFields, getNotes) {
+    if (!records || records.length === 0) return;
+
+    y = checkY(doc, y, 20, pages);
+    y = sectionHeading(doc, `${title}  (${records.length})`, y);
+
+    for (const rec of records) {
+      y = checkY(doc, y, 30, pages);
+
+      filledRect(doc, margin, y, contentW, 7, headerBg);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...headerColor);
+      doc.text(getHeader(rec), margin + 3, y + 5);
+      y += 10;
+      doc.setTextColor(...C.dark);
+
+      const fields = getFields(rec).filter(([, v]) => v);
+      for (let i = 0; i < fields.length; i += 2) {
+        const lh = kvRow(doc, fields[i][0], fields[i][1], margin + 2, y + 3.5, col - 2);
+        const rh = fields[i + 1]
+          ? kvRow(doc, fields[i + 1][0], fields[i + 1][1], margin + col + 2, y + 3.5, col - 2)
+          : 0;
+        y += Math.max(lh, rh) + 2;
+      }
+
+      const notes = getNotes(rec);
+      if (notes) {
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C.mid);
+        const noteLines = wrapText(doc, notes, contentW - 6);
+        doc.text(noteLines, margin + 2, y + 3);
+        y += noteLines.length * 4 + 4;
+      }
+
+      y += 5;
+      doc.setDrawColor(...C.light);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
+    }
+  }
+
+  const connectedImplantNames = (ids) => (ids || [])
+    .map(iid => implants.find(i => i.id === iid))
+    .filter(Boolean)
+    .map(i => `Tooth #${i.tooth_number}${i.brand ? ` (${i.brand})` : ''}`)
+    .join(', ');
+
+  /* ════════════════════════════════════════
+     OVERDENTURE RECORDS
+  ════════════════════════════════════════ */
+  renderSimpleSection(
+    'Overdenture Records', overdentureRecords, [92, 74, 158], [237, 233, 247],
+    rec => `Teeth: ${rec.tooth_numbers?.join(', ') || '—'}  —  ${rec.attachment_type || ''}`,
+    rec => [
+      ['Bar', rec.has_bar ? (rec.bar_material || 'Yes') : null],
+      ['Loading Date', rec.prosthetic_loading_date],
+      ['Connected Implant', connectedImplantNames(rec.connected_implant_ids)],
+    ],
+    rec => rec.clinical_notes,
+  );
+
+  /* ════════════════════════════════════════
+     FULL MOUTH REHAB RECORDS
+  ════════════════════════════════════════ */
+  renderSimpleSection(
+    'Full Mouth Rehab Records', fullMouthRehabRecords, [30, 100, 130], [222, 240, 245],
+    rec => rec.rehab_type || 'Full Mouth Rehab',
+    rec => [
+      ['Loading Date', rec.prosthetic_loading_date],
+      ['Connected Implant', connectedImplantNames(rec.connected_implant_ids)],
+    ],
+    rec => rec.clinical_notes,
+  );
+
+  /* ════════════════════════════════════════
+     EXTRACTED TEETH RECORDS
+  ════════════════════════════════════════ */
+  renderSimpleSection(
+    'Extracted Teeth Records', extractionRecords, [180, 60, 60], [250, 228, 228],
+    rec => `Teeth: ${rec.tooth_numbers?.join(', ') || '—'}  —  Extracted ${rec.extraction_date || ''}`,
+    rec => [
+      ['Bone Graft', rec.bone_graft],
+      ['Membrane Used', rec.membrane_used ? 'Yes' : null],
+      ['Planned Future Implant', rec.planned_future_implant ? `Yes (reminder in ${rec.reminder_days || '—'} days)` : null],
+    ],
+    rec => rec.clinical_notes,
+  );
 
   /* ════════════════════════════════════════
      HELPER: render an image grid section
@@ -392,7 +618,7 @@ export async function generatePatientPDF({
 
       if (b64) {
         try {
-          doc.addImage(b64, 'JPEG', cellX, y, cellW, imgH, undefined, 'FAST');
+          doc.addImage(b64, imageFormatFromDataUrl(b64), cellX, y, cellW, imgH, undefined, 'FAST');
         } catch {
           filledRect(doc, cellX, y, cellW, imgH, C.bg);
           doc.setFontSize(7);
@@ -426,39 +652,17 @@ export async function generatePatientPDF({
   }
 
   /* ════════════════════════════════════════
-     PHOTOS from implants
+     PHOTO VAULT — clinical photos & radiographs
   ════════════════════════════════════════ */
-  const allPhotos = implants.flatMap(imp =>
-    (imp.clinical_photos || []).map(p => ({ ...p, tooth_number: imp.tooth_number }))
-  );
   await renderImageGrid(
-    allPhotos, 'Clinical Photos', 2, 60,
-    p => `/api/files/${p.storage_path}`,
-    p => `${p.view_type?.replace(/_/g, ' ') || ''}  —  Tooth #${p.tooth_number}`,
+    extraPhotos, 'Photo Vault', 3, 50,
+    p => p.url,
+    p => {
+      const label = p.category ? p.category.replace(/_/g, ' ') : 'Photo';
+      const date = p.uploaded_at ? new Date(p.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+      return date ? `${label}  —  ${date}` : label;
+    },
     'Loading photo'
-  );
-
-  /* ════════════════════════════════════════
-     RADIOGRAPHS from implants
-  ════════════════════════════════════════ */
-  const allRadiographs = implants.flatMap(imp =>
-    (imp.radiographs || []).map(r => ({ ...r, tooth_number: imp.tooth_number }))
-  );
-  await renderImageGrid(
-    allRadiographs, 'Radiographs', 2, 70,
-    r => `/api/files/${r.storage_path}`,
-    r => `${r.view_type?.replace(/_/g, ' ') || ''}  —  Tooth #${r.tooth_number}`,
-    'Loading radiograph'
-  );
-
-  /* ════════════════════════════════════════
-     EXTRA PATIENT PHOTOS
-  ════════════════════════════════════════ */
-  await renderImageGrid(
-    extraPhotos, 'Additional Photos', 3, 50,
-    p => `/api/files/${p.storage_path}`,
-    p => p.caption || p.original_filename || 'Photo',
-    'Loading extra photo'
   );
 
   /* ════════════════════════════════════════

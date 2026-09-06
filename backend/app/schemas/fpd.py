@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator, model_serializer
 
+from app.services import s3 as s3_service
+
 
 class FPDBase(BaseModel):
     tooth_numbers: list[int] = []
@@ -59,4 +61,12 @@ class FPDRead(FPDBase):
     def _inject_id_alias(self, handler: Any) -> dict:
         d = handler(self)
         d["_id"] = d["id"]
+        # warranty_image_url is stored as a raw S3/R2 key — resolve it to a
+        # fresh presigned download URL whenever the record is read.
+        key = d.get("warranty_image_url")
+        if key and not key.startswith("http"):
+            try:
+                d["warranty_image_url"] = s3_service.generate_download_url(key)
+            except Exception:
+                pass
         return d

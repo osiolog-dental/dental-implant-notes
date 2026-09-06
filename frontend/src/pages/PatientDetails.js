@@ -82,6 +82,7 @@ const INITIAL_ABUTMENT = {
   placement_date: '',
   clinical_notes: '',
   clinic_id: '',
+  tag_image: null,
 };
 
 const INITIAL_OVERDENTURE = {
@@ -336,6 +337,10 @@ const PatientDetails = () => {
         patient,
         implants,
         fpdRecords,
+        abutmentRecords,
+        overdentureRecords,
+        fullMouthRehabRecords,
+        extractionRecords,
         extraPhotos: extraRes.data,
         clinics,
         chartImage,
@@ -470,6 +475,7 @@ const PatientDetails = () => {
       placement_date: rec.placement_date || '',
       clinical_notes: rec.clinical_notes || '',
       clinic_id: rec.clinic_id || '',
+      tag_image: rec.tag_image || null,
     });
     setEditingAbutmentId(rec.id);
     setIsAbutmentOpen(true);

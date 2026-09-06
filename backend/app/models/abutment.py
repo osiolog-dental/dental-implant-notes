@@ -31,6 +31,7 @@ class Abutment(Base):
     placement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     clinical_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     clinic_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    tag_image: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

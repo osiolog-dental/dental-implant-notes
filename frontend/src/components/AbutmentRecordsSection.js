@@ -1,4 +1,4 @@
-import { PencilSimple, Trash } from '@phosphor-icons/react';
+import { PencilSimple, Trash, Tag } from '@phosphor-icons/react';
 
 export default function AbutmentRecordsSection({ abutmentRecords, implants, onEdit, onDelete }) {
   if (abutmentRecords.length === 0) return null;
@@ -20,7 +20,21 @@ export default function AbutmentRecordsSection({ abutmentRecords, implants, onEd
                   {rec.placement_date && <p className="text-xs text-[#5C6773]">Placed: {rec.placement_date}</p>}
                 </div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {rec.tag_image && (
+                  <div className="relative group" data-testid={`abutment-tag-thumb-${rec.id}`}>
+                    <img
+                      src={rec.tag_image}
+                      alt="Abutment tag"
+                      className="w-10 h-10 object-cover rounded-lg border border-[#E5E5E2] shadow-sm cursor-pointer"
+                      onClick={() => window.open(rec.tag_image, '_blank')}
+                      title="Click to view full tag"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center shadow" style={{ backgroundColor: '#E8A76C' }}>
+                      <Tag size={8} className="text-white" weight="fill" />
+                    </div>
+                  </div>
+                )}
                 <button
                   data-testid={`edit-abutment-${rec.id}`}
                   onClick={() => onEdit(rec)}

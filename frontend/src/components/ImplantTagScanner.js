@@ -123,7 +123,11 @@ function parseQRData(raw) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-const ImplantTagScanner = ({ onAutoFill, onImageCapture, tagImage }) => {
+const ImplantTagScanner = ({
+  onAutoFill, onImageCapture, tagImage,
+  label = 'Implant Tag / Package Label',
+  uploadHint = 'Upload implant tag photo',
+}) => {
   const fileRef = useRef();
   const canvasRef = useRef();
   const [scanning, setScanning] = useState(false);
@@ -202,7 +206,7 @@ const ImplantTagScanner = ({ onAutoFill, onImageCapture, tagImage }) => {
 
       <div className="flex items-center gap-2 mb-3">
         <Tag size={16} className="text-[#82A098]" weight="fill" />
-        <span className="text-xs font-semibold text-[#2A2F35] uppercase tracking-wide">Implant Tag / Package Label</span>
+        <span className="text-xs font-semibold text-[#2A2F35] uppercase tracking-wide">{label}</span>
         <span className="ml-auto text-[10px] text-[#5C6773] flex items-center gap-1">
           <QrCode size={11} />QR auto-fill supported
         </span>
@@ -217,7 +221,7 @@ const ImplantTagScanner = ({ onAutoFill, onImageCapture, tagImage }) => {
           className="border-2 border-dashed border-[#82A098]/40 rounded-xl p-5 text-center cursor-pointer hover:border-[#82A098] hover:bg-[#82A098]/5 transition-all"
         >
           <UploadSimple size={28} className="text-[#82A098] mx-auto mb-2" />
-          <p className="text-sm font-medium text-[#2A2F35]">Upload implant tag photo</p>
+          <p className="text-sm font-medium text-[#2A2F35]">{uploadHint}</p>
           <p className="text-xs text-[#5C6773] mt-1">Drag & drop or click · JPEG / PNG · max 10 MB</p>
           <p className="text-xs text-[#82A098] mt-1.5 font-medium">QR code on the tag will auto-fill the form</p>
         </div>
