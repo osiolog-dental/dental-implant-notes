@@ -559,7 +559,7 @@ function PhotoMethod() {
                           </select>
                         </td>
                         <td className="px-2 py-1.5"><input value={row.brand} onChange={e => updateRow(idx, rowIdx, 'brand', e.target.value)} className={cellInput} /></td>
-                        <td className="px-2 py-1.5"><input type="number" step="0.1" value={row.diameter_mm} onChange={e => updateRow(idx, rowIdx, 'diameter_mm', e.target.value)} className={cellInput} /></td>
+                        <td className="px-2 py-1.5"><input type="number" step="0.01" value={row.diameter_mm} onChange={e => updateRow(idx, rowIdx, 'diameter_mm', e.target.value)} className={cellInput} /></td>
                         <td className="px-2 py-1.5"><input type="number" step="0.1" value={row.length_mm} onChange={e => updateRow(idx, rowIdx, 'length_mm', e.target.value)} className={cellInput} /></td>
                         <td className="px-2 py-1.5"><input type="number" step="0.1" value={row.insertion_torque} onChange={e => updateRow(idx, rowIdx, 'insertion_torque', e.target.value)} className={cellInput} /></td>
                         <td className="px-2 py-1.5">

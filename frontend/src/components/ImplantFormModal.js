@@ -61,7 +61,7 @@ export default function ImplantFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Diameter (mm) *</Label>
-              <Input type="number" step="0.1" value={formData.diameter_mm} onChange={(e) => updateField('diameter_mm', e.target.value)} required data-testid="diameter-input" placeholder="e.g. 4.5" className="mt-1" />
+              <Input type="number" step="0.01" value={formData.diameter_mm} onChange={(e) => updateField('diameter_mm', e.target.value)} required data-testid="diameter-input" placeholder="e.g. 3.75" className="mt-1" />
             </div>
             <div>
               <Label className="text-xs">Length (mm) *</Label>

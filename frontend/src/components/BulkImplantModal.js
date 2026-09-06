@@ -211,7 +211,7 @@ export default function BulkImplantModal({ open, onOpenChange, patientId, clinic
                           </td>
                           <td className="px-2 py-1.5">
                             <input
-                              type="number" step="0.1" min="1" max="10"
+                              type="number" step="0.01" min="1" max="10"
                               value={pt.diameter_mm}
                               onChange={e => updatePerTooth(tn, 'diameter_mm', e.target.value)}
                               placeholder="4.5"
