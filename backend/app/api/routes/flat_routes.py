@@ -215,13 +215,19 @@ async def upload_warranty_image(
     s3_key = f"warranty/{current_user.org_id}/{fpd_id}.{ext}"
 
     image_bytes = await file.read()
-    await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+    try:
+        await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+        download_url = s3_service.generate_download_url(s3_key)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo storage isn't configured on the server. Contact support.",
+        )
 
     fpd.warranty_image_url = s3_key
     db.add(fpd)
     await db.flush()
 
-    download_url = s3_service.generate_download_url(s3_key)
     return {"warranty_image_url": download_url}
 
 
@@ -351,14 +357,20 @@ async def upload_patient_profile_picture(
     s3_key = f"patients/{current_user.org_id}/{patient_id}/profile.{ext}"
 
     image_bytes = await file.read()
-    await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+    try:
+        await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+        url = s3_service.generate_download_url(s3_key)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo storage isn't configured on the server. Contact support.",
+        )
 
     # Store s3_key on the patient record so /api/files/:filename can serve it
     patient.profile_picture = s3_key
     db.add(patient)
     await db.flush()
 
-    url = s3_service.generate_download_url(s3_key)
     return {"profile_picture_url": url, "profile_picture": s3_key}
 
 
@@ -375,13 +387,19 @@ async def upload_doctor_profile_picture(
     s3_key = f"doctors/{current_user.org_id}/{current_user.id}/profile.{ext}"
 
     image_bytes = await file.read()
-    await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+    try:
+        await asyncio.to_thread(s3_service.upload_object, s3_key, image_bytes, content_type)
+        url = s3_service.generate_download_url(s3_key)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Photo storage isn't configured on the server. Contact support.",
+        )
 
     current_user.profile_picture_key = s3_key
     db.add(current_user)
     await db.flush()
 
-    url = s3_service.generate_download_url(s3_key)
     return {"profile_picture_url": url}
 
 
