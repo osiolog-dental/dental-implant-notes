@@ -9,13 +9,16 @@ const getDaysRemaining = (osseoDate) => {
 
 export default function ImplantRecordsSection({ implants, onEdit, onDelete, onUpdate }) {
   if (implants.length === 0) return null;
+  // FDI numbering already sorts 1st quadrant (11-18) through 4th quadrant (41-48)
+  // in ascending order — just sort by tooth number.
+  const sortedImplants = [...implants].sort((a, b) => (a.tooth_number || 0) - (b.tooth_number || 0));
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
       <h2 className="text-lg font-medium text-[#2A2F35] mb-4">
         Implant Records ({implants.length})
       </h2>
       <div className="space-y-3">
-        {implants.map((implant) => {
+        {sortedImplants.map((implant) => {
           const daysRemaining = getDaysRemaining(implant.osseointegration_date);
           return (
             <div key={implant.id} data-testid={`implant-record-${implant.id}`} className="border border-[#E5E5E2] rounded-lg p-4 hover:border-[#82A098] transition-all">
