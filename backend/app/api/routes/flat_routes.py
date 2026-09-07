@@ -853,6 +853,94 @@ async def export_photos_backup(
     )
 
 
+@router.post("/backup/photos/restore")
+async def restore_photos_backup(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Restore photos from a ZIP produced by /backup/photos. Re-uploads each
+    image to R2 and recreates its CaseImage row — but only for photos that
+    don't already exist, and only into cases that already exist (photos
+    restore should run AFTER the data (JSON) backup has been restored, since
+    a photo is meaningless without the case/patient it belongs to).
+    """
+    from app.models.case import Case
+    import datetime as _dt
+
+    contents = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(contents))
+        manifest = json.loads(zf.read("manifest.json"))
+    except (zipfile.BadZipFile, KeyError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="Not a valid OSIOLOG photos backup ZIP")
+
+    restored = 0
+    skipped_existing = 0
+    skipped_no_case = 0
+
+    for entry in manifest:
+        try:
+            image_id = uuid.UUID(entry["image_id"])
+            case_id = uuid.UUID(entry["case_id"])
+        except (KeyError, ValueError):
+            continue
+
+        if await db.get(CaseImage, image_id):
+            skipped_existing += 1
+            continue
+
+        case_result = await db.execute(
+            select(Case)
+            .join(Patient, Case.patient_id == Patient.id)
+            .where(Case.id == case_id, Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+        )
+        if not case_result.scalar_one_or_none():
+            skipped_no_case += 1
+            continue
+
+        try:
+            data = zf.read(entry["path"])
+        except KeyError:
+            continue
+
+        content_type = entry.get("content_type") or "image/jpeg"
+        ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+        s3_key = s3_service.original_key(str(case_id), str(image_id), ext)
+
+        try:
+            await asyncio.to_thread(s3_service.upload_object, s3_key, data, content_type)
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail="Photo storage isn't configured on the server. Contact support.",
+            )
+
+        uploaded_at = None
+        if entry.get("uploaded_at"):
+            try:
+                uploaded_at = _dt.datetime.fromisoformat(entry["uploaded_at"])
+            except ValueError:
+                uploaded_at = None
+
+        image_row = CaseImage(
+            id=image_id,
+            case_id=case_id,
+            s3_key=s3_key,
+            content_type=content_type,
+            category=entry.get("category") or "general",
+            status="uploaded",
+        )
+        if uploaded_at:
+            image_row.uploaded_at = uploaded_at
+        db.add(image_row)
+        restored += 1
+
+    await db.flush()
+    return {"restored": restored, "skipped_existing": skipped_existing, "skipped_no_case": skipped_no_case}
+
+
 @router.post("/backup/restore")
 async def restore_backup(
     payload: dict,

@@ -79,10 +79,10 @@ async function uploadBlobToDrive(token, blob, filename) {
   return await res.json();
 }
 
-async function downloadFromDrive(token) {
+async function downloadBlobFromDrive(token, filename) {
   // Find the backup file
   const listRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${BACKUP_FILENAME}'&fields=files(id,name,modifiedTime)`,
+    `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${filename}'&fields=files(id,name,modifiedTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const listData = await listRes.json();
@@ -94,8 +94,13 @@ async function downloadFromDrive(token) {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!dlRes.ok) throw new Error('Failed to download backup from Drive.');
-  const text = await dlRes.text();
-  return { content: text, modifiedTime: file.modifiedTime };
+  const blob = await dlRes.blob();
+  return { blob, modifiedTime: file.modifiedTime };
+}
+
+async function downloadFromDrive(token) {
+  const { blob, modifiedTime } = await downloadBlobFromDrive(token, BACKUP_FILENAME);
+  return { content: await blob.text(), modifiedTime };
 }
 
 /* ── Card component ── */
@@ -125,9 +130,12 @@ export default function Backup() {
   const [loadingRestore, setLoadingRestore]   = useState(false);
   const [loadingPhotosExport, setLoadingPhotosExport]   = useState(false);
   const [loadingPhotosDriveUp, setLoadingPhotosDriveUp] = useState(false);
+  const [loadingPhotosRestoreFile, setLoadingPhotosRestoreFile] = useState(false);
+  const [loadingPhotosRestoreDrive, setLoadingPhotosRestoreDrive] = useState(false);
   const [lastDriveBackup, setLastDriveBackup] = useState(null);
   const [restorePreview, setRestorePreview]   = useState(null); // parsed JSON before commit
   const fileInputRef = useRef();
+  const photosFileInputRef = useRef();
 
   /* 1. Download backup JSON to local device */
   const handleLocalExport = async () => {
@@ -256,6 +264,51 @@ export default function Backup() {
       toast.error(err?.response?.data?.detail || 'Restore failed');
     } finally {
       setLoadingRestore(false);
+    }
+  };
+
+  /* Shared: send a photos ZIP to the restore endpoint and report the result */
+  const submitPhotosRestore = async (blob, setLoading) => {
+    setLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', blob, 'photos.zip');
+      const res = await client.post(`/api/backup/photos/restore`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { restored, skipped_existing, skipped_no_case } = res.data;
+      if (skipped_no_case > 0) {
+        toast.warning(
+          `${restored} photos restored, ${skipped_existing} already existed, ${skipped_no_case} skipped — their case wasn't found. Restore your data backup first, then try photos again.`
+        );
+      } else {
+        toast.success(`${restored} photos restored${skipped_existing ? ` — ${skipped_existing} already existed and were skipped` : ''}`);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Photos restore failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* 6. Restore photos from a local ZIP file */
+  const handlePhotosRestoreFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    submitPhotosRestore(file, setLoadingPhotosRestoreFile);
+  };
+
+  /* 7. Restore photos from the ZIP saved in Google Drive */
+  const handlePhotosRestoreDrive = async () => {
+    setLoadingPhotosRestoreDrive(true);
+    try {
+      const token = await getGoogleToken();
+      const { blob } = await downloadBlobFromDrive(token, PHOTOS_BACKUP_FILENAME);
+      await submitPhotosRestore(blob, setLoadingPhotosRestoreDrive);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load photos from Google Drive');
+      setLoadingPhotosRestoreDrive(false);
     }
   };
 
@@ -401,6 +454,44 @@ export default function Backup() {
             </button>
           </div>
 
+          <p className="text-xs font-semibold text-[#5C6773] uppercase tracking-wide mb-2">Then restore photos</p>
+          <div className="flex flex-wrap gap-3 mb-4">
+            <button
+              data-testid="local-photos-restore-btn"
+              onClick={() => photosFileInputRef.current?.click()}
+              disabled={loadingPhotosRestoreFile}
+              className={`${btnClass()} bg-[#82A098]/80 hover:bg-[#82A098]`}
+            >
+              {loadingPhotosRestoreFile
+                ? <ArrowClockwise size={16} className="animate-spin" />
+                : <UploadSimple size={16} weight="bold" />}
+              {loadingPhotosRestoreFile ? 'Restoring photos...' : 'Restore Photos (ZIP)'}
+            </button>
+            <input
+              ref={photosFileInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              data-testid="restore-photos-file-input"
+              onChange={handlePhotosRestoreFile}
+            />
+            <button
+              data-testid="gdrive-photos-restore-btn"
+              onClick={handlePhotosRestoreDrive}
+              disabled={loadingPhotosRestoreDrive || !GOOGLE_CLIENT_ID}
+              className={`${btnClass()} bg-[#5C6773]/80 hover:bg-[#5C6773] ${!GOOGLE_CLIENT_ID ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {loadingPhotosRestoreDrive
+                ? <ArrowClockwise size={16} className="animate-spin" />
+                : <GoogleLogo size={16} weight="bold" />}
+              {loadingPhotosRestoreDrive ? 'Loading...' : 'Restore Photos from Drive'}
+            </button>
+          </div>
+          <p className="text-xs text-[#9CA3AF] -mt-2 mb-4">
+            Restore your data backup above <strong>first</strong> — photos attach to cases, so if the
+            case isn't there yet a photo can't be restored. Safe to run more than once.
+          </p>
+
           {/* Restore preview card */}
           {restorePreview && (
             <div className="border border-[#82A098] rounded-xl p-4 bg-[#EEF4F3]">
@@ -454,11 +545,18 @@ export default function Backup() {
 
         {/* ── HOW IT WORKS ── */}
         <div className="bg-[#F9F9F8] border border-[#E5E5E2] rounded-xl p-5">
-          <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wide mb-3">How it works</p>
+          <p className="text-xs font-semibold text-[#82A098] uppercase tracking-wide mb-3">How to back up</p>
+          <div className="space-y-2 text-xs text-[#5C6773] mb-5">
+            <div className="flex gap-2"><span className="text-[#82A098] font-bold">1.</span> <span>Click <strong>Download Backup</strong> (or <strong>Backup to Google Drive</strong>) to save your patients, implants, and all other clinical records.</span></div>
+            <div className="flex gap-2"><span className="text-[#82A098] font-bold">2.</span> <span>Click <strong>Download Photos (ZIP)</strong> (or <strong>Backup Photos to Drive</strong>) to save every Photo Vault image and radiograph. This is a separate file from step 1, so do both.</span></div>
+            <div className="flex gap-2"><span className="text-[#82A098] font-bold">3.</span> <span>Repeat regularly — there's no harm in backing up often. Each backup fully replaces the previous one at the same location.</span></div>
+          </div>
+
+          <p className="text-xs font-semibold text-[#C27E70] uppercase tracking-wide mb-3">How to restore (e.g. new device, or after data loss)</p>
           <div className="space-y-2 text-xs text-[#5C6773]">
-            <div className="flex gap-2"><span className="text-[#82A098] font-bold">1.</span> <span><strong>Download to Device</strong> — saves a complete <code>.json</code> file you can store anywhere (USB, email, another cloud).</span></div>
-            <div className="flex gap-2"><span className="text-[#82A098] font-bold">2.</span> <span><strong>Google Drive</strong> — stores the backup in a private hidden folder in your Google account. Not visible in your regular Drive files. Requires a one-time Google sign-in.</span></div>
-            <div className="flex gap-2"><span className="text-[#82A098] font-bold">3.</span> <span><strong>Restore</strong> — restores only records that don't already exist. Safe to run multiple times. Never deletes your current data.</span></div>
+            <div className="flex gap-2"><span className="text-[#C27E70] font-bold">1.</span> <span>In the <strong>Restore Data</strong> card above, click <strong>Restore from File</strong> or <strong>Restore from Google Drive</strong> first. Review the preview, then <strong>Confirm Restore</strong> — this brings back your patients, implants, and other records.</span></div>
+            <div className="flex gap-2"><span className="text-[#C27E70] font-bold">2.</span> <span>Only after that, click <strong>Restore Photos (ZIP)</strong> or <strong>Restore Photos from Drive</strong>. Photos attach to the cases restored in step 1, so doing this first won't work.</span></div>
+            <div className="flex gap-2"><span className="text-[#C27E70] font-bold">3.</span> <span>Both steps only add what's missing — nothing already in the app gets overwritten or deleted, so it's safe to restore more than once.</span></div>
           </div>
         </div>
 
