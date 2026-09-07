@@ -13,6 +13,7 @@ import {
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const BACKUP_FILENAME = 'osiolog_backup.json';
+const PHOTOS_BACKUP_FILENAME = 'osiolog_photos.zip';
 
 /* ── Helpers ── */
 function getGoogleToken() {
@@ -40,16 +41,19 @@ function getGoogleToken() {
 }
 
 async function uploadToDrive(token, jsonString) {
+  return uploadBlobToDrive(token, new Blob([jsonString], { type: 'application/json' }), BACKUP_FILENAME);
+}
+
+async function uploadBlobToDrive(token, blob, filename) {
   // Check if a backup already exists
   const listRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${BACKUP_FILENAME}'&fields=files(id,name,modifiedTime)`,
+    `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${filename}'&fields=files(id,name,modifiedTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const listData = await listRes.json();
   const existing = listData.files?.[0];
 
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const metadata = { name: BACKUP_FILENAME, parents: ['appDataFolder'] };
+  const metadata = { name: filename, parents: ['appDataFolder'] };
 
   let url, method;
   if (existing) {
@@ -119,6 +123,8 @@ export default function Backup() {
   const [loadingDriveUp, setLoadingDriveUp]   = useState(false);
   const [loadingDriveDl, setLoadingDriveDl]   = useState(false);
   const [loadingRestore, setLoadingRestore]   = useState(false);
+  const [loadingPhotosExport, setLoadingPhotosExport]   = useState(false);
+  const [loadingPhotosDriveUp, setLoadingPhotosDriveUp] = useState(false);
   const [lastDriveBackup, setLastDriveBackup] = useState(null);
   const [restorePreview, setRestorePreview]   = useState(null); // parsed JSON before commit
   const fileInputRef = useRef();
@@ -144,6 +150,25 @@ export default function Backup() {
     }
   };
 
+  /* 1b. Download all Photo Vault images (ZIP) to local device */
+  const handlePhotosExport = async () => {
+    setLoadingPhotosExport(true);
+    try {
+      const res = await client.get(`/api/backup/photos`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `osiolog_photos_${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Photos backup downloaded to your device');
+    } catch {
+      toast.error('Photos export failed — please try again');
+    } finally {
+      setLoadingPhotosExport(false);
+    }
+  };
+
   /* 2. Backup to Google Drive */
   const handleDriveBackup = async () => {
     setLoadingDriveUp(true);
@@ -162,6 +187,21 @@ export default function Backup() {
       toast.error(err.message || 'Google Drive backup failed');
     } finally {
       setLoadingDriveUp(false);
+    }
+  };
+
+  /* 2b. Back up Photo Vault images (ZIP) to Google Drive */
+  const handlePhotosDriveBackup = async () => {
+    setLoadingPhotosDriveUp(true);
+    try {
+      const token = await getGoogleToken();
+      const res = await client.get(`/api/backup/photos`, { responseType: 'blob' });
+      await uploadBlobToDrive(token, res.data, PHOTOS_BACKUP_FILENAME);
+      toast.success('Photos backed up to Google Drive');
+    } catch (err) {
+      toast.error(err.message || 'Google Drive photos backup failed');
+    } finally {
+      setLoadingPhotosDriveUp(false);
     }
   };
 
@@ -227,7 +267,7 @@ export default function Backup() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#2A2F35] tracking-tight">Backup & Restore</h1>
         <p className="text-sm text-[#5C6773] mt-1">
-          Keep your patient data safe. Back up to your device or Google Drive — restore anytime.
+          Keep your patient data and photos safe. Back up to your device or Google Drive — restore anytime.
         </p>
       </div>
 
@@ -238,23 +278,37 @@ export default function Backup() {
           icon={DownloadSimple}
           iconColor="#2563EB"
           title="Download to Device"
-          desc="Save a complete backup JSON file directly to your computer or phone"
+          desc="Save a complete backup directly to your computer or phone"
         >
-          <button
-            data-testid="local-export-btn"
-            onClick={handleLocalExport}
-            disabled={loadingExport}
-            className={`${btnClass()} bg-[#2563EB] hover:bg-[#1D4ED8]`}
-          >
-            {loadingExport
-              ? <ArrowClockwise size={16} className="animate-spin" />
-              : <DownloadSimple size={16} weight="bold" />}
-            {loadingExport ? 'Preparing...' : 'Download Backup'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              data-testid="local-export-btn"
+              onClick={handleLocalExport}
+              disabled={loadingExport}
+              className={`${btnClass()} bg-[#2563EB] hover:bg-[#1D4ED8]`}
+            >
+              {loadingExport
+                ? <ArrowClockwise size={16} className="animate-spin" />
+                : <DownloadSimple size={16} weight="bold" />}
+              {loadingExport ? 'Preparing...' : 'Download Backup'}
+            </button>
+            <button
+              data-testid="local-photos-export-btn"
+              onClick={handlePhotosExport}
+              disabled={loadingPhotosExport}
+              className={`${btnClass()} bg-[#2563EB]/80 hover:bg-[#2563EB]`}
+            >
+              {loadingPhotosExport
+                ? <ArrowClockwise size={16} className="animate-spin" />
+                : <DownloadSimple size={16} weight="bold" />}
+              {loadingPhotosExport ? 'Zipping photos...' : 'Download Photos (ZIP)'}
+            </button>
+          </div>
           <p className="text-xs text-[#9CA3AF] mt-2">
-            Includes all patients, implants, abutments, FPD/crown records, overdentures,
-            full mouth rehabs, extracted teeth, and clinics. Photos in the Photo Vault are
-            stored separately and are not included in this backup.
+            <strong>Download Backup</strong> includes all patients, implants, abutments,
+            FPD/crown records, overdentures, full mouth rehabs, extracted teeth, and clinics.
+            <strong> Download Photos</strong> includes every Photo Vault image and radiograph,
+            bundled as a ZIP — for larger photo libraries this can take a minute.
           </p>
         </Card>
 
@@ -277,6 +331,17 @@ export default function Backup() {
                 : <CloudArrowUp size={16} weight="bold" />}
               {loadingDriveUp ? 'Uploading...' : 'Backup to Google Drive'}
             </button>
+            <button
+              data-testid="gdrive-photos-backup-btn"
+              onClick={handlePhotosDriveBackup}
+              disabled={loadingPhotosDriveUp || !GOOGLE_CLIENT_ID}
+              className={`${btnClass()} bg-[#EA4335]/80 hover:bg-[#EA4335] ${!GOOGLE_CLIENT_ID ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {loadingPhotosDriveUp
+                ? <ArrowClockwise size={16} className="animate-spin" />
+                : <CloudArrowUp size={16} weight="bold" />}
+              {loadingPhotosDriveUp ? 'Uploading photos...' : 'Backup Photos to Drive'}
+            </button>
           </div>
           {lastDriveBackup && (
             <div className="flex items-center gap-2 mt-3 text-xs text-[#16A34A]">
@@ -292,6 +357,7 @@ export default function Backup() {
           )}
           <p className="text-xs text-[#9CA3AF] mt-2">
             Stored in your Drive's private App Data folder — not visible in your regular Google Drive files.
+            The photos backup is a separate ZIP file, so a photo-only backup never overwrites your data backup.
           </p>
         </Card>
 

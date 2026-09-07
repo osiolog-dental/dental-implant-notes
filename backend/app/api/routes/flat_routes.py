@@ -9,10 +9,14 @@ implants and fpd-records, and patient profile-picture upload.
 from __future__ import annotations
 
 import asyncio
+import io
+import json
+import re
 import uuid
+import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -776,6 +780,77 @@ async def export_backup(
         "full_mouth_rehabs": [_row(r) for r in rehabs_rows],
         "tooth_extractions": [_row(e) for e in extractions_rows],
     }
+
+
+@router.get("/backup/photos")
+async def export_photos_backup(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Bundle every uploaded photo/radiograph (Photo Vault) for this doctor's
+    org into a single ZIP, plus a manifest.json mapping each file back to
+    its patient/case/category. The structured JSON backup (/backup/export)
+    never included the actual image bytes — this is the photo counterpart.
+    """
+    from app.models.case import Case
+    from datetime import timezone
+    import datetime as _dt
+
+    result = await db.execute(
+        select(CaseImage, Case, Patient)
+        .join(Case, CaseImage.case_id == Case.id)
+        .join(Patient, Case.patient_id == Patient.id)
+        .where(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at.is_(None),
+            CaseImage.status == "uploaded",
+        )
+        .order_by(Patient.name, Case.title, CaseImage.uploaded_at)
+    )
+    rows = result.all()
+
+    def _safe(name: str) -> str:
+        return re.sub(r"[^\w\- ]", "", name or "").strip()[:60] or "unnamed"
+
+    buffer = io.BytesIO()
+    manifest = []
+    used_names: dict[str, int] = {}
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for image, case, patient in rows:
+            try:
+                data = await asyncio.to_thread(s3_service.download_object, image.s3_key)
+            except Exception:
+                continue
+            ext = (image.content_type or "image/jpeg").split("/")[-1].replace("jpeg", "jpg")
+            folder = f"{_safe(patient.name)}/{_safe(case.title)}"
+            base_name = f"{image.category}_{image.uploaded_at.strftime('%Y%m%d') if image.uploaded_at else 'nodate'}"
+            arcname = f"{folder}/{base_name}.{ext}"
+            # De-duplicate names within the same folder
+            n = used_names.get(arcname, 0)
+            used_names[arcname] = n + 1
+            if n > 0:
+                arcname = f"{folder}/{base_name}_{n}.{ext}"
+            zf.writestr(arcname, data)
+            manifest.append({
+                "path": arcname,
+                "image_id": str(image.id),
+                "case_id": str(case.id),
+                "patient_id": str(patient.id),
+                "patient_name": patient.name,
+                "category": image.category,
+                "content_type": image.content_type,
+                "uploaded_at": image.uploaded_at.isoformat() if image.uploaded_at else None,
+            })
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+    buffer.seek(0)
+    filename = f"osiolog_photos_{_dt.datetime.now(timezone.utc).strftime('%Y%m%d')}.zip"
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/backup/restore")
