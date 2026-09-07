@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
-  CheckCircle, Star, Buildings, User, ArrowRight,
+  CheckCircle, Star, Buildings, User, ArrowRight, Crown,
 } from '@phosphor-icons/react';
 
 const FEATURES = [
@@ -52,6 +52,18 @@ const PLANS = [
     features: ['Up to 50 patients', '500 MB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
   },
   {
+    key: 'basic',
+    name: 'Basic',
+    icon: Crown,
+    color: '#3B82F6',
+    bg: '#EFF6FF',
+    border: '#3B82F6',
+    priceUSD: '$5',
+    priceINR: '₹35',
+    period: '/month',
+    features: ['Up to 250 patients', '1 GB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
+  },
+  {
     key: 'pro',
     name: 'Pro',
     icon: Star,
@@ -62,7 +74,7 @@ const PLANS = [
     priceINR: '₹112',
     period: '/month',
     badge: 'Most Popular',
-    features: ['Unlimited patients', '5 GB photo storage', 'Everything in Free', 'Google Drive backup', 'Analytics dashboard', 'Priority email support'],
+    features: ['Unlimited patients', '5 GB photo storage', 'Everything in Basic', 'Google Drive backup', 'Analytics dashboard', 'Priority email support'],
   },
   {
     key: 'clinic',
@@ -72,7 +84,7 @@ const PLANS = [
     bg: '#FDF6F4',
     border: '#C27E70',
     priceUSD: '$29',
-    priceINR: '₹1,499',
+    priceINR: '₹499',
     period: '/month',
     badge: 'Best Value',
     features: ['Unlimited patients', '20 GB photo storage', 'Everything in Pro', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
@@ -161,7 +173,7 @@ export default function Landing() {
           Simple pricing, start free
         </h2>
         <p className="text-center text-[#5C6773] mb-12">Upgrade whenever your practice needs more room.</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {PLANS.map(plan => (
             <div
               key={plan.key}

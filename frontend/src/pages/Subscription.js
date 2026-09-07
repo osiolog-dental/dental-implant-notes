@@ -8,6 +8,10 @@ import {
 } from '@phosphor-icons/react';
 
 
+/* Discount rules for multi-month billing — Pro and Clinic only (see plan.discountEligible) */
+const SIX_MONTH_DISCOUNT = 0.10;
+const YEARLY_DISCOUNT = 0.20;
+
 /* ── Plan definitions ── */
 const PLANS = [
   {
@@ -18,15 +22,43 @@ const PLANS = [
     storage: '500 MB',
     storageMB: 500,
     priceMonthly: 0,
-    priceYearly: 0,
     priceMonthlyINR: 0,
-    priceYearlyINR: 0,
+    discountEligible: false,
     color: '#6B7280',
     bg: '#F9F9F8',
     border: '#E5E5E2',
     features: [
       'Up to 50 patients',
       '500 MB photo storage',
+      'FDI dental chart',
+      'Implant & FPD logs',
+      'PDF report export',
+      'Local backup',
+    ],
+    missing: [
+      'Google Drive backup',
+      'Priority support',
+      'Analytics dashboard',
+      'Multi-clinic management',
+    ],
+    badge: null,
+  },
+  {
+    key: 'basic',
+    name: 'Basic',
+    icon: Crown,
+    iconColor: '#3B82F6',
+    storage: '1 GB',
+    storageMB: 1024,
+    priceMonthly: 5,
+    priceMonthlyINR: 35,
+    discountEligible: false,
+    color: '#3B82F6',
+    bg: '#EFF6FF',
+    border: '#3B82F6',
+    features: [
+      'Up to 250 patients',
+      '1 GB photo storage',
       'FDI dental chart',
       'Implant & FPD logs',
       'PDF report export',
@@ -48,9 +80,8 @@ const PLANS = [
     storage: '5 GB',
     storageMB: 5120,
     priceMonthly: 12,
-    priceYearly: 99,
     priceMonthlyINR: 112,
-    priceYearlyINR: 999,
+    discountEligible: true,
     color: '#82A098',
     bg: '#EEF4F3',
     border: '#82A098',
@@ -76,9 +107,8 @@ const PLANS = [
     storage: '20 GB',
     storageMB: 20480,
     priceMonthly: 29,
-    priceYearly: 249,
-    priceMonthlyINR: 1499,
-    priceYearlyINR: 12999,
+    priceMonthlyINR: 499,
+    discountEligible: true,
     color: '#C27E70',
     bg: '#FDF6F4',
     border: '#C27E70',
@@ -129,7 +159,7 @@ export default function Subscription() {
   const { country } = useLocale();
   const isIndia = country.currency === 'INR';
   const currencySymbol = isIndia ? '₹' : '$';
-  const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
+  const [billing, setBilling] = useState('monthly'); // 'monthly' | 'sixmonth' | 'yearly'
   const [status, setStatus] = useState(null);
   const [upgrading, setUpgrading] = useState(null);
 
@@ -141,11 +171,11 @@ export default function Subscription() {
 
   const currentPlan = status?.plan || 'free';
 
-  const handleUpgrade = async (planKey) => {
+  const handleUpgrade = async (planKey, effectiveBilling) => {
     if (planKey === currentPlan) return;
     setUpgrading(planKey);
     try {
-      await client.post('/api/subscription/upgrade', { plan: planKey, billing });
+      await client.post('/api/subscription/upgrade', { plan: planKey, billing: effectiveBilling });
       toast.success(`Upgraded to ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan!`);
       const r = await client.get('/api/subscription/status');
       setStatus(r.data);
@@ -204,33 +234,51 @@ export default function Subscription() {
         </div>
       )}
 
-      {/* Billing toggle */}
-      <div className="flex items-center justify-center gap-3 mb-8">
-        <span className={`text-sm font-medium ${billing === 'monthly' ? 'text-[#2A2F35]' : 'text-[#9CA3AF]'}`}>Monthly</span>
-        <button
-          data-testid="billing-toggle"
-          onClick={() => setBilling(b => b === 'monthly' ? 'yearly' : 'monthly')}
-          className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${billing === 'yearly' ? 'bg-[#82A098]' : 'bg-[#D1D5DB]'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${billing === 'yearly' ? 'translate-x-6' : 'translate-x-0'}`} />
-        </button>
-        <span className={`text-sm font-medium ${billing === 'yearly' ? 'text-[#2A2F35]' : 'text-[#9CA3AF]'}`}>
-          Yearly
-          <span className="ml-1.5 text-[10px] font-bold bg-[#82A098] text-white px-1.5 py-0.5 rounded-full">Save 30%</span>
-        </span>
+      {/* Billing period selector */}
+      <div className="flex flex-col items-center gap-2 mb-8">
+        <div className="inline-flex rounded-xl bg-[#F0F0EE] p-1">
+          {[
+            { key: 'monthly', label: 'Monthly' },
+            { key: 'sixmonth', label: '6 Months', save: 10 },
+            { key: 'yearly', label: 'Yearly', save: 20 },
+          ].map(opt => (
+            <button
+              key={opt.key}
+              data-testid={`billing-toggle-${opt.key}`}
+              onClick={() => setBilling(opt.key)}
+              className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                billing === opt.key ? 'bg-white text-[#2A2F35] shadow-sm' : 'text-[#5C6773] hover:text-[#2A2F35]'
+              }`}
+            >
+              {opt.label}
+              {opt.save && (
+                <span className="ml-1.5 text-[10px] font-bold bg-[#82A098] text-white px-1.5 py-0.5 rounded-full">
+                  Save {opt.save}%
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        {billing !== 'monthly' && (
+          <p className="text-xs text-[#9CA3AF]">6-month and yearly discounts apply to Pro and Clinic plans only</p>
+        )}
       </div>
 
       {/* Plan cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         {PLANS.map(plan => {
           const Icon = plan.icon;
           const isCurrent = plan.key === currentPlan;
-          const price = billing === 'yearly'
-            ? (isIndia ? plan.priceYearlyINR : plan.priceYearly)
-            : (isIndia ? plan.priceMonthlyINR : plan.priceMonthly);
-          const yearlyPrice = isIndia ? plan.priceYearlyINR : plan.priceYearly;
-          const perMonth = billing === 'yearly' && yearlyPrice > 0
-            ? (yearlyPrice / 12).toFixed(0)
+          const baseMonthly = isIndia ? plan.priceMonthlyINR : plan.priceMonthly;
+          // Basic and Free never get the 6-month/yearly discount — always show monthly pricing for them.
+          const effectiveBilling = plan.discountEligible ? billing : 'monthly';
+          const months = effectiveBilling === 'yearly' ? 12 : effectiveBilling === 'sixmonth' ? 6 : 1;
+          const discount = effectiveBilling === 'yearly' ? YEARLY_DISCOUNT : effectiveBilling === 'sixmonth' ? SIX_MONTH_DISCOUNT : 0;
+          const price = baseMonthly > 0 ? Math.round(baseMonthly * months * (1 - discount)) : 0;
+          const periodLabel = effectiveBilling === 'yearly' ? '/yr' : effectiveBilling === 'sixmonth' ? '/6mo' : '/mo';
+          const perMonth = months > 1 && price > 0 ? Math.round(price / months) : null;
+          const billingNote = !plan.discountEligible && billing !== 'monthly' && baseMonthly > 0
+            ? 'Billed monthly only'
             : null;
 
           return (
@@ -276,10 +324,15 @@ export default function Subscription() {
                   <>
                     <div className="flex items-end gap-1">
                       <span className="text-3xl font-bold text-[#2A2F35]">{currencySymbol}{price}</span>
-                      <span className="text-sm text-[#5C6773] mb-1">/{billing === 'yearly' ? 'yr' : 'mo'}</span>
+                      <span className="text-sm text-[#5C6773] mb-1">{periodLabel}</span>
                     </div>
                     {perMonth && (
-                      <p className="text-xs text-[#5C6773]">{currencySymbol}{perMonth}/month billed yearly</p>
+                      <p className="text-xs text-[#5C6773]">
+                        {currencySymbol}{perMonth}/month billed {effectiveBilling === 'yearly' ? 'yearly' : 'every 6 months'}
+                      </p>
+                    )}
+                    {billingNote && (
+                      <p className="text-xs text-[#9CA3AF]">{billingNote}</p>
                     )}
                   </>
                 )}
@@ -304,7 +357,7 @@ export default function Subscription() {
               {/* CTA button */}
               <button
                 data-testid={`upgrade-${plan.key}`}
-                onClick={() => handleUpgrade(plan.key)}
+                onClick={() => handleUpgrade(plan.key, effectiveBilling)}
                 disabled={isCurrent || upgrading === plan.key}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{
@@ -348,17 +401,17 @@ export default function Subscription() {
             </thead>
             <tbody className="divide-y divide-[#F0EDE8]">
               {[
-                ['Patients',            '10',        'Unlimited',  'Unlimited'],
-                ['Storage',             '500 MB',    '5 GB',       '20 GB'],
-                ['FDI Dental Chart',    true,        true,         true],
-                ['Implant & FPD Logs',  true,        true,         true],
-                ['PDF Report Export',   true,        true,         true],
-                ['Local Backup',        true,        true,         true],
-                ['Google Drive Backup', false,       true,         true],
-                ['Analytics',           false,       true,         true],
-                ['Multi-Clinic',        false,       false,        true],
-                ['Priority Support',    false,       true,         true],
-                ['Custom Report Brand', false,       false,        true],
+                ['Patients',            '50',        '250',       'Unlimited',  'Unlimited'],
+                ['Storage',             '500 MB',    '1 GB',      '5 GB',       '20 GB'],
+                ['FDI Dental Chart',    true,        true,        true,         true],
+                ['Implant & FPD Logs',  true,        true,        true,         true],
+                ['PDF Report Export',   true,        true,        true,         true],
+                ['Local Backup',        true,        true,        true,         true],
+                ['Google Drive Backup', false,       false,       true,         true],
+                ['Analytics',           false,       false,       true,         true],
+                ['Multi-Clinic',        false,       false,       false,        true],
+                ['Priority Support',    false,       false,       true,         true],
+                ['Custom Report Brand', false,       false,       false,        true],
               ].map(([label, ...vals]) => (
                 <tr key={label} className="hover:bg-[#F9F9F8] transition-colors">
                   <td className="px-5 py-3 text-xs text-[#2A2F35] font-medium">{label}</td>
@@ -379,7 +432,7 @@ export default function Subscription() {
       {/* Fine print */}
       <p className="text-xs text-center text-[#9CA3AF]">
         All plans include a 7-day free trial. No credit card required for Free plan.
-        Prices in USD. Cancel anytime.
+        Prices in {isIndia ? 'INR' : 'USD'}. Cancel anytime.
       </p>
     </div>
   );
