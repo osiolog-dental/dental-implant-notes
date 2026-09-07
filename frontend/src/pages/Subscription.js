@@ -4,7 +4,7 @@ import client from '../api/client';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   CheckCircle, X, Crown, Buildings, User,
-  HardDrive, ArrowRight, Star,
+  HardDrive, ArrowRight, Star, Rocket, Plus,
 } from '@phosphor-icons/react';
 
 
@@ -128,7 +128,44 @@ const PLANS = [
     badge: 'Best Value',
     badgeColor: '#C27E70',
   },
+  {
+    key: 'enterprise',
+    name: 'Enterprise',
+    icon: Rocket,
+    iconColor: '#7C3AED',
+    storage: '100 GB',
+    storageMB: 102400,
+    priceMonthly: 79,
+    priceMonthlyINR: 1999,
+    discountEligible: true,
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+    border: '#7C3AED',
+    features: [
+      'Unlimited patients',
+      '100 GB photo & radiograph storage',
+      'FDI dental chart',
+      'Implant & FPD logs',
+      'PDF report export',
+      'Google Drive backup',
+      'Advanced analytics',
+      'Multi-clinic management',
+      'Priority phone & email support',
+      'Custom branding on reports',
+    ],
+    missing: [],
+    badge: 'Highest Storage',
+    badgeColor: '#7C3AED',
+  },
 ];
+
+/* Extra storage, in 10 GB blocks, addable to any plan without changing it.
+   Priced with a healthy margin over the underlying Cloudflare R2 cost
+   (~$0.015/GB-month, i.e. ~$0.15 per 10 GB) — see the note next to the UI. */
+const STORAGE_ADDON_BLOCK_GB = 10;
+const STORAGE_ADDON_PRICE_INR = 49;   // per 10 GB / month
+const STORAGE_ADDON_PRICE_USD = 0.99; // per 10 GB / month
+const STORAGE_ADDON_OPTIONS = [1, 2, 3]; // ×10 GB blocks → 10 / 20 / 30 GB
 
 function StorageMeter({ usedMB, limitMB, color }) {
   const pct = limitMB ? Math.min((usedMB / limitMB) * 100, 100) : 0;
@@ -162,6 +199,7 @@ export default function Subscription() {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'sixmonth' | 'yearly'
   const [status, setStatus] = useState(null);
   const [upgrading, setUpgrading] = useState(null);
+  const [addingStorage, setAddingStorage] = useState(null); // blocks count currently submitting
 
   useEffect(() => {
     client.get('/api/subscription/status')
@@ -183,6 +221,20 @@ export default function Subscription() {
       toast.error(err?.response?.data?.detail || 'Upgrade failed');
     } finally {
       setUpgrading(null);
+    }
+  };
+
+  const handleAddStorage = async (blocks) => {
+    setAddingStorage(blocks);
+    try {
+      await client.post('/api/subscription/storage-addon', { blocks, gb: blocks * STORAGE_ADDON_BLOCK_GB });
+      toast.success(`+${blocks * STORAGE_ADDON_BLOCK_GB} GB added to your plan`);
+      const r = await client.get('/api/subscription/status');
+      setStatus(r.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not add storage');
+    } finally {
+      setAddingStorage(null);
     }
   };
 
@@ -265,7 +317,7 @@ export default function Subscription() {
       </div>
 
       {/* Plan cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 mb-10">
         {PLANS.map(plan => {
           const Icon = plan.icon;
           const isCurrent = plan.key === currentPlan;
@@ -383,6 +435,50 @@ export default function Subscription() {
         })}
       </div>
 
+      {/* Extra storage add-on — stays on the same plan */}
+      <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 mb-8">
+        <div className="flex items-center gap-2 mb-1">
+          <HardDrive size={18} className="text-[#82A098]" />
+          <h3 className="font-semibold text-[#2A2F35]">Need More Storage?</h3>
+        </div>
+        <p className="text-xs text-[#5C6773] mb-4">
+          Add extra photo/radiograph storage in {STORAGE_ADDON_BLOCK_GB} GB blocks without changing your plan.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {STORAGE_ADDON_OPTIONS.map(blocks => {
+            const gb = blocks * STORAGE_ADDON_BLOCK_GB;
+            const price = blocks * (isIndia ? STORAGE_ADDON_PRICE_INR : STORAGE_ADDON_PRICE_USD);
+            return (
+              <div
+                key={blocks}
+                data-testid={`storage-addon-${gb}gb`}
+                className="border border-[#E5E5E2] rounded-xl p-4 flex flex-col items-center text-center hover:border-[#82A098] transition-colors"
+              >
+                <p className="text-2xl font-bold text-[#2A2F35]">+{gb} GB</p>
+                <p className="text-xs text-[#5C6773] mb-3">
+                  {currencySymbol}{isIndia ? price : price.toFixed(2)}/month
+                </p>
+                <button
+                  data-testid={`add-storage-${gb}gb`}
+                  onClick={() => handleAddStorage(blocks)}
+                  disabled={addingStorage === blocks}
+                  className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-[#82A098] text-[#82A098] hover:bg-[#82A098] hover:text-white transition-colors disabled:opacity-60"
+                >
+                  {addingStorage === blocks
+                    ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    : <Plus size={13} weight="bold" />}
+                  Add {gb} GB
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-[#9CA3AF] mt-4">
+          Storage add-ons apply to any plan, including Free. Priced above our own storage cost
+          (Cloudflare R2) so it stays cheap for you while remaining sustainable for us.
+        </p>
+      </div>
+
       {/* Feature comparison table */}
       <div className="bg-white border border-[#E5E5E2] rounded-xl overflow-hidden mb-8">
         <div className="px-5 py-4 border-b border-[#E5E5E2]">
@@ -401,17 +497,17 @@ export default function Subscription() {
             </thead>
             <tbody className="divide-y divide-[#F0EDE8]">
               {[
-                ['Patients',            '50',        '250',       'Unlimited',  'Unlimited'],
-                ['Storage',             '500 MB',    '1 GB',      '5 GB',       '20 GB'],
-                ['FDI Dental Chart',    true,        true,        true,         true],
-                ['Implant & FPD Logs',  true,        true,        true,         true],
-                ['PDF Report Export',   true,        true,        true,         true],
-                ['Local Backup',        true,        true,        true,         true],
-                ['Google Drive Backup', false,       false,       true,         true],
-                ['Analytics',           false,       false,       true,         true],
-                ['Multi-Clinic',        false,       false,       false,        true],
-                ['Priority Support',    false,       false,       true,         true],
-                ['Custom Report Brand', false,       false,       false,        true],
+                ['Patients',            '50',        '250',       'Unlimited',  'Unlimited',  'Unlimited'],
+                ['Storage',             '500 MB',    '1 GB',      '5 GB',       '20 GB',      '100 GB'],
+                ['FDI Dental Chart',    true,        true,        true,         true,         true],
+                ['Implant & FPD Logs',  true,        true,        true,         true,         true],
+                ['PDF Report Export',   true,        true,        true,         true,         true],
+                ['Local Backup',        true,        true,        true,         true,         true],
+                ['Google Drive Backup', false,       false,       true,         true,         true],
+                ['Analytics',           false,       false,       true,         true,         true],
+                ['Multi-Clinic',        false,       false,       false,        true,         true],
+                ['Priority Support',    false,       false,       true,         true,         true],
+                ['Custom Report Brand', false,       false,       false,        true,         true],
               ].map(([label, ...vals]) => (
                 <tr key={label} className="hover:bg-[#F9F9F8] transition-colors">
                   <td className="px-5 py-3 text-xs text-[#2A2F35] font-medium">{label}</td>

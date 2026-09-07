@@ -1224,3 +1224,11 @@ async def subscription_upgrade(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     raise HTTPException(status_code=402, detail="Payment integration coming soon. Contact support to upgrade.")
+
+
+@router.post("/subscription/storage-addon")
+async def subscription_storage_addon(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    raise HTTPException(status_code=402, detail="Payment integration coming soon. Contact support to add storage.")

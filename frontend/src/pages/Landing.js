@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
-  CheckCircle, Star, Buildings, User, ArrowRight, Crown,
+  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket,
 } from '@phosphor-icons/react';
 
 const FEATURES = [
@@ -89,6 +89,19 @@ const PLANS = [
     badge: 'Best Value',
     features: ['Unlimited patients', '20 GB photo storage', 'Everything in Pro', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
   },
+  {
+    key: 'enterprise',
+    name: 'Enterprise',
+    icon: Rocket,
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+    border: '#7C3AED',
+    priceUSD: '$79',
+    priceINR: '₹1,999',
+    period: '/month',
+    badge: 'Highest Storage',
+    features: ['Unlimited patients', '100 GB photo storage', 'Everything in Clinic', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
+  },
 ];
 
 const navLink = "text-sm font-medium text-[#5C6773] hover:text-[#2A2F35] transition-colors";
@@ -173,7 +186,7 @@ export default function Landing() {
           Simple pricing, start free
         </h2>
         <p className="text-center text-[#5C6773] mb-12">Upgrade whenever your practice needs more room.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {PLANS.map(plan => (
             <div
               key={plan.key}
