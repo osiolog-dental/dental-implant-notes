@@ -1,6 +1,7 @@
 import client from '../api/client';
 import { toast } from 'sonner';
 import { Camera, PencilSimple, FilePdf, ClockCounterClockwise } from '@phosphor-icons/react';
+import { useImageEditor } from './ImageEditorModal';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -16,8 +17,25 @@ export default function PatientInfoHeader({
   pdfProgress,
   onPhotoUploaded,
 }) {
+  const [editImage, imageEditor] = useImageEditor();
+
+  const uploadProfilePicture = async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await client.post(`/api/patients/${patientId}/profile-picture`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      onPhotoUploaded(res.data.profile_picture);
+      toast.success('Profile photo updated');
+    } catch {
+      toast.error('Failed to upload photo');
+    }
+  };
+
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm mb-6">
+      {imageEditor}
       <div className="flex items-start gap-5">
         {/* Avatar — click to upload profile picture */}
         <label
@@ -49,19 +67,11 @@ export default function PatientInfoHeader({
           data-testid="patient-pic-input"
           onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (!file) return;
-            const form = new FormData();
-            form.append('file', file);
-            try {
-              const res = await client.post(`/api/patients/${patientId}/profile-picture`, form, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-              });
-              onPhotoUploaded(res.data.profile_picture);
-              toast.success('Profile photo updated');
-            } catch {
-              toast.error('Failed to upload photo');
-            }
             e.target.value = '';
+            if (!file) return;
+            const cropped = await editImage(file, { aspect: 1 });
+            if (!cropped) return;
+            await uploadProfilePicture(cropped);
           }}
         />
 

@@ -72,7 +72,7 @@ const INITIAL_FPD = {
   clinical_notes: '',
   consultant_prosthodontist: '',
   lab_name: '',
-  warranty_image: null,
+  warranty_image_url: null,
 };
 
 const INITIAL_ABUTMENT = {
@@ -764,7 +764,7 @@ const PatientDetails = () => {
     }
     try {
       const payload = { ...fpdData, patient_id: id };
-      delete payload.warranty_image; // stored via separate upload endpoint
+      delete payload.warranty_image_url; // stored via separate upload endpoint
       let fpdId = editingFpdId;
       if (editingFpdId) {
         await client.patch(`/api/fpd-records/${editingFpdId}`, payload);
@@ -809,7 +809,7 @@ const PatientDetails = () => {
       clinical_notes: fpd.clinical_notes || '',
       consultant_prosthodontist: fpd.consultant_prosthodontist || '',
       lab_name: fpd.lab_name || '',
-      warranty_image: fpd.warranty_image || null,
+      warranty_image_url: fpd.warranty_image_url || null,
     });
     setEditingFpdId(fpd.id);
     setIsFpdOpen(true);

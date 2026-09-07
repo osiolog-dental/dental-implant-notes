@@ -8,8 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { useImageEditor } from './ImageEditorModal';
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
@@ -28,9 +27,12 @@ export default function FpdFormModal({
   warrantyFile,
   setWarrantyFile,
 }) {
+  const [editImage, imageEditor] = useImageEditor();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        {imageEditor}
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">{editingFpdId ? 'Edit FPD Record' : 'FPD Log Sheet'}</DialogTitle>
         </DialogHeader>
@@ -190,13 +192,25 @@ export default function FpdFormModal({
             <div className="mt-1 flex items-center gap-3">
               <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#E5E5E2] hover:border-[#82A098] hover:bg-[#F0F8F6] cursor-pointer text-xs text-[#5C6773] transition-colors" data-testid="fpd-warranty-upload-label">
                 <input type="file" accept="image/*" className="hidden" data-testid="fpd-warranty-input"
-                  onChange={e => { if (e.target.files?.[0]) setWarrantyFile(e.target.files[0]); }} />
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const cropped = await editImage(file, { aspect: 4 / 3 });
+                    if (cropped) setWarrantyFile(cropped);
+                  }} />
                 📷 {warrantyFile ? warrantyFile.name : 'Upload warranty photo'}
               </label>
               {/* Show existing warranty image if editing */}
-              {fpdData.warranty_image && !warrantyFile && (
-                <a href={`${API_URL}/api/files/${fpdData.warranty_image}`} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-[#82A098] underline">View existing</a>
+              {fpdData.warranty_image_url && !warrantyFile && (
+                <a href={fpdData.warranty_image_url} target="_blank" rel="noopener noreferrer" title="Click to view full size">
+                  <img
+                    src={fpdData.warranty_image_url}
+                    alt="Warranty card"
+                    className="w-10 h-10 object-cover rounded-md border border-[#E5E5E2]"
+                    data-testid="fpd-warranty-thumb"
+                  />
+                </a>
               )}
               {warrantyFile && (
                 <button type="button" onClick={() => setWarrantyFile(null)} className="text-xs text-red-400 hover:text-red-600">✕ Remove</button>

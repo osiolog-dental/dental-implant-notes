@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import { UploadSimple, QrCode, X, CheckCircle, Warning, Tag } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { useImageEditor } from './ImageEditorModal';
 
 /**
  * Parses GS1 Application Identifiers from a decoded QR/DataMatrix string.
@@ -133,6 +134,21 @@ const ImplantTagScanner = ({
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(null);   // parsed result
   const [preview, setPreview] = useState(tagImage || null);
+  const [editImage, imageEditor] = useImageEditor();
+
+  const finalizeCrop = async (originalFile) => {
+    // Crop/frame the tag photo AFTER QR scanning, so cropping tightly around
+    // the QR code can never accidentally break auto-fill.
+    const cropped = await editImage(originalFile, { aspect: 4 / 3 });
+    const fileToUse = cropped || originalFile;
+    const reader2 = new FileReader();
+    reader2.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      setPreview(dataUrl);
+      onImageCapture && onImageCapture(dataUrl);
+    };
+    reader2.readAsDataURL(fileToUse);
+  };
 
   const handleFile = (file) => {
     if (!file) return;
@@ -144,8 +160,6 @@ const ImplantTagScanner = ({
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target.result;
-      setPreview(dataUrl);
-      onImageCapture && onImageCapture(dataUrl);
 
       // Draw onto hidden canvas to get pixel data for jsQR
       const img = new Image();
@@ -180,6 +194,7 @@ const ImplantTagScanner = ({
             toast('No QR code found in this image. Fill details manually.', { icon: '🔍' });
           }
         }
+        finalizeCrop(file);
       };
       img.src = dataUrl;
     };
@@ -201,6 +216,7 @@ const ImplantTagScanner = ({
 
   return (
     <div className="mb-4 p-4 bg-[#F0F5F4] border border-[#82A098]/30 rounded-xl">
+      {imageEditor}
       {/* Hidden canvas for QR decode */}
       <canvas ref={canvasRef} className="hidden" />
 

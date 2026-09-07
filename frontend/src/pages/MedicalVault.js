@@ -12,6 +12,7 @@ import {
 import { getPatient } from '../api/patients';
 import { getCases, createCase } from '../api/cases';
 import { getImages, uploadImage, deleteImage, clearImageCache } from '../api/images';
+import { useImageEditor } from '../components/ImageEditorModal';
 
 const MAX_EXTRA_PHOTOS = 12;
 
@@ -40,6 +41,7 @@ const MedicalVault = () => {
   const extraCameraRef = useRef();
   const viewCameraRef = useRef();
   const [cameraViewId, setCameraViewId] = useState(null);
+  const [editImage, imageEditor] = useImageEditor();
 
   const [patient, setPatient] = useState(null);
   const [cases, setCases] = useState([]);
@@ -113,12 +115,14 @@ const MedicalVault = () => {
 
   // ── Named-view upload (clinical photos / radiographs) ─────────────────────
   const handleViewUpload = async (file, viewId) => {
+    const cropped = await editImage(file, { aspect: 4 / 3 });
+    if (!cropped) return; // user cancelled
     const cid = uploadCaseId || await ensureCase();
     if (!cid) return;
     const key = `${uploadType}_${viewId}`;
     setUploadingFiles(prev => ({ ...prev, [key]: true }));
     try {
-      await uploadImage(cid, file, { category: `${uploadType}_${viewId}` });
+      await uploadImage(cid, cropped, { category: `${uploadType}_${viewId}` });
       toast.success('File uploaded');
       caseList_invalidateAndRefetch();
     } catch (err) {
@@ -148,8 +152,10 @@ const MedicalVault = () => {
     setUploadingExtra(true);
     let uploaded = 0;
     for (const file of toUpload) {
+      const cropped = await editImage(file, { aspect: 1 });
+      if (!cropped) continue; // user cancelled this one
       try {
-        await uploadImage(cid, file, { category: 'extra' });
+        await uploadImage(cid, cropped, { category: 'extra' });
         uploaded++;
       } catch {
         toast.error(`Failed to upload ${file.name}`);
@@ -170,12 +176,14 @@ const MedicalVault = () => {
     const file = e.target.files?.[0];
     if (!file || !cameraViewId) return;
     e.target.value = '';
+    const cropped = await editImage(file, { aspect: 4 / 3 });
+    if (!cropped) return; // user cancelled
     const cid = uploadCaseId || await ensureCase();
     if (!cid) return;
     const key = `${uploadType}_${cameraViewId}`;
     setUploadingFiles(prev => ({ ...prev, [key]: true }));
     try {
-      await uploadImage(cid, file, { category: `${uploadType}_${cameraViewId}` });
+      await uploadImage(cid, cropped, { category: `${uploadType}_${cameraViewId}` });
       toast.success('Photo captured and uploaded');
       setCameraViewId(null);
       caseList_invalidateAndRefetch();
@@ -238,6 +246,7 @@ const MedicalVault = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+      {imageEditor}
 
       {/* ── LEFT SIDEBAR ── */}
       <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-[#E5E5E2] flex flex-col h-[55vh] md:h-full">
@@ -612,7 +621,7 @@ const MedicalVault = () => {
             <img
               src={selectedItem.url}
               alt={selectedItem.category || 'Clinical image'}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-lg border border-[#E5E5E2] bg-white"
               onError={e => { e.target.style.display = 'none'; }}
             />
           ) : (

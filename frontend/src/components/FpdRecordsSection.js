@@ -1,7 +1,5 @@
 import { PencilSimple, Trash } from '@phosphor-icons/react';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
-
 export default function FpdRecordsSection({ fpdRecords, onEdit, onDelete }) {
   if (fpdRecords.length === 0) return null;
   return (
@@ -53,10 +51,10 @@ export default function FpdRecordsSection({ fpdRecords, onEdit, onDelete }) {
               )}
             </div>
             {fpd.clinical_notes && <p className="mt-2 text-xs text-[#5C6773] italic">{fpd.clinical_notes}</p>}
-            {fpd.warranty_image && (
+            {fpd.warranty_image_url && (
               <div className="mt-2">
-                <a href={`${API_URL}/api/files/${fpd.warranty_image}`} target="_blank" rel="noopener noreferrer">
-                  <img src={`${API_URL}/api/files/${fpd.warranty_image}`} alt="Warranty card"
+                <a href={fpd.warranty_image_url} target="_blank" rel="noopener noreferrer">
+                  <img src={fpd.warranty_image_url} alt="Warranty card"
                     className="h-16 w-auto rounded border border-[#E5E5E2] object-cover hover:opacity-80 transition-opacity cursor-pointer" />
                 </a>
                 <p className="text-[10px] text-[#9CA3AF] mt-0.5">Warranty card</p>

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import client from '../api/client';
@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { useImageEditor } from '../components/ImageEditorModal';
 
 /* ── Country list (mirrors Register.js) ────────────────────────────────── */
 const COUNTRIES = [
@@ -43,138 +44,6 @@ const COUNTRY_CURRENCY = {
 };
 const getCurrency = (country) => COUNTRY_CURRENCY[country] || { currency:'USD', symbol:'$' };
 
-/* ── Crop modal (pure canvas, no library) ──────────────────────────────── */
-function CropModal({ src, onCrop, onCancel }) {
-  const canvasRef = useRef(null);
-  const [drag, setDrag] = useState(false);
-  const [start, setStart] = useState({ x: 0, y: 0 });
-  const imgRef = useRef(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0, size: 0 });
-  const [imgDims, setImgDims] = useState({ w: 0, h: 0, ox: 0, oy: 0, scale: 1 });
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      const maxW = Math.min(500, window.innerWidth - 48);
-      const maxH = 400;
-      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      const ox = (maxW - w) / 2;
-      const oy = (maxH - h) / 2;
-      setImgDims({ w, h, ox, oy, scale, naturalW: img.width, naturalH: img.height });
-      const size = Math.min(w, h) * 0.7;
-      setCrop({ x: ox + (w - size) / 2, y: oy + (h - size) / 2, size });
-      imgRef.current = img;
-      drawCanvas({ x: ox + (w - size) / 2, y: oy + (h - size) / 2, size }, img, { w, h, ox, oy, scale });
-    };
-    img.src = src;
-  }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const drawCanvas = (c, img, dims) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !img) return;
-    const maxW = Math.min(500, window.innerWidth - 48);
-    const ctx = canvas.getContext('2d');
-    canvas.width = maxW;
-    canvas.height = 400;
-    ctx.clearRect(0, 0, maxW, 400);
-    ctx.drawImage(img, dims.ox, dims.oy, dims.w, dims.h);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(0, 0, maxW, 400);
-    ctx.clearRect(c.x, c.y, c.size, c.size);
-    ctx.strokeStyle = '#82A098';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(c.x, c.y, c.size, c.size);
-    // Corner handles
-    const h = 12;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    [[c.x,c.y],[c.x+c.size-h,c.y],[c.x,c.y+c.size-h],[c.x+c.size-h,c.y+c.size-h]].forEach(([ex,ey]) => {
-      ctx.strokeRect(ex, ey, h, h);
-    });
-  };
-
-  const getPos = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const touch = e.touches?.[0] || e;
-    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-  };
-
-  const onMouseDown = (e) => {
-    const pos = getPos(e);
-    if (pos.x >= crop.x && pos.x <= crop.x + crop.size && pos.y >= crop.y && pos.y <= crop.y + crop.size) {
-      setDrag(true);
-      setStart({ x: pos.x - crop.x, y: pos.y - crop.y });
-    }
-  };
-
-  const onMouseMove = (e) => {
-    if (!drag) return;
-    const pos = getPos(e);
-    const newX = Math.max(imgDims.ox, Math.min(imgDims.ox + imgDims.w - crop.size, pos.x - start.x));
-    const newY = Math.max(imgDims.oy, Math.min(imgDims.oy + imgDims.h - crop.size, pos.y - start.y));
-    const newCrop = { ...crop, x: newX, y: newY };
-    setCrop(newCrop);
-    drawCanvas(newCrop, imgRef.current, imgDims);
-  };
-
-  const onMouseUp = () => setDrag(false);
-
-  const handleApply = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 400;
-    const ctx = canvas.getContext('2d');
-    const scaleX = (crop.x - imgDims.ox) / imgDims.scale;
-    const scaleY = (crop.y - imgDims.oy) / imgDims.scale;
-    const cropSize = crop.size / imgDims.scale;
-    ctx.drawImage(imgRef.current, scaleX, scaleY, cropSize, cropSize, 0, 0, 400, 400);
-    canvas.toBlob(blob => {
-      if (!blob) { toast.error('Crop failed'); return; }
-      const file = new File([blob], 'profile.jpg', { type: 'image/jpeg' });
-      onCrop(file, canvas.toDataURL('image/jpeg', 0.9));
-    }, 'image/jpeg', 0.9);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-lg">
-        <div className="px-5 py-4 border-b border-[#E5E5E2] flex items-center justify-between">
-          <h3 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Crop Profile Photo</h3>
-          <button onClick={onCancel} className="text-[#9CA3AF] hover:text-[#2A2F35]"><X size={20} /></button>
-        </div>
-        <div className="p-4 bg-[#F0F0EE] flex justify-center">
-          <canvas
-            ref={canvasRef}
-            style={{ cursor: drag ? 'grabbing' : 'grab', maxWidth: '100%', borderRadius: 8 }}
-            onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-            onTouchStart={onMouseDown} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}
-          />
-        </div>
-        <p className="text-xs text-[#9CA3AF] text-center pb-1">Drag the square to reposition the crop area</p>
-        <div className="px-5 py-4 flex gap-3">
-          <Button
-            data-testid="crop-apply-btn"
-            onClick={handleApply}
-            className="flex-1 bg-[#82A098] hover:bg-[#6B8A82] text-white"
-          >
-            Apply Crop
-          </Button>
-          <Button
-            data-testid="crop-cancel-btn"
-            variant="outline"
-            onClick={onCancel}
-            className="flex-1"
-          >
-            Cancel
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Account() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -186,8 +55,8 @@ export default function Account() {
   const [retainData, setRetainData] = useState(true);
   const [picUploading, setPicUploading] = useState(false);
   const [localPicUrl, setLocalPicUrl] = useState(null);
-  const [cropSrc, setCropSrc] = useState(null);
   const picInputRef = useRef(null);
+  const [editImage, imageEditor] = useImageEditor();
 
   const emptyEdu = () => ({ _id: String(Date.now() + Math.random()), degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
   const emptyPub = () => ({ _id: String(Date.now() + Math.random()), title: '', journal: '', year: '', doi: '' });
@@ -316,21 +185,20 @@ export default function Account() {
     setEditing(false);
   };
 
-  /* Pick a file → show crop modal */
-  const handlePicSelect = (e) => {
+  /* Pick a file → show crop/edit modal, then upload the cropped result */
+  const handlePicSelect = async (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { toast.error('Image must be under 10 MB'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setCropSrc(ev.target.result);
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    const cropped = await editImage(file, { aspect: 1 });
+    if (!cropped) return; // user cancelled
+    handleCropApply(cropped);
   };
 
   /* After crop → upload cropped file */
-  const handleCropApply = useCallback(async (croppedFile, previewUrl) => {
-    setCropSrc(null);
-    setLocalPicUrl(previewUrl);
+  const handleCropApply = useCallback(async (croppedFile) => {
+    setLocalPicUrl(URL.createObjectURL(croppedFile));
     setPicUploading(true);
     try {
       const fd = new FormData();
@@ -394,14 +262,8 @@ export default function Account() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 md:py-10" data-testid="account-page">
 
-      {/* Crop modal */}
-      {cropSrc && (
-        <CropModal
-          src={cropSrc}
-          onCrop={handleCropApply}
-          onCancel={() => setCropSrc(null)}
-        />
-      )}
+      {/* Photo crop/edit modal */}
+      {imageEditor}
 
       {/* Profile card */}
       <div className="bg-white rounded-xl border border-[#E5E5E2] overflow-hidden">
