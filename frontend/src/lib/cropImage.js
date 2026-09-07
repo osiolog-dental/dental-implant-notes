@@ -25,12 +25,22 @@ function rotatedSize(width, height, rotation) {
   };
 }
 
+// Longest side a saved photo is allowed to have. 2000px is comfortably more
+// than any screen or print use needs for a clinical photo, so downscaling to
+// this limit saves storage with no visible quality loss.
+export const MAX_PHOTO_DIMENSION = 2000;
+
 /**
  * Crop `imageSrc` (an object URL or data URL) to `pixelCrop` (as reported by
- * react-easy-crop's onCropComplete), applying `rotation` degrees first.
- * Returns a File (JPEG), or null if the canvas produced no data.
+ * react-easy-crop's onCropComplete), applying `rotation` degrees first, then
+ * downscaling to `maxDimension` on the longest side if the crop is bigger.
+ *
+ * Returns { file, resized, originalWidth, originalHeight, finalWidth, finalHeight }
+ * — `file` is null if the canvas produced no data.
  */
-export async function getCroppedImageFile(imageSrc, pixelCrop, rotation = 0, fileName = 'photo.jpg') {
+export async function getCroppedImageFile(
+  imageSrc, pixelCrop, rotation = 0, fileName = 'photo.jpg', maxDimension = MAX_PHOTO_DIMENSION,
+) {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -50,10 +60,35 @@ export async function getCroppedImageFile(imageSrc, pixelCrop, rotation = 0, fil
   canvas.height = pixelCrop.height;
   ctx.putImageData(data, 0, 0);
 
+  const originalWidth = pixelCrop.width;
+  const originalHeight = pixelCrop.height;
+  const longestSide = Math.max(originalWidth, originalHeight);
+
+  let finalCanvas = canvas;
+  let resized = false;
+  if (longestSide > maxDimension) {
+    const scale = maxDimension / longestSide;
+    const targetW = Math.round(originalWidth * scale);
+    const targetH = Math.round(originalHeight * scale);
+    const scaledCanvas = document.createElement('canvas');
+    scaledCanvas.width = targetW;
+    scaledCanvas.height = targetH;
+    scaledCanvas.getContext('2d').drawImage(canvas, 0, 0, targetW, targetH);
+    finalCanvas = scaledCanvas;
+    resized = true;
+  }
+
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) { resolve(null); return; }
-      resolve(new File([blob], fileName, { type: 'image/jpeg' }));
+    finalCanvas.toBlob((blob) => {
+      if (!blob) { resolve({ file: null, resized: false, originalWidth, originalHeight, finalWidth: originalWidth, finalHeight: originalHeight }); return; }
+      resolve({
+        file: new File([blob], fileName, { type: 'image/jpeg' }),
+        resized,
+        originalWidth,
+        originalHeight,
+        finalWidth: finalCanvas.width,
+        finalHeight: finalCanvas.height,
+      });
     }, 'image/jpeg', 0.92);
   });
 }

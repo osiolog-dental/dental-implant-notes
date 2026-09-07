@@ -701,6 +701,10 @@ async def export_backup(
     from app.models.implant import Implant as ImplantModel
     from app.models.fpd import ProstheticFPD as FPDModel
     from app.models.clinic import Clinic
+    from app.models.abutment import Abutment
+    from app.models.overdenture import Overdenture
+    from app.models.full_mouth_rehab import FullMouthRehab
+    from app.models.tooth_extraction import ToothExtraction
     from datetime import timezone
     import datetime as _dt
 
@@ -728,6 +732,34 @@ async def export_backup(
     )
     clinics_rows = clinics_result.scalars().all()
 
+    abutments_result = await db.execute(
+        select(Abutment)
+        .join(Patient, Abutment.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    abutments_rows = abutments_result.scalars().all()
+
+    overdentures_result = await db.execute(
+        select(Overdenture)
+        .join(Patient, Overdenture.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    overdentures_rows = overdentures_result.scalars().all()
+
+    rehabs_result = await db.execute(
+        select(FullMouthRehab)
+        .join(Patient, FullMouthRehab.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    rehabs_rows = rehabs_result.scalars().all()
+
+    extractions_result = await db.execute(
+        select(ToothExtraction)
+        .join(Patient, ToothExtraction.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    extractions_rows = extractions_result.scalars().all()
+
     def _row(obj):
         return {c.name: str(getattr(obj, c.name)) if getattr(obj, c.name) is not None else None
                 for c in obj.__table__.columns}
@@ -739,6 +771,10 @@ async def export_backup(
         "implants": [_row(i) for i in implants_rows],
         "fpd_records": [_row(f) for f in fpd_rows],
         "clinics": [_row(c) for c in clinics_rows],
+        "abutments": [_row(a) for a in abutments_rows],
+        "overdentures": [_row(o) for o in overdentures_rows],
+        "full_mouth_rehabs": [_row(r) for r in rehabs_rows],
+        "tooth_extractions": [_row(e) for e in extractions_rows],
     }
 
 
@@ -757,6 +793,10 @@ async def restore_backup(
     from app.models.clinic import Clinic
     from app.models.implant import Implant as ImplantModel
     from app.models.fpd import ProstheticFPD as FPDModel
+    from app.models.abutment import Abutment
+    from app.models.overdenture import Overdenture
+    from app.models.full_mouth_rehab import FullMouthRehab
+    from app.models.tooth_extraction import ToothExtraction
 
     def _str(raw: dict, key: str) -> str | None:
         v = raw.get(key)
@@ -790,7 +830,10 @@ async def restore_backup(
             r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", v
         )]
 
-    inserted = {"patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0}
+    inserted = {
+        "patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0,
+        "abutments": 0, "overdentures": 0, "full_mouth_rehabs": 0, "tooth_extractions": 0,
+    }
 
     # Clinics first — implants reference clinic_id.
     for raw in payload.get("clinics", []):
@@ -896,6 +939,74 @@ async def restore_backup(
             warranty_image_url=_str(raw, "warranty_image_url"),
         ))
         inserted["fpd_records"] += 1
+
+    for raw in payload.get("abutments", []):
+        aid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(Abutment, aid):
+            continue
+        db.add(Abutment(
+            id=aid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            tooth_number=_int(raw, "tooth_number"),
+            abutment_type=_str(raw, "abutment_type") or "Stock Abutment Straight",
+            connected_implant_ids=_uuid_list(raw, "connected_implant_ids"),
+            placement_date=_date_(raw, "placement_date"),
+            clinical_notes=_str(raw, "clinical_notes"),
+            clinic_id=_str(raw, "clinic_id"),
+            tag_image=_str(raw, "tag_image"),
+        ))
+        inserted["abutments"] += 1
+
+    for raw in payload.get("overdentures", []):
+        oid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(Overdenture, oid):
+            continue
+        db.add(Overdenture(
+            id=oid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            tooth_numbers=_int_list(raw, "tooth_numbers"),
+            attachment_type=_str(raw, "attachment_type") or "Ball Attachment",
+            connected_implant_ids=_uuid_list(raw, "connected_implant_ids"),
+            has_bar=_bool(raw, "has_bar") or False,
+            bar_material=_str(raw, "bar_material"),
+            prosthetic_loading_date=_date_(raw, "prosthetic_loading_date"),
+            clinical_notes=_str(raw, "clinical_notes"),
+            clinic_id=_str(raw, "clinic_id"),
+        ))
+        inserted["overdentures"] += 1
+
+    for raw in payload.get("full_mouth_rehabs", []):
+        rid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(FullMouthRehab, rid):
+            continue
+        db.add(FullMouthRehab(
+            id=rid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            rehab_type=_str(raw, "rehab_type") or "Upper FMR",
+            connected_implant_ids=_uuid_list(raw, "connected_implant_ids"),
+            prosthetic_loading_date=_date_(raw, "prosthetic_loading_date"),
+            clinical_notes=_str(raw, "clinical_notes"),
+            clinic_id=_str(raw, "clinic_id"),
+        ))
+        inserted["full_mouth_rehabs"] += 1
+
+    for raw in payload.get("tooth_extractions", []):
+        eid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(ToothExtraction, eid):
+            continue
+        db.add(ToothExtraction(
+            id=eid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            tooth_numbers=_int_list(raw, "tooth_numbers"),
+            extraction_date=_date_(raw, "extraction_date"),
+            bone_graft=_str(raw, "bone_graft"),
+            membrane_used=_bool(raw, "membrane_used") or False,
+            planned_future_implant=_bool(raw, "planned_future_implant") or False,
+            reminder_days=_int(raw, "reminder_days"),
+            clinic_id=_str(raw, "clinic_id"),
+            clinical_notes=_str(raw, "clinical_notes"),
+        ))
+        inserted["tooth_extractions"] += 1
 
     await db.flush()
     return {"inserted": inserted}

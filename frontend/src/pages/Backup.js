@@ -207,8 +207,9 @@ export default function Backup() {
     try {
       const res = await client.post(`/api/backup/restore`, restorePreview.data);
       const { inserted } = res.data;
+      const total = Object.values(inserted).reduce((a, b) => a + b, 0);
       toast.success(
-        `Restore complete — ${inserted.patients} patients, ${inserted.implants} implants, ${inserted.fpd_records} FPD records imported`
+        `Restore complete — ${inserted.patients} patients, ${inserted.implants} implants, ${inserted.fpd_records} FPD records, and ${total - inserted.patients - inserted.implants - inserted.fpd_records} other records imported`
       );
       setRestorePreview(null);
     } catch (err) {
@@ -251,7 +252,9 @@ export default function Backup() {
             {loadingExport ? 'Preparing...' : 'Download Backup'}
           </button>
           <p className="text-xs text-[#9CA3AF] mt-2">
-            Includes all patients, implants, FPD records, clinics, and change history.
+            Includes all patients, implants, abutments, FPD/crown records, overdentures,
+            full mouth rehabs, extracted teeth, and clinics. Photos in the Photo Vault are
+            stored separately and are not included in this backup.
           </p>
         </Card>
 
@@ -342,10 +345,14 @@ export default function Backup() {
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 {[
-                  { label: 'Patients',    val: restorePreview.data.patients?.length    ?? 0 },
-                  { label: 'Implants',    val: restorePreview.data.implants?.length    ?? 0 },
-                  { label: 'FPD Records', val: restorePreview.data.fpd_records?.length ?? 0 },
-                  { label: 'Clinics',     val: restorePreview.data.clinics?.length     ?? 0 },
+                  { label: 'Patients',          val: restorePreview.data.patients?.length          ?? 0 },
+                  { label: 'Implants',          val: restorePreview.data.implants?.length          ?? 0 },
+                  { label: 'Abutments',         val: restorePreview.data.abutments?.length         ?? 0 },
+                  { label: 'FPD Records',       val: restorePreview.data.fpd_records?.length       ?? 0 },
+                  { label: 'Overdentures',      val: restorePreview.data.overdentures?.length      ?? 0 },
+                  { label: 'Full Mouth Rehabs', val: restorePreview.data.full_mouth_rehabs?.length ?? 0 },
+                  { label: 'Extracted Teeth',   val: restorePreview.data.tooth_extractions?.length ?? 0 },
+                  { label: 'Clinics',           val: restorePreview.data.clinics?.length           ?? 0 },
                 ].map(({ label, val }) => (
                   <div key={label} className="bg-white rounded-lg p-3 text-center border border-[#E5E5E2]">
                     <div className="text-xl font-bold text-[#82A098]">{val}</div>

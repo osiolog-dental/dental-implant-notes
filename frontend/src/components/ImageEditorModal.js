@@ -53,9 +53,14 @@ export default function ImageEditorModal({ file, defaultAspect = 1, onCancel, on
     if (!croppedAreaPixels || !imageSrc) return;
     setSaving(true);
     try {
-      const cropped = await getCroppedImageFile(imageSrc, croppedAreaPixels, rotation, file?.name || 'photo.jpg');
-      if (!cropped) throw new Error('crop failed');
-      onConfirm(cropped);
+      const result = await getCroppedImageFile(imageSrc, croppedAreaPixels, rotation, file?.name || 'photo.jpg');
+      if (!result.file) throw new Error('crop failed');
+      if (result.resized) {
+        toast.info(
+          `Photo was ${result.originalWidth}×${result.originalHeight} — resized to ${result.finalWidth}×${result.finalHeight} to save storage, with no visible quality loss.`
+        );
+      }
+      onConfirm(result.file);
     } catch {
       toast.error('Could not crop image — using the original photo instead');
       onConfirm(file);
