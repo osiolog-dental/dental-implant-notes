@@ -17,6 +17,8 @@ import AbutmentFormModal from '../components/AbutmentFormModal';
 import OverdentureFormModal from '../components/OverdentureFormModal';
 import FullMouthRehabFormModal, { archForRehabType } from '../components/FullMouthRehabFormModal';
 import ExtractedTeethFormModal from '../components/ExtractedTeethFormModal';
+import ImplantFollowUpModal from '../components/ImplantFollowUpModal';
+import ImplantFollowUpRecordsSection from '../components/ImplantFollowUpRecordsSection';
 import ImplantRecordsSection from '../components/ImplantRecordsSection';
 import FpdRecordsSection from '../components/FpdRecordsSection';
 import AbutmentRecordsSection from '../components/AbutmentRecordsSection';
@@ -50,8 +52,6 @@ const INITIAL_IMPLANT = {
   consultant_surgeon: '',
   clinic_id: '',
   implant_outcome: 'Pending',
-  osseointegration_success: false,
-  peri_implant_health: '',
   clinical_notes: '',
   notes: '',
   site_specific_notes: '',
@@ -116,6 +116,15 @@ const INITIAL_EXTRACTION = {
   clinical_notes: '',
 };
 
+const INITIAL_FOLLOWUP = {
+  implant_id: '',
+  follow_up_date: '',
+  osseointegration_success: false,
+  peri_implant_health: '',
+  prognosis: 'Good',
+  clinical_notes: '',
+};
+
 const UPPER_ARCH_TEETH = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
 const LOWER_ARCH_TEETH = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
 const teethForArch = (arch) => arch === 'upper' ? UPPER_ARCH_TEETH
@@ -143,18 +152,22 @@ const PatientDetails = () => {
   const [overdentureRecords, setOverdentureRecords] = useState([]);
   const [fullMouthRehabRecords, setFullMouthRehabRecords] = useState([]);
   const [extractionRecords, setExtractionRecords] = useState([]);
+  const [followUpRecords, setFollowUpRecords] = useState([]);
   const [isAbutmentOpen, setIsAbutmentOpen] = useState(false);
   const [isOverdentureOpen, setIsOverdentureOpen] = useState(false);
   const [isFullMouthRehabOpen, setIsFullMouthRehabOpen] = useState(false);
   const [isExtractionOpen, setIsExtractionOpen] = useState(false);
+  const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
   const [rehabData, setRehabData] = useState({ ...INITIAL_FULL_MOUTH_REHAB });
   const [extractionData, setExtractionData] = useState({ ...INITIAL_EXTRACTION });
+  const [followUpData, setFollowUpData] = useState({ ...INITIAL_FOLLOWUP });
   const [editingAbutmentId, setEditingAbutmentId] = useState(null);
   const [editingOverdentureId, setEditingOverdentureId] = useState(null);
   const [editingRehabId, setEditingRehabId] = useState(null);
   const [editingExtractionId, setEditingExtractionId] = useState(null);
+  const [editingFollowUpId, setEditingFollowUpId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -175,6 +188,7 @@ const PatientDetails = () => {
     overdenture: (recId) => `/api/overdenture-records/${recId}`,
     full_mouth_rehab: (recId) => `/api/full-mouth-rehab-records/${recId}`,
     tooth_extraction: (recId) => `/api/tooth-extractions/${recId}`,
+    follow_up: (recId) => `/api/implant-follow-ups/${recId}`,
   };
 
   const handleConfirmDelete = async () => {
@@ -198,7 +212,7 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
@@ -208,6 +222,7 @@ const PatientDetails = () => {
         // Non-critical: don't let a hiccup on these newer endpoints break the whole page.
         client.get(`/api/full-mouth-rehab-records?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/tooth-extractions?patient_id=${id}`).catch(() => ({ data: [] })),
+        client.get(`/api/implant-follow-ups?patient_id=${id}`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -217,6 +232,7 @@ const PatientDetails = () => {
       setOverdentureRecords(overdentureRes.data);
       setFullMouthRehabRecords(rehabRes.data);
       setExtractionRecords(extractionRes.data);
+      setFollowUpRecords(followUpRes.data);
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -341,6 +357,7 @@ const PatientDetails = () => {
         overdentureRecords,
         fullMouthRehabRecords,
         extractionRecords,
+        followUpRecords,
         extraPhotos: extraRes.data,
         clinics,
         chartImage,
@@ -666,6 +683,49 @@ const PatientDetails = () => {
     setIsExtractionOpen(true);
   };
 
+  const openAddFollowUp = () => {
+    setFollowUpData({ ...INITIAL_FOLLOWUP });
+    setEditingFollowUpId(null);
+    setIsFollowUpOpen(true);
+  };
+
+  const openEditFollowUp = (rec) => {
+    setFollowUpData({
+      implant_id: rec.implant_id || '',
+      follow_up_date: rec.follow_up_date || '',
+      osseointegration_success: rec.osseointegration_success || false,
+      peri_implant_health: rec.peri_implant_health || '',
+      prognosis: rec.prognosis || 'Good',
+      clinical_notes: rec.clinical_notes || '',
+    });
+    setEditingFollowUpId(rec.id);
+    setIsFollowUpOpen(true);
+  };
+
+  const handleSubmitFollowUp = async (e) => {
+    e.preventDefault();
+    if (!followUpData.implant_id) {
+      toast.error('Select which implant this follow-up is for');
+      return;
+    }
+    try {
+      const payload = { ...followUpData, patient_id: id };
+      if (editingFollowUpId) {
+        await client.patch(`/api/implant-follow-ups/${editingFollowUpId}`, payload);
+        toast.success('Follow-up updated');
+      } else {
+        await client.post(`/api/implant-follow-ups`, payload);
+        toast.success('Follow-up added');
+      }
+      setIsFollowUpOpen(false);
+      setFollowUpData({ ...INITIAL_FOLLOWUP });
+      setEditingFollowUpId(null);
+      fetchAll();
+    } catch (error) {
+      toast.error(editingFollowUpId ? 'Failed to update follow-up' : 'Failed to add follow-up');
+    }
+  };
+
   const handleSubmitImplant = async (e) => {
     e.preventDefault();
     try {
@@ -685,7 +745,6 @@ const PatientDetails = () => {
         implant_system: formData.implant_system || null,
         surgeon_name: formData.surgeon_name || null,
         follow_up_date: formData.follow_up_date || null,
-        peri_implant_health: formData.peri_implant_health || null,
       };
       if (editingImplantId) {
         await client.patch(`/api/implants/${editingImplantId}`, payload);
@@ -730,8 +789,6 @@ const PatientDetails = () => {
       consultant_surgeon: implant.consultant_surgeon || '',
       clinic_id: implant.clinic_id || '',
       implant_outcome: implant.implant_outcome || 'Pending',
-      osseointegration_success: implant.osseointegration_success || false,
-      peri_implant_health: implant.peri_implant_health || '',
       clinical_notes: implant.clinical_notes || '',
       notes: implant.notes || '',
       site_specific_notes: '',
@@ -856,6 +913,11 @@ const PatientDetails = () => {
   const handleExtractionOpenChange = (open) => {
     setIsExtractionOpen(open);
     if (!open) { setExtractionData({ ...INITIAL_EXTRACTION }); setEditingExtractionId(null); }
+  };
+
+  const handleFollowUpOpenChange = (open) => {
+    setIsFollowUpOpen(open);
+    if (!open) { setFollowUpData({ ...INITIAL_FOLLOWUP }); setEditingFollowUpId(null); }
   };
 
   if (loading) {
@@ -1030,6 +1092,17 @@ const PatientDetails = () => {
           onToothToggle={toggleExtractionTooth}
         />
 
+        {/* Implant Follow-up Dialog */}
+        <ImplantFollowUpModal
+          open={isFollowUpOpen}
+          onOpenChange={handleFollowUpOpenChange}
+          followUpData={followUpData}
+          setFollowUpData={setFollowUpData}
+          onSubmit={handleSubmitFollowUp}
+          editingFollowUpId={editingFollowUpId}
+          implants={implants}
+        />
+
         {/* FDI Dental Chart — high-fidelity SVG */}
         <div className="overflow-x-auto">
           <div style={{ minWidth: 560 }}>
@@ -1060,6 +1133,15 @@ const PatientDetails = () => {
           </Link>
         </div>
       </div>
+
+      {/* Implant Follow-ups — above Implant Records, in its own box */}
+      <ImplantFollowUpRecordsSection
+        followUpRecords={followUpRecords}
+        implants={implants}
+        onAdd={openAddFollowUp}
+        onEdit={openEditFollowUp}
+        onDelete={setDeleteTarget}
+      />
 
       {/* Implant Records */}
       <ImplantRecordsSection

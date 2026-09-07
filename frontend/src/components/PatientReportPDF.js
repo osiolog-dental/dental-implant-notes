@@ -137,6 +137,7 @@ export async function generatePatientPDF({
   overdentureRecords = [],
   fullMouthRehabRecords = [],
   extractionRecords = [],
+  followUpRecords = [],
   extraPhotos = [],
   clinics = [],
   chartImage = null,
@@ -589,6 +590,23 @@ export async function generatePatientPDF({
       ['Bone Graft', rec.bone_graft],
       ['Membrane Used', rec.membrane_used ? 'Yes' : null],
       ['Planned Future Implant', rec.planned_future_implant ? `Yes (reminder in ${rec.reminder_days || '—'} days)` : null],
+    ],
+    rec => rec.clinical_notes,
+  );
+
+  /* ════════════════════════════════════════
+     IMPLANT FOLLOW-UP RECORDS
+  ════════════════════════════════════════ */
+  renderSimpleSection(
+    'Implant Follow-up Records', followUpRecords, [30, 100, 200], [222, 232, 250],
+    rec => {
+      const imp = implants.find(i => i.id === rec.implant_id);
+      return `Tooth #${imp?.tooth_number ?? '—'}  —  Follow-up ${rec.follow_up_date || ''}`;
+    },
+    rec => [
+      ['Osseointegration', rec.osseointegration_success ? 'Success' : 'Not confirmed'],
+      ['Peri-implant Health', rec.peri_implant_health],
+      ['Prognosis', rec.prognosis],
     ],
     rec => rec.clinical_notes,
   );

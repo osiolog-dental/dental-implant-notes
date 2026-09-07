@@ -100,3 +100,4 @@ class Implant(Base):
     # Relationships
     case: Mapped["Case"] = relationship("Case", back_populates="implants")  # noqa: F821
     patient: Mapped["Patient"] = relationship("Patient", back_populates="implants")  # noqa: F821
+    follow_ups: Mapped[list["ImplantFollowUp"]] = relationship("ImplantFollowUp", back_populates="implant")  # noqa: F821

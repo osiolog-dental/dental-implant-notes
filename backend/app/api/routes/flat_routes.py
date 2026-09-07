@@ -709,6 +709,7 @@ async def export_backup(
     from app.models.overdenture import Overdenture
     from app.models.full_mouth_rehab import FullMouthRehab
     from app.models.tooth_extraction import ToothExtraction
+    from app.models.implant_follow_up import ImplantFollowUp
     from datetime import timezone
     import datetime as _dt
 
@@ -764,6 +765,13 @@ async def export_backup(
     )
     extractions_rows = extractions_result.scalars().all()
 
+    follow_ups_result = await db.execute(
+        select(ImplantFollowUp)
+        .join(Patient, ImplantFollowUp.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    follow_ups_rows = follow_ups_result.scalars().all()
+
     def _row(obj):
         return {c.name: str(getattr(obj, c.name)) if getattr(obj, c.name) is not None else None
                 for c in obj.__table__.columns}
@@ -779,6 +787,7 @@ async def export_backup(
         "overdentures": [_row(o) for o in overdentures_rows],
         "full_mouth_rehabs": [_row(r) for r in rehabs_rows],
         "tooth_extractions": [_row(e) for e in extractions_rows],
+        "implant_follow_ups": [_row(f) for f in follow_ups_rows],
     }
 
 
@@ -960,6 +969,7 @@ async def restore_backup(
     from app.models.overdenture import Overdenture
     from app.models.full_mouth_rehab import FullMouthRehab
     from app.models.tooth_extraction import ToothExtraction
+    from app.models.implant_follow_up import ImplantFollowUp
 
     def _str(raw: dict, key: str) -> str | None:
         v = raw.get(key)
@@ -996,6 +1006,7 @@ async def restore_backup(
     inserted = {
         "patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0,
         "abutments": 0, "overdentures": 0, "full_mouth_rehabs": 0, "tooth_extractions": 0,
+        "implant_follow_ups": 0,
     }
 
     # Clinics first — implants reference clinic_id.
@@ -1170,6 +1181,23 @@ async def restore_backup(
             clinical_notes=_str(raw, "clinical_notes"),
         ))
         inserted["tooth_extractions"] += 1
+
+    for raw in payload.get("implant_follow_ups", []):
+        fid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or not raw.get("implant_id") or await db.get(ImplantFollowUp, fid):
+            continue
+        db.add(ImplantFollowUp(
+            id=fid,
+            implant_id=uuid.UUID(raw["implant_id"]),
+            patient_id=uuid.UUID(raw["patient_id"]),
+            follow_up_date=_date_(raw, "follow_up_date"),
+            osseointegration_success=_bool(raw, "osseointegration_success"),
+            peri_implant_health=_str(raw, "peri_implant_health"),
+            prognosis=_str(raw, "prognosis") or "Good",
+            clinical_notes=_str(raw, "clinical_notes"),
+            clinic_id=_str(raw, "clinic_id"),
+        ))
+        inserted["implant_follow_ups"] += 1
 
     await db.flush()
     return {"inserted": inserted}

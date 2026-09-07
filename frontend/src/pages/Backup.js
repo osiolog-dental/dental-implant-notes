@@ -358,8 +358,8 @@ export default function Backup() {
             </button>
           </div>
           <p className="text-xs text-[#9CA3AF] mt-2">
-            <strong>Download Backup</strong> includes all patients, implants, abutments,
-            FPD/crown records, overdentures, full mouth rehabs, extracted teeth, and clinics.
+            <strong>Download Backup</strong> includes all patients, implants, implant follow-ups,
+            abutments, FPD/crown records, overdentures, full mouth rehabs, extracted teeth, and clinics.
             <strong> Download Photos</strong> includes every Photo Vault image and radiograph,
             bundled as a ZIP — for larger photo libraries this can take a minute.
           </p>
@@ -509,6 +509,7 @@ export default function Backup() {
                   { label: 'Overdentures',      val: restorePreview.data.overdentures?.length      ?? 0 },
                   { label: 'Full Mouth Rehabs', val: restorePreview.data.full_mouth_rehabs?.length ?? 0 },
                   { label: 'Extracted Teeth',   val: restorePreview.data.tooth_extractions?.length ?? 0 },
+                  { label: 'Implant Follow-ups', val: restorePreview.data.implant_follow_ups?.length ?? 0 },
                   { label: 'Clinics',           val: restorePreview.data.clinics?.length           ?? 0 },
                 ].map(({ label, val }) => (
                   <div key={label} className="bg-white rounded-lg p-3 text-center border border-[#E5E5E2]">

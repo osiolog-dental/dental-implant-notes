@@ -171,25 +171,12 @@ export default function ImplantFormModal({
               ['is_pterygoid', 'Pterygoid'],
               ['is_zygomatic', 'Zygomatic'],
               ['is_subperiosteal', 'Sub-periosteal'],
-              ['osseointegration_success', 'Osseointegration Success'],
             ].map(([key, label]) => (
               <label key={key} className="flex items-center gap-1.5 text-sm text-[#2A2F35]">
                 <input type="checkbox" checked={formData[key]} onChange={(e) => updateField(key, e.target.checked)} className={checkboxClass} data-testid={`${key}-checkbox`} />
                 {label}
               </label>
             ))}
-          </div>
-
-          {/* Peri-implant Health — string select, not checkbox */}
-          <div>
-            <Label className="text-xs">Peri-implant Health</Label>
-            <select value={formData.peri_implant_health} onChange={(e) => updateField('peri_implant_health', e.target.value)} className={`mt-1 ${selectClass}`} data-testid="peri-implant-health-select">
-              <option value="">Not assessed</option>
-              <option value="Healthy">Healthy</option>
-              <option value="Mild Inflammation">Mild Inflammation</option>
-              <option value="Moderate Inflammation">Moderate Inflammation</option>
-              <option value="Severe (Peri-implantitis)">Severe (Peri-implantitis)</option>
-            </select>
           </div>
 
           {/* Notes */}
