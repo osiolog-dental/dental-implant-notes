@@ -1,3 +1,4 @@
+import { useMemo, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,32 @@ export const LINE_ITEM_CATEGORIES = [
 
 const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
 
+/* Build the "quick-fill from existing record" options for the current category */
+function buildSourceOptions(category, { implants, abutmentRecords, fpdRecords }) {
+  if (category === 'implant') {
+    return (implants || []).map(imp => ({
+      id: imp.id,
+      label: `Tooth #${imp.tooth_number}${imp.brand ? ` — ${imp.brand}` : ''}`,
+      date: imp.surgery_date || '',
+    }));
+  }
+  if (category === 'abutment') {
+    return (abutmentRecords || []).map(ab => ({
+      id: ab.id,
+      label: `Tooth #${ab.tooth_number ?? '—'} — ${ab.abutment_type || 'Abutment'}`,
+      date: ab.placement_date || '',
+    }));
+  }
+  if (category === 'crown') {
+    return (fpdRecords || []).map(fpd => ({
+      id: fpd.id,
+      label: `Teeth ${fpd.tooth_numbers?.join(', ') || '—'} — ${fpd.crown_type || 'Crown'}${fpd.crown_material ? ` (${fpd.crown_material})` : ''}`,
+      date: fpd.prosthetic_loading_date || '',
+    }));
+  }
+  return [];
+}
+
 export default function FinancialLineItemModal({
   open,
   onOpenChange,
@@ -32,8 +59,31 @@ export default function FinancialLineItemModal({
   setLineItemData,
   onSubmit,
   editingLineItemId,
+  implants,
+  abutmentRecords,
+  fpdRecords,
 }) {
   const updateField = (field, value) => setLineItemData(prev => ({ ...prev, [field]: value }));
+
+  const sourceOptions = useMemo(
+    () => buildSourceOptions(lineItemData.category, { implants, abutmentRecords, fpdRecords }),
+    [lineItemData.category, implants, abutmentRecords, fpdRecords]
+  );
+  const [selectedSourceId, setSelectedSourceId] = useState('');
+
+  // Reset the quick-fill picker whenever the category changes or the modal reopens
+  useEffect(() => { setSelectedSourceId(''); }, [lineItemData.category, open]);
+
+  const applySource = (sourceId) => {
+    setSelectedSourceId(sourceId);
+    const source = sourceOptions.find(o => o.id === sourceId);
+    if (!source) return;
+    setLineItemData(prev => ({
+      ...prev,
+      description: source.label,
+      item_date: prev.item_date || source.date,
+    }));
+  };
 
   const isConsultant = lineItemData.provider_type === 'consultant';
   const totalCost = (isConsultant ? num(lineItemData.consultant_charge) : 0)
@@ -61,6 +111,22 @@ export default function FinancialLineItemModal({
               {LINE_ITEM_CATEGORIES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
             </select>
           </div>
+
+          {sourceOptions.length > 0 && (
+            <div>
+              <Label className="text-xs">Quick-fill from Patient's Records</Label>
+              <select
+                value={selectedSourceId}
+                onChange={e => applySource(e.target.value)}
+                data-testid="lineitem-source-select"
+                className={`mt-1 ${selectClass}`}
+              >
+                <option value="">Select an existing record (optional)</option>
+                {sourceOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">Fills in the description and date below — you can still edit them</p>
+            </div>
+          )}
 
           <div>
             <Label className="text-xs">Description</Label>

@@ -1266,6 +1266,9 @@ const PatientDetails = () => {
           setLineItemData={setLineItemData}
           onSubmit={handleSubmitLineItem}
           editingLineItemId={editingLineItemId}
+          implants={implants}
+          abutmentRecords={abutmentRecords}
+          fpdRecords={fpdRecords}
         />
 
         {/* Patient Payment Dialog */}
