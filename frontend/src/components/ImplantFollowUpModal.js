@@ -51,7 +51,7 @@ export default function ImplantFollowUpModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             {editingFollowUpId ? 'Edit Follow-up' : 'Implant Follow-up'}

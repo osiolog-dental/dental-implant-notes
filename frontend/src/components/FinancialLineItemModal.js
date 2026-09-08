@@ -29,11 +29,15 @@ const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
 /* Build the "quick-fill from existing record" options for the current category */
 function buildSourceOptions(category, { implants, abutmentRecords, fpdRecords }) {
   if (category === 'implant') {
-    return (implants || []).map(imp => ({
-      id: imp.id,
-      label: `Tooth #${imp.tooth_number}${imp.brand ? ` — ${imp.brand}` : ''}`,
-      date: imp.surgery_date || '',
-    }));
+    return (implants || []).map(imp => {
+      const brandLine = [imp.brand, imp.implant_system].filter(Boolean).join(' ');
+      const dims = imp.diameter_mm && imp.length_mm ? ` ${imp.diameter_mm}×${imp.length_mm}mm` : '';
+      return {
+        id: imp.id,
+        label: `Tooth #${imp.tooth_number}${brandLine ? ` — ${brandLine}` : ''}${dims}`,
+        date: imp.surgery_date || '',
+      };
+    });
   }
   if (category === 'abutment') {
     return (abutmentRecords || []).map(ab => ({
@@ -92,7 +96,7 @@ export default function FinancialLineItemModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             {editingLineItemId ? 'Edit Expense / Charge' : 'Add Expense / Charge'}
