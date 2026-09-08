@@ -31,6 +31,13 @@ class FinancialLineItem(Base):
     )
     category: Mapped[str] = mapped_column(String(50), nullable=False)  # implant/abutment/crown/full_mouth_rehab/overdenture/graft/membrane/lab/consultant/other
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # provider_type + the three fields below break down cost_amount for
+    # transparency; cost_amount itself stays the authoritative total used by
+    # every profit/summary calculation, so nothing else has to know they exist.
+    provider_type: Mapped[str] = mapped_column(String(20), nullable=False, default="clinic")  # 'clinic' | 'consultant'
+    consultant_charge: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    material_cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    other_expenses: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)  # physiodispenser usage, kit wear & tear, travel, etc.
     cost_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     charged_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     item_date: Mapped[date | None] = mapped_column(Date, nullable=True)

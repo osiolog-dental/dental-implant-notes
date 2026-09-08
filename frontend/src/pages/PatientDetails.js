@@ -131,7 +131,10 @@ const INITIAL_FOLLOWUP = {
 const INITIAL_LINEITEM = {
   category: 'implant',
   description: '',
-  cost_amount: '',
+  provider_type: 'clinic',
+  consultant_charge: '',
+  material_cost: '',
+  other_expenses: '',
   charged_amount: '',
   item_date: '',
   notes: '',
@@ -769,7 +772,10 @@ const PatientDetails = () => {
     setLineItemData({
       category: item.category || 'implant',
       description: item.description || '',
-      cost_amount: item.cost_amount != null ? String(item.cost_amount) : '',
+      provider_type: item.provider_type || 'clinic',
+      consultant_charge: item.consultant_charge != null ? String(item.consultant_charge) : '',
+      material_cost: item.material_cost != null ? String(item.material_cost) : '',
+      other_expenses: item.other_expenses != null ? String(item.other_expenses) : '',
       charged_amount: item.charged_amount != null ? String(item.charged_amount) : '',
       item_date: item.item_date || '',
       notes: item.notes || '',
@@ -786,10 +792,18 @@ const PatientDetails = () => {
   const handleSubmitLineItem = async (e) => {
     e.preventDefault();
     try {
+      const consultantCharge = lineItemData.provider_type === 'consultant' && lineItemData.consultant_charge
+        ? parseFloat(lineItemData.consultant_charge) : 0;
+      const materialCost = lineItemData.material_cost ? parseFloat(lineItemData.material_cost) : 0;
+      const otherExpenses = lineItemData.other_expenses ? parseFloat(lineItemData.other_expenses) : 0;
       const payload = {
         ...lineItemData,
         patient_id: id,
-        cost_amount: lineItemData.cost_amount ? parseFloat(lineItemData.cost_amount) : 0,
+        consultant_charge: consultantCharge,
+        material_cost: materialCost,
+        other_expenses: otherExpenses,
+        // cost_amount stays the authoritative total every summary/profit calc reads.
+        cost_amount: consultantCharge + materialCost + otherExpenses,
         charged_amount: lineItemData.charged_amount ? parseFloat(lineItemData.charged_amount) : 0,
         item_date: lineItemData.item_date || null,
       };

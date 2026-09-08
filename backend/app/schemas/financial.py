@@ -15,7 +15,11 @@ CATEGORIES = [
 class FinancialLineItemBase(BaseModel):
     category: str = "other"
     description: str | None = None
-    cost_amount: float = 0
+    provider_type: str = "clinic"  # 'clinic' | 'consultant'
+    consultant_charge: float = 0
+    material_cost: float = 0
+    other_expenses: float = 0  # physiodispenser usage, kit wear & tear, travel, etc.
+    cost_amount: float = 0     # authoritative total cost, used by every summary calc
     charged_amount: float = 0
     item_date: date | None = None
     notes: str | None = None
@@ -31,7 +35,7 @@ class FinancialLineItemBase(BaseModel):
     def _empty_uuid(cls, v):
         return None if v == '' else v
 
-    @field_validator('cost_amount', 'charged_amount', mode='before')
+    @field_validator('cost_amount', 'charged_amount', 'consultant_charge', 'material_cost', 'other_expenses', mode='before')
     @classmethod
     def _empty_number(cls, v):
         return 0 if v in ('', None) else v

@@ -100,12 +100,25 @@ export default function FinancialsSection({
                         <span className="px-2 py-0.5 rounded-full bg-[#F0F0EE] text-[#5C6773] text-[10px] font-semibold uppercase tracking-wide">
                           {categoryLabel(item.category)}
                         </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${item.provider_type === 'consultant' ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                          {item.provider_type === 'consultant' ? 'Consultant' : 'Clinic'}
+                        </span>
                         {item.item_date && <span className="text-[11px] text-[#9CA3AF]">{item.item_date}</span>}
                       </div>
                       {item.description && <p className="text-sm text-[#2A2F35] mt-1 truncate">{item.description}</p>}
                       <p className="text-xs text-[#5C6773] mt-0.5">
-                        Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)}
+                        Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)} ·{' '}
+                        <span className="text-emerald-700 font-medium">
+                          Profit {formatCurrency((Number(item.charged_amount) || 0) - (Number(item.cost_amount) || 0))}
+                        </span>
                       </p>
+                      {(Number(item.consultant_charge) > 0 || Number(item.material_cost) > 0 || Number(item.other_expenses) > 0) && (
+                        <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                          {item.provider_type === 'consultant' && Number(item.consultant_charge) > 0 && `Consultant ${formatCurrency(item.consultant_charge)} · `}
+                          Material {formatCurrency(item.material_cost)}
+                          {Number(item.other_expenses) > 0 && ` · Other ${formatCurrency(item.other_expenses)}`}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                       <button onClick={() => onEditLineItem(item)} className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-emerald-600 transition-colors" title="Edit">

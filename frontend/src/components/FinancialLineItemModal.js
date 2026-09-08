@@ -23,6 +23,8 @@ export const LINE_ITEM_CATEGORIES = [
   ['other', 'Other'],
 ];
 
+const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
+
 export default function FinancialLineItemModal({
   open,
   onOpenChange,
@@ -32,6 +34,11 @@ export default function FinancialLineItemModal({
   editingLineItemId,
 }) {
   const updateField = (field, value) => setLineItemData(prev => ({ ...prev, [field]: value }));
+
+  const isConsultant = lineItemData.provider_type === 'consultant';
+  const totalCost = (isConsultant ? num(lineItemData.consultant_charge) : 0)
+    + num(lineItemData.material_cost) + num(lineItemData.other_expenses);
+  const profit = num(lineItemData.charged_amount) - totalCost;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,33 +73,88 @@ export default function FinancialLineItemModal({
             />
           </div>
 
+          <div>
+            <Label className="text-xs">Performed By *</Label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {[['clinic', 'Clinic (In-house)'], ['consultant', 'Consultant']].map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  data-testid={`provider-type-${v}`}
+                  onClick={() => updateField('provider_type', v)}
+                  className={`py-2 rounded-md text-sm font-medium border transition-colors ${
+                    lineItemData.provider_type === v
+                      ? 'bg-[#059669] text-white border-[#059669]'
+                      : 'border-[#E5E5E2] text-[#5C6773] hover:border-[#059669]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isConsultant && (
+            <div>
+              <Label className="text-xs">Consultant Charge (from clinic) *</Label>
+              <Input
+                type="number" step="0.01" min="0"
+                value={lineItemData.consultant_charge}
+                onChange={e => updateField('consultant_charge', e.target.value)}
+                required
+                data-testid="lineitem-consultant-charge-input"
+                placeholder="0"
+                className="mt-1"
+              />
+              <p className="text-[10px] text-[#9CA3AF] mt-1">What the clinic pays the consultant for this case</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Cost to Clinic *</Label>
+              <Label className="text-xs">Material Cost *</Label>
               <Input
                 type="number" step="0.01" min="0"
-                value={lineItemData.cost_amount}
-                onChange={e => updateField('cost_amount', e.target.value)}
+                value={lineItemData.material_cost}
+                onChange={e => updateField('material_cost', e.target.value)}
                 required
-                data-testid="lineitem-cost-input"
+                data-testid="lineitem-material-cost-input"
                 placeholder="0"
                 className="mt-1"
               />
-              <p className="text-[10px] text-[#9CA3AF] mt-1">Material, lab, or consultant cost you paid</p>
             </div>
             <div>
-              <Label className="text-xs">Charged to Patient *</Label>
+              <Label className="text-xs">Other Expenses</Label>
               <Input
                 type="number" step="0.01" min="0"
-                value={lineItemData.charged_amount}
-                onChange={e => updateField('charged_amount', e.target.value)}
-                required
-                data-testid="lineitem-charged-input"
+                value={lineItemData.other_expenses}
+                onChange={e => updateField('other_expenses', e.target.value)}
+                data-testid="lineitem-other-expenses-input"
                 placeholder="0"
                 className="mt-1"
               />
-              <p className="text-[10px] text-[#9CA3AF] mt-1">What the patient is billed for this</p>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">Physiodispenser use, kit wear & tear, travel...</p>
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Charged to Patient *</Label>
+            <Input
+              type="number" step="0.01" min="0"
+              value={lineItemData.charged_amount}
+              onChange={e => updateField('charged_amount', e.target.value)}
+              required
+              data-testid="lineitem-charged-input"
+              placeholder="0"
+              className="mt-1"
+            />
+          </div>
+
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#F0F0EE] text-sm">
+            <span className="text-[#5C6773]">Total Cost: <strong className="text-[#2A2F35]">{totalCost.toFixed(2)}</strong></span>
+            <span className={profit >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-600 font-semibold'}>
+              Profit: {profit.toFixed(2)}
+            </span>
           </div>
 
           <div>
