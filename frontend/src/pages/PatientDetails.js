@@ -25,6 +25,9 @@ import AbutmentRecordsSection from '../components/AbutmentRecordsSection';
 import OverdentureRecordsSection from '../components/OverdentureRecordsSection';
 import FullMouthRehabRecordsSection from '../components/FullMouthRehabRecordsSection';
 import ExtractedTeethRecordsSection from '../components/ExtractedTeethRecordsSection';
+import FinancialsSection from '../components/FinancialsSection';
+import FinancialLineItemModal from '../components/FinancialLineItemModal';
+import PatientPaymentModal from '../components/PatientPaymentModal';
 
 const INITIAL_IMPLANT = {
   tooth_number: '',
@@ -125,6 +128,22 @@ const INITIAL_FOLLOWUP = {
   clinical_notes: '',
 };
 
+const INITIAL_LINEITEM = {
+  category: 'implant',
+  description: '',
+  cost_amount: '',
+  charged_amount: '',
+  item_date: '',
+  notes: '',
+};
+
+const INITIAL_PAYMENT = {
+  amount: '',
+  payment_date: '',
+  method: '',
+  notes: '',
+};
+
 const UPPER_ARCH_TEETH = [11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28];
 const LOWER_ARCH_TEETH = [31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48];
 const teethForArch = (arch) => arch === 'upper' ? UPPER_ARCH_TEETH
@@ -153,21 +172,29 @@ const PatientDetails = () => {
   const [fullMouthRehabRecords, setFullMouthRehabRecords] = useState([]);
   const [extractionRecords, setExtractionRecords] = useState([]);
   const [followUpRecords, setFollowUpRecords] = useState([]);
+  const [lineItems, setLineItems] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [isAbutmentOpen, setIsAbutmentOpen] = useState(false);
   const [isOverdentureOpen, setIsOverdentureOpen] = useState(false);
   const [isFullMouthRehabOpen, setIsFullMouthRehabOpen] = useState(false);
   const [isExtractionOpen, setIsExtractionOpen] = useState(false);
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
+  const [isLineItemOpen, setIsLineItemOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
   const [rehabData, setRehabData] = useState({ ...INITIAL_FULL_MOUTH_REHAB });
   const [extractionData, setExtractionData] = useState({ ...INITIAL_EXTRACTION });
   const [followUpData, setFollowUpData] = useState({ ...INITIAL_FOLLOWUP });
+  const [lineItemData, setLineItemData] = useState({ ...INITIAL_LINEITEM });
+  const [paymentData, setPaymentData] = useState({ ...INITIAL_PAYMENT });
   const [editingAbutmentId, setEditingAbutmentId] = useState(null);
   const [editingOverdentureId, setEditingOverdentureId] = useState(null);
   const [editingRehabId, setEditingRehabId] = useState(null);
   const [editingExtractionId, setEditingExtractionId] = useState(null);
   const [editingFollowUpId, setEditingFollowUpId] = useState(null);
+  const [editingLineItemId, setEditingLineItemId] = useState(null);
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
@@ -189,6 +216,8 @@ const PatientDetails = () => {
     full_mouth_rehab: (recId) => `/api/full-mouth-rehab-records/${recId}`,
     tooth_extraction: (recId) => `/api/tooth-extractions/${recId}`,
     follow_up: (recId) => `/api/implant-follow-ups/${recId}`,
+    financial_line_item: (recId) => `/api/financial-line-items/${recId}`,
+    payment: (recId) => `/api/patient-payments/${recId}`,
   };
 
   const handleConfirmDelete = async () => {
@@ -212,7 +241,7 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes, lineItemsRes, paymentsRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
@@ -223,6 +252,8 @@ const PatientDetails = () => {
         client.get(`/api/full-mouth-rehab-records?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/tooth-extractions?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/implant-follow-ups?patient_id=${id}`).catch(() => ({ data: [] })),
+        client.get(`/api/financial-line-items?patient_id=${id}`).catch(() => ({ data: [] })),
+        client.get(`/api/patient-payments?patient_id=${id}`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -233,6 +264,8 @@ const PatientDetails = () => {
       setFullMouthRehabRecords(rehabRes.data);
       setExtractionRecords(extractionRes.data);
       setFollowUpRecords(followUpRes.data);
+      setLineItems(lineItemsRes.data);
+      setPayments(paymentsRes.data);
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -726,6 +759,102 @@ const PatientDetails = () => {
     }
   };
 
+  const openAddLineItem = () => {
+    setLineItemData({ ...INITIAL_LINEITEM });
+    setEditingLineItemId(null);
+    setIsLineItemOpen(true);
+  };
+
+  const openEditLineItem = (item) => {
+    setLineItemData({
+      category: item.category || 'implant',
+      description: item.description || '',
+      cost_amount: item.cost_amount != null ? String(item.cost_amount) : '',
+      charged_amount: item.charged_amount != null ? String(item.charged_amount) : '',
+      item_date: item.item_date || '',
+      notes: item.notes || '',
+    });
+    setEditingLineItemId(item.id);
+    setIsLineItemOpen(true);
+  };
+
+  const handleLineItemOpenChange = (open) => {
+    setIsLineItemOpen(open);
+    if (!open) { setLineItemData({ ...INITIAL_LINEITEM }); setEditingLineItemId(null); }
+  };
+
+  const handleSubmitLineItem = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...lineItemData,
+        patient_id: id,
+        cost_amount: lineItemData.cost_amount ? parseFloat(lineItemData.cost_amount) : 0,
+        charged_amount: lineItemData.charged_amount ? parseFloat(lineItemData.charged_amount) : 0,
+        item_date: lineItemData.item_date || null,
+      };
+      if (editingLineItemId) {
+        await client.patch(`/api/financial-line-items/${editingLineItemId}`, payload);
+        toast.success('Line item updated');
+      } else {
+        await client.post(`/api/financial-line-items`, payload);
+        toast.success('Line item added');
+      }
+      setIsLineItemOpen(false);
+      setLineItemData({ ...INITIAL_LINEITEM });
+      setEditingLineItemId(null);
+      fetchAll();
+    } catch (error) {
+      toast.error(editingLineItemId ? 'Failed to update line item' : 'Failed to add line item');
+    }
+  };
+
+  const openAddPayment = () => {
+    setPaymentData({ ...INITIAL_PAYMENT });
+    setEditingPaymentId(null);
+    setIsPaymentOpen(true);
+  };
+
+  const openEditPayment = (payment) => {
+    setPaymentData({
+      amount: payment.amount != null ? String(payment.amount) : '',
+      payment_date: payment.payment_date || '',
+      method: payment.method || '',
+      notes: payment.notes || '',
+    });
+    setEditingPaymentId(payment.id);
+    setIsPaymentOpen(true);
+  };
+
+  const handlePaymentOpenChange = (open) => {
+    setIsPaymentOpen(open);
+    if (!open) { setPaymentData({ ...INITIAL_PAYMENT }); setEditingPaymentId(null); }
+  };
+
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...paymentData,
+        patient_id: id,
+        amount: paymentData.amount ? parseFloat(paymentData.amount) : 0,
+      };
+      if (editingPaymentId) {
+        await client.patch(`/api/patient-payments/${editingPaymentId}`, payload);
+        toast.success('Payment updated');
+      } else {
+        await client.post(`/api/patient-payments`, payload);
+        toast.success('Payment recorded');
+      }
+      setIsPaymentOpen(false);
+      setPaymentData({ ...INITIAL_PAYMENT });
+      setEditingPaymentId(null);
+      fetchAll();
+    } catch (error) {
+      toast.error(editingPaymentId ? 'Failed to update payment' : 'Failed to record payment');
+    }
+  };
+
   const handleSubmitImplant = async (e) => {
     e.preventDefault();
     try {
@@ -956,6 +1085,18 @@ const PatientDetails = () => {
         onPhotoUploaded={(pic) => setPatient(prev => ({ ...prev, profile_picture: pic }))}
       />
 
+      {/* Financials — cost/charge per treatment, payments, balance, clinic profit */}
+      <FinancialsSection
+        lineItems={lineItems}
+        payments={payments}
+        onAddLineItem={openAddLineItem}
+        onEditLineItem={openEditLineItem}
+        onDeleteLineItem={setDeleteTarget}
+        onAddPayment={openAddPayment}
+        onEditPayment={openEditPayment}
+        onDeletePayment={setDeleteTarget}
+      />
+
       {/* Missing Tooth Confirmation Dialog — multi-select */}
       <MissingTeethDialog
         missingConfirm={missingConfirm}
@@ -1101,6 +1242,26 @@ const PatientDetails = () => {
           onSubmit={handleSubmitFollowUp}
           editingFollowUpId={editingFollowUpId}
           implants={implants}
+        />
+
+        {/* Financial Line Item Dialog */}
+        <FinancialLineItemModal
+          open={isLineItemOpen}
+          onOpenChange={handleLineItemOpenChange}
+          lineItemData={lineItemData}
+          setLineItemData={setLineItemData}
+          onSubmit={handleSubmitLineItem}
+          editingLineItemId={editingLineItemId}
+        />
+
+        {/* Patient Payment Dialog */}
+        <PatientPaymentModal
+          open={isPaymentOpen}
+          onOpenChange={handlePaymentOpenChange}
+          paymentData={paymentData}
+          setPaymentData={setPaymentData}
+          onSubmit={handleSubmitPayment}
+          editingPaymentId={editingPaymentId}
         />
 
         {/* FDI Dental Chart — high-fidelity SVG */}

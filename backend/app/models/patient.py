@@ -54,3 +54,5 @@ class Patient(Base):
     full_mouth_rehabs: Mapped[list["FullMouthRehab"]] = relationship("FullMouthRehab", back_populates="patient")  # noqa: F821
     tooth_extractions: Mapped[list["ToothExtraction"]] = relationship("ToothExtraction", back_populates="patient")  # noqa: F821
     implant_follow_ups: Mapped[list["ImplantFollowUp"]] = relationship("ImplantFollowUp", back_populates="patient")  # noqa: F821
+    financial_line_items: Mapped[list["FinancialLineItem"]] = relationship("FinancialLineItem", back_populates="patient")  # noqa: F821
+    payments: Mapped[list["PatientPayment"]] = relationship("PatientPayment", back_populates="patient")  # noqa: F821

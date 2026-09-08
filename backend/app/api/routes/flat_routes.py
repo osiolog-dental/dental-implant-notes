@@ -710,6 +710,7 @@ async def export_backup(
     from app.models.full_mouth_rehab import FullMouthRehab
     from app.models.tooth_extraction import ToothExtraction
     from app.models.implant_follow_up import ImplantFollowUp
+    from app.models.financial import FinancialLineItem, PatientPayment
     from datetime import timezone
     import datetime as _dt
 
@@ -772,6 +773,20 @@ async def export_backup(
     )
     follow_ups_rows = follow_ups_result.scalars().all()
 
+    line_items_result = await db.execute(
+        select(FinancialLineItem)
+        .join(Patient, FinancialLineItem.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    line_items_rows = line_items_result.scalars().all()
+
+    payments_result = await db.execute(
+        select(PatientPayment)
+        .join(Patient, PatientPayment.patient_id == Patient.id)
+        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )
+    payments_rows = payments_result.scalars().all()
+
     def _row(obj):
         return {c.name: str(getattr(obj, c.name)) if getattr(obj, c.name) is not None else None
                 for c in obj.__table__.columns}
@@ -788,6 +803,8 @@ async def export_backup(
         "full_mouth_rehabs": [_row(r) for r in rehabs_rows],
         "tooth_extractions": [_row(e) for e in extractions_rows],
         "implant_follow_ups": [_row(f) for f in follow_ups_rows],
+        "financial_line_items": [_row(i) for i in line_items_rows],
+        "patient_payments": [_row(p) for p in payments_rows],
     }
 
 
@@ -970,6 +987,7 @@ async def restore_backup(
     from app.models.full_mouth_rehab import FullMouthRehab
     from app.models.tooth_extraction import ToothExtraction
     from app.models.implant_follow_up import ImplantFollowUp
+    from app.models.financial import FinancialLineItem, PatientPayment
 
     def _str(raw: dict, key: str) -> str | None:
         v = raw.get(key)
@@ -1006,7 +1024,7 @@ async def restore_backup(
     inserted = {
         "patients": 0, "implants": 0, "fpd_records": 0, "clinics": 0,
         "abutments": 0, "overdentures": 0, "full_mouth_rehabs": 0, "tooth_extractions": 0,
-        "implant_follow_ups": 0,
+        "implant_follow_ups": 0, "financial_line_items": 0, "patient_payments": 0,
     }
 
     # Clinics first — implants reference clinic_id.
@@ -1198,6 +1216,37 @@ async def restore_backup(
             clinic_id=_str(raw, "clinic_id"),
         ))
         inserted["implant_follow_ups"] += 1
+
+    for raw in payload.get("financial_line_items", []):
+        fid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(FinancialLineItem, fid):
+            continue
+        db.add(FinancialLineItem(
+            id=fid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            category=_str(raw, "category") or "other",
+            description=_str(raw, "description"),
+            cost_amount=_float(raw, "cost_amount") or 0,
+            charged_amount=_float(raw, "charged_amount") or 0,
+            item_date=_date_(raw, "item_date"),
+            notes=_str(raw, "notes"),
+            clinic_id=_str(raw, "clinic_id"),
+        ))
+        inserted["financial_line_items"] += 1
+
+    for raw in payload.get("patient_payments", []):
+        pid = uuid.UUID(raw["id"]) if raw.get("id") else uuid.uuid4()
+        if not raw.get("patient_id") or await db.get(PatientPayment, pid):
+            continue
+        db.add(PatientPayment(
+            id=pid,
+            patient_id=uuid.UUID(raw["patient_id"]),
+            amount=_float(raw, "amount") or 0,
+            payment_date=_date_(raw, "payment_date"),
+            method=_str(raw, "method"),
+            notes=_str(raw, "notes"),
+        ))
+        inserted["patient_payments"] += 1
 
     await db.flush()
     return {"inserted": inserted}

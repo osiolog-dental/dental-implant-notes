@@ -510,6 +510,8 @@ export default function Backup() {
                   { label: 'Full Mouth Rehabs', val: restorePreview.data.full_mouth_rehabs?.length ?? 0 },
                   { label: 'Extracted Teeth',   val: restorePreview.data.tooth_extractions?.length ?? 0 },
                   { label: 'Implant Follow-ups', val: restorePreview.data.implant_follow_ups?.length ?? 0 },
+                  { label: 'Financial Line Items', val: restorePreview.data.financial_line_items?.length ?? 0 },
+                  { label: 'Payments', val: restorePreview.data.patient_payments?.length ?? 0 },
                   { label: 'Clinics',           val: restorePreview.data.clinics?.length           ?? 0 },
                 ].map(({ label, val }) => (
                   <div key={label} className="bg-white rounded-lg p-3 text-center border border-[#E5E5E2]">
