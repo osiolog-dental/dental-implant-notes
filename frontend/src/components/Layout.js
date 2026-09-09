@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
-import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope } from '@phosphor-icons/react';
 import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
@@ -218,6 +218,14 @@ const Layout = () => {
               >
                 <GearSix size={16} weight="regular" />
                 Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="contact-menu-item"
+                className="cursor-pointer gap-2"
+                onClick={() => { window.location.href = 'mailto:admin@osiolog.com?subject=Osiolog%20Support%20Request'; }}
+              >
+                <Envelope size={16} weight="regular" />
+                Contact Us
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

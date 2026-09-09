@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
-  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket,
+  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket, Envelope,
 } from '@phosphor-icons/react';
 
 const FEATURES = [
@@ -120,6 +120,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className={navLink} data-testid="nav-features">Features</a>
             <a href="#pricing" className={navLink} data-testid="nav-pricing">Pricing</a>
+            <a href="#contact" className={navLink} data-testid="nav-contact">Contact</a>
             <Link to="/login" className={navLink} data-testid="nav-login">Log In</Link>
           </nav>
           <Link
@@ -231,12 +232,32 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Contact */}
+      <section id="contact" className="max-w-3xl mx-auto px-6 py-16 text-center">
+        <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ fontFamily: 'Work Sans, sans-serif' }}>
+          Questions before you sign up?
+        </h2>
+        <p className="text-[#5C6773] mb-6">
+          Whether it's about pricing, a feature you need, or just want to see a demo — we're happy to help.
+        </p>
+        <a
+          href="mailto:admin@osiolog.com?subject=Osiolog%20Inquiry"
+          data-testid="contact-email-link"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-colors"
+          style={{ backgroundColor: '#82A098' }}
+        >
+          <Envelope size={18} weight="bold" />
+          admin@osiolog.com
+        </a>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-[#E5E5E2] bg-white">
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-sm text-[#5C6773]">© {new Date().getFullYear()} Osiolog</span>
           <div className="flex items-center gap-5">
             <Link to="/privacy" className={navLink} data-testid="footer-privacy">Privacy Policy</Link>
+            <a href="#contact" className={navLink} data-testid="footer-contact">Contact</a>
             <Link to="/login" className={navLink} data-testid="footer-login">Log In</Link>
           </div>
         </div>
