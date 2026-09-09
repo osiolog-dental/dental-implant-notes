@@ -159,11 +159,11 @@ class Settings(BaseSettings):
     # Push notifications
     VAPID_KEY: str = ""  # Firebase Web Push VAPID key (from Firebase Console > Project Settings > Cloud Messaging)
 
-    # Outbound email (Contact Us notifications), sent via SendGrid's HTTP API.
+    # Outbound email (Contact Us notifications), sent via Resend's HTTP API.
     # Leave blank to skip sending — submissions are always saved to the
     # database regardless. SMTP isn't used here: Render's free tier blocks
     # outbound SMTP ports entirely, so email goes over plain HTTPS instead.
-    SENDGRID_API_KEY: str = ""
+    RESEND_API_KEY: str = ""
 
     # AI chat (Claude) — when unset, /api/chat replies with a friendly
     # "not configured" message instead of erroring.

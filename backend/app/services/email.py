@@ -5,19 +5,23 @@ import requests
 from app.core.config import settings
 
 CONTACT_RECIPIENT = "admin@osiolog.com"
-SENDGRID_ENDPOINT = "https://api.sendgrid.com/v3/mail/send"
+RESEND_ENDPOINT = "https://api.resend.com/emails"
+# Resend's shared test domain — fine here since we only ever send TO
+# admin@osiolog.com, which is the same address that owns the Resend account.
+# Sending to arbitrary recipients would require verifying osiolog.com's DNS.
+RESEND_FROM = "Osiolog Contact Form <onboarding@resend.dev>"
 
 
 def is_configured() -> bool:
-    return bool(settings.SENDGRID_API_KEY)
+    return bool(settings.RESEND_API_KEY)
 
 
 def send_contact_notification(name: str | None, email: str, subject: str | None, message: str) -> bool:
     """
     Send a plain-text notification email for a new Contact Us submission via
-    SendGrid's HTTP API. Returns True if actually sent, False if SendGrid
-    isn't configured or sending failed — callers should treat False as
-    non-fatal, since the message is always saved to the database regardless.
+    Resend's HTTP API. Returns True if actually sent, False if Resend isn't
+    configured or sending failed — callers should treat False as non-fatal,
+    since the message is always saved to the database regardless.
     """
     if not is_configured():
         return False
@@ -29,20 +33,20 @@ def send_contact_notification(name: str | None, email: str, subject: str | None,
     )
 
     payload = {
-        "personalizations": [{"to": [{"email": CONTACT_RECIPIENT}]}],
-        "from": {"email": CONTACT_RECIPIENT, "name": "Osiolog Contact Form"},
-        "reply_to": {"email": email},
+        "from": RESEND_FROM,
+        "to": [CONTACT_RECIPIENT],
+        "reply_to": [email],
         "subject": f"[Osiolog Contact] {subject or 'New message'}",
-        "content": [{"type": "text/plain", "value": body_text}],
+        "text": body_text,
     }
 
     try:
         response = requests.post(
-            SENDGRID_ENDPOINT,
+            RESEND_ENDPOINT,
             json=payload,
-            headers={"Authorization": f"Bearer {settings.SENDGRID_API_KEY}"},
+            headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
             timeout=10,
         )
-        return response.status_code == 202
+        return response.status_code == 200
     except Exception:
         return False
