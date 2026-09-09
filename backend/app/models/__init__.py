@@ -11,12 +11,13 @@ from app.models.full_mouth_rehab import FullMouthRehab
 from app.models.tooth_extraction import ToothExtraction
 from app.models.implant_follow_up import ImplantFollowUp
 from app.models.financial import FinancialLineItem, PatientPayment
+from app.models.contact_message import ContactMessage
 from app.models.audit import AuditEvent, DeviceToken, Invite
 
 __all__ = [
     "Organization", "User", "Clinic", "Patient",
     "Case", "CaseImage", "Implant", "ProstheticFPD",
     "Abutment", "Overdenture", "FullMouthRehab", "ToothExtraction", "ImplantFollowUp",
-    "FinancialLineItem", "PatientPayment",
+    "FinancialLineItem", "PatientPayment", "ContactMessage",
     "AuditEvent", "DeviceToken", "Invite",
 ]

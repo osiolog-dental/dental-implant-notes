@@ -262,7 +262,12 @@ const Layout = () => {
       {/* AI Chat — hidden until it's set up */}
       {false && <AIChatBox />}
 
-      <ContactModal open={isContactOpen} onOpenChange={setIsContactOpen} />
+      <ContactModal
+        open={isContactOpen}
+        onOpenChange={setIsContactOpen}
+        defaultName={displayName}
+        defaultEmail={user?.email || ''}
+      />
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">

@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
-  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket, Envelope, Copy,
+  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket, Envelope,
 } from '@phosphor-icons/react';
+import ContactModal from '../components/ContactModal';
 
 const FEATURES = [
   {
@@ -110,17 +111,7 @@ const navLink = "text-sm font-medium text-[#5C6773] hover:text-[#2A2F35] transit
 export default function Landing() {
   const { country } = useLocale();
   const isIndia = country.currency === 'INR';
-  const [emailCopied, setEmailCopied] = useState(false);
-
-  const handleCopyEmail = async () => {
-    try {
-      await navigator.clipboard.writeText('admin@osiolog.com');
-      setEmailCopied(true);
-      setTimeout(() => setEmailCopied(false), 2000);
-    } catch {
-      // clipboard API unavailable — the mailto link below still works as a fallback
-    }
-  };
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
   return (
     <div style={{ fontFamily: 'IBM Plex Sans, sans-serif' }} className="bg-[#F9F9F8] text-[#2A2F35]">
@@ -133,7 +124,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className={navLink} data-testid="nav-features">Features</a>
             <a href="#pricing" className={navLink} data-testid="nav-pricing">Pricing</a>
-            <a href="#contact" className={navLink} data-testid="nav-contact">Contact</a>
+            <button onClick={() => setIsContactOpen(true)} className={navLink} data-testid="nav-contact">Contact</button>
             <Link to="/login" className={navLink} data-testid="nav-login">Log In</Link>
           </nav>
           <Link
@@ -253,30 +244,19 @@ export default function Landing() {
         <p className="text-[#5C6773] mb-6">
           Whether it's about pricing, a feature you need, or just want to see a demo — we're happy to help.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <a
-            href="mailto:admin@osiolog.com?subject=Osiolog%20Inquiry"
-            data-testid="contact-email-link"
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-colors"
-            style={{ backgroundColor: '#82A098' }}
-          >
-            <Envelope size={18} weight="bold" />
-            admin@osiolog.com
-          </a>
-          <button
-            type="button"
-            onClick={handleCopyEmail}
-            data-testid="contact-copy-email-btn"
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border border-[#E5E5E2] text-[#5C6773] hover:border-[#82A098] hover:text-[#2A2F35] transition-colors"
-          >
-            {emailCopied ? <CheckCircle size={16} weight="fill" className="text-emerald-600" /> : <Copy size={16} weight="bold" />}
-            {emailCopied ? 'Copied!' : 'Copy Email'}
-          </button>
-        </div>
-        <p className="text-xs text-[#9CA3AF] mt-3">
-          If the button above doesn't open your email app, copy the address and send us a message from Gmail or wherever you check mail.
-        </p>
+        <button
+          type="button"
+          onClick={() => setIsContactOpen(true)}
+          data-testid="contact-open-form-btn"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold text-white transition-colors"
+          style={{ backgroundColor: '#82A098' }}
+        >
+          <Envelope size={18} weight="bold" />
+          Send Us a Message
+        </button>
       </section>
+
+      <ContactModal open={isContactOpen} onOpenChange={setIsContactOpen} />
 
       {/* Footer */}
       <footer className="border-t border-[#E5E5E2] bg-white">
@@ -284,7 +264,7 @@ export default function Landing() {
           <span className="text-sm text-[#5C6773]">© {new Date().getFullYear()} Osiolog</span>
           <div className="flex items-center gap-5">
             <Link to="/privacy" className={navLink} data-testid="footer-privacy">Privacy Policy</Link>
-            <a href="#contact" className={navLink} data-testid="footer-contact">Contact</a>
+            <button onClick={() => setIsContactOpen(true)} className={navLink} data-testid="footer-contact">Contact</button>
             <Link to="/login" className={navLink} data-testid="footer-login">Log In</Link>
           </div>
         </div>

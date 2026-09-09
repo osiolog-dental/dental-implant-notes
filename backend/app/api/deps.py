@@ -53,3 +53,22 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """
+    Like get_current_user, but returns None instead of raising — for routes
+    that must work for both logged-in users and anonymous visitors (e.g. the
+    public Landing page's Contact Us form).
+    """
+    if not credentials:
+        return None
+    try:
+        decoded = verify_id_token(credentials.credentials)
+        result = await db.execute(select(User).where(User.firebase_uid == decoded["uid"]))
+        return result.scalar_one_or_none()
+    except Exception:
+        return None

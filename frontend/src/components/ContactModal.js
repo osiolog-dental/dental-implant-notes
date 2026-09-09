@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -7,62 +7,126 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Envelope, Copy, CheckCircle } from '@phosphor-icons/react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import client from '../api/client';
 
-const SUPPORT_EMAIL = 'admin@osiolog.com';
+const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 
-export default function ContactModal({ open, onOpenChange }) {
-  const [copied, setCopied] = useState(false);
+const INITIAL = { name: '', email: '', subject: '', message: '' };
 
-  const handleCopy = async () => {
+export default function ContactModal({ open, onOpenChange, defaultName = '', defaultEmail = '' }) {
+  const [form, setForm] = useState({ ...INITIAL, name: defaultName, email: defaultEmail });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setForm({ ...INITIAL, name: defaultName, email: defaultEmail });
+      setSent(false);
+    }
+  }, [open, defaultName, defaultEmail]);
+
+  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSending(true);
     try {
-      await navigator.clipboard.writeText(SUPPORT_EMAIL);
-      setCopied(true);
-      toast.success('Email address copied');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Could not copy — please select and copy the address manually');
+      // Public endpoint — plain axios-via-client works whether or not the
+      // user is logged in; client.js only attaches a token if one exists.
+      await client.post('/api/contact', form);
+      setSent(true);
+      toast.success('Message sent — we\'ll get back to you soon');
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not send your message — please try again');
+    } finally {
+      setSending(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Contact Us</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-[#5C6773] -mt-1">
-          Have a question, need help, or found a bug? We'd love to hear from you.
-        </p>
 
-        <div className="flex items-center justify-between gap-2 mt-2 px-3 py-2.5 rounded-lg bg-[#F0F0EE] border border-[#E5E5E2]">
-          <span className="flex items-center gap-2 text-sm font-medium text-[#2A2F35] truncate">
-            <Envelope size={16} className="text-[#82A098] shrink-0" weight="fill" />
-            {SUPPORT_EMAIL}
-          </span>
-          <button
-            type="button"
-            onClick={handleCopy}
-            data-testid="contact-copy-email-btn"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-[#5C6773] hover:bg-white border border-[#E5E5E2] transition-colors shrink-0"
-          >
-            {copied ? <CheckCircle size={13} weight="fill" className="text-emerald-600" /> : <Copy size={13} weight="bold" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
+        {sent ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-[#2A2F35] font-medium mb-1">Thanks — your message is on its way!</p>
+            <p className="text-xs text-[#5C6773]">We usually reply within a day or two.</p>
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="w-full mt-4 bg-[#82A098] hover:bg-[#6B8A82] text-white"
+            >
+              Close
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+            <p className="text-sm text-[#5C6773] -mt-1">
+              Have a question, need help, or found a bug? Send us a message.
+            </p>
 
-        <Button
-          asChild
-          data-testid="contact-open-email-btn"
-          className="w-full mt-3 bg-[#82A098] hover:bg-[#6B8A82] text-white"
-        >
-          <a href={`mailto:${SUPPORT_EMAIL}?subject=Osiolog%20Support%20Request`}>
-            Open in Email App
-          </a>
-        </Button>
-        <p className="text-[11px] text-[#9CA3AF] text-center mt-2">
-          If nothing opens, copy the address above and email us from your usual inbox (Gmail, etc.)
-        </p>
+            <div>
+              <Label className="text-xs">Your Name</Label>
+              <Input
+                value={form.name}
+                onChange={e => updateField('name', e.target.value)}
+                placeholder="Dr. Jane Doe"
+                data-testid="contact-name-input"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Email *</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={e => updateField('email', e.target.value)}
+                required
+                placeholder="you@example.com"
+                data-testid="contact-email-input"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Subject</Label>
+              <Input
+                value={form.subject}
+                onChange={e => updateField('subject', e.target.value)}
+                placeholder="What's this about?"
+                data-testid="contact-subject-input"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Message *</Label>
+              <textarea
+                value={form.message}
+                onChange={e => updateField('message', e.target.value)}
+                required
+                rows={5}
+                className={`mt-1 ${selectClass}`}
+                placeholder="Tell us what's on your mind..."
+                data-testid="contact-message-input"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={sending}
+              data-testid="contact-send-button"
+              className="w-full bg-[#82A098] hover:bg-[#6B8A82] text-white"
+            >
+              {sending ? 'Sending...' : 'Send Message'}
+            </Button>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
