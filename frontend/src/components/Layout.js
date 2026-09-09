@@ -7,6 +7,7 @@ import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
 import AIChatBox from './AIChatBox';
+import ContactModal from './ContactModal';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -91,6 +92,7 @@ const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isFree, setIsFree] = useState(true);
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
   useEffect(() => {
     client.get('/api/subscription/status')
@@ -222,7 +224,7 @@ const Layout = () => {
               <DropdownMenuItem
                 data-testid="contact-menu-item"
                 className="cursor-pointer gap-2"
-                onClick={() => { window.location.href = 'mailto:admin@osiolog.com?subject=Osiolog%20Support%20Request'; }}
+                onClick={() => setIsContactOpen(true)}
               >
                 <Envelope size={16} weight="regular" />
                 Contact Us
@@ -259,6 +261,8 @@ const Layout = () => {
 
       {/* AI Chat — hidden until it's set up */}
       {false && <AIChatBox />}
+
+      <ContactModal open={isContactOpen} onOpenChange={setIsContactOpen} />
 
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E2] md:hidden z-50">

@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import {
   Tooth, ChartLine, Camera, CloudArrowUp, FileText, Users,
-  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket, Envelope,
+  CheckCircle, Star, Buildings, User, ArrowRight, Crown, Rocket, Envelope, Copy,
 } from '@phosphor-icons/react';
 
 const FEATURES = [
@@ -109,6 +110,18 @@ const navLink = "text-sm font-medium text-[#5C6773] hover:text-[#2A2F35] transit
 export default function Landing() {
   const { country } = useLocale();
   const isIndia = country.currency === 'INR';
+  const [emailCopied, setEmailCopied] = useState(false);
+
+  const handleCopyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText('admin@osiolog.com');
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    } catch {
+      // clipboard API unavailable — the mailto link below still works as a fallback
+    }
+  };
+
   return (
     <div style={{ fontFamily: 'IBM Plex Sans, sans-serif' }} className="bg-[#F9F9F8] text-[#2A2F35]">
       {/* Nav */}
@@ -240,15 +253,29 @@ export default function Landing() {
         <p className="text-[#5C6773] mb-6">
           Whether it's about pricing, a feature you need, or just want to see a demo — we're happy to help.
         </p>
-        <a
-          href="mailto:admin@osiolog.com?subject=Osiolog%20Inquiry"
-          data-testid="contact-email-link"
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: '#82A098' }}
-        >
-          <Envelope size={18} weight="bold" />
-          admin@osiolog.com
-        </a>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a
+            href="mailto:admin@osiolog.com?subject=Osiolog%20Inquiry"
+            data-testid="contact-email-link"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-white transition-colors"
+            style={{ backgroundColor: '#82A098' }}
+          >
+            <Envelope size={18} weight="bold" />
+            admin@osiolog.com
+          </a>
+          <button
+            type="button"
+            onClick={handleCopyEmail}
+            data-testid="contact-copy-email-btn"
+            className="inline-flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border border-[#E5E5E2] text-[#5C6773] hover:border-[#82A098] hover:text-[#2A2F35] transition-colors"
+          >
+            {emailCopied ? <CheckCircle size={16} weight="fill" className="text-emerald-600" /> : <Copy size={16} weight="bold" />}
+            {emailCopied ? 'Copied!' : 'Copy Email'}
+          </button>
+        </div>
+        <p className="text-xs text-[#9CA3AF] mt-3">
+          If the button above doesn't open your email app, copy the address and send us a message from Gmail or wherever you check mail.
+        </p>
       </section>
 
       {/* Footer */}
