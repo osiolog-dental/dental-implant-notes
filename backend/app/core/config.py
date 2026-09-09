@@ -159,14 +159,11 @@ class Settings(BaseSettings):
     # Push notifications
     VAPID_KEY: str = ""  # Firebase Web Push VAPID key (from Firebase Console > Project Settings > Cloud Messaging)
 
-    # Outbound email (Contact Us notifications). Leave blank to skip sending —
-    # submissions are always saved to the database regardless.
-    # For Gmail/Google Workspace: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587,
-    # SMTP_USER=you@yourdomain.com, SMTP_PASSWORD=<app password>.
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
+    # Outbound email (Contact Us notifications), sent via SendGrid's HTTP API.
+    # Leave blank to skip sending — submissions are always saved to the
+    # database regardless. SMTP isn't used here: Render's free tier blocks
+    # outbound SMTP ports entirely, so email goes over plain HTTPS instead.
+    SENDGRID_API_KEY: str = ""
 
     # AI chat (Claude) — when unset, /api/chat replies with a friendly
     # "not configured" message instead of erroring.
