@@ -27,6 +27,7 @@ import FullMouthRehabRecordsSection from '../components/FullMouthRehabRecordsSec
 import ExtractedTeethRecordsSection from '../components/ExtractedTeethRecordsSection';
 import FinancialsSection from '../components/FinancialsSection';
 import FinancialLineItemModal from '../components/FinancialLineItemModal';
+import BulkCostEntryModal from '../components/BulkCostEntryModal';
 import PatientPaymentModal from '../components/PatientPaymentModal';
 
 const INITIAL_IMPLANT = {
@@ -131,6 +132,8 @@ const INITIAL_FOLLOWUP = {
 const INITIAL_LINEITEM = {
   category: 'implant',
   description: '',
+  source_type: null,
+  source_id: null,
   provider_type: 'clinic',
   consultant_charge: '',
   material_cost: '',
@@ -183,6 +186,7 @@ const PatientDetails = () => {
   const [isExtractionOpen, setIsExtractionOpen] = useState(false);
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
   const [isLineItemOpen, setIsLineItemOpen] = useState(false);
+  const [isBulkCostOpen, setIsBulkCostOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
@@ -762,16 +766,13 @@ const PatientDetails = () => {
     }
   };
 
-  const openAddLineItem = () => {
-    setLineItemData({ ...INITIAL_LINEITEM });
-    setEditingLineItemId(null);
-    setIsLineItemOpen(true);
-  };
 
   const openEditLineItem = (item) => {
     setLineItemData({
       category: item.category || 'implant',
       description: item.description || '',
+      source_type: item.source_type || null,
+      source_id: item.source_id || null,
       provider_type: item.provider_type || 'clinic',
       consultant_charge: item.consultant_charge != null ? String(item.consultant_charge) : '',
       material_cost: item.material_cost != null ? String(item.material_cost) : '',
@@ -1103,7 +1104,7 @@ const PatientDetails = () => {
       <FinancialsSection
         lineItems={lineItems}
         payments={payments}
-        onAddLineItem={openAddLineItem}
+        onAddLineItem={() => setIsBulkCostOpen(true)}
         onEditLineItem={openEditLineItem}
         onDeleteLineItem={setDeleteTarget}
         onAddPayment={openAddPayment}
@@ -1269,6 +1270,18 @@ const PatientDetails = () => {
           implants={implants}
           abutmentRecords={abutmentRecords}
           fpdRecords={fpdRecords}
+        />
+
+        {/* Bulk cost entry — lists every implant/abutment/crown at once */}
+        <BulkCostEntryModal
+          open={isBulkCostOpen}
+          onOpenChange={setIsBulkCostOpen}
+          patientId={id}
+          implants={implants}
+          abutmentRecords={abutmentRecords}
+          fpdRecords={fpdRecords}
+          lineItems={lineItems}
+          onSaved={fetchAll}
         />
 
         {/* Patient Payment Dialog */}

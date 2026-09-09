@@ -34,6 +34,7 @@ function buildSourceOptions(category, { implants, abutmentRecords, fpdRecords })
       const dims = imp.diameter_mm && imp.length_mm ? ` ${imp.diameter_mm}×${imp.length_mm}mm` : '';
       return {
         id: imp.id,
+        sourceType: 'implant',
         label: `Tooth #${imp.tooth_number}${brandLine ? ` — ${brandLine}` : ''}${dims}`,
         date: imp.surgery_date || '',
       };
@@ -42,6 +43,7 @@ function buildSourceOptions(category, { implants, abutmentRecords, fpdRecords })
   if (category === 'abutment') {
     return (abutmentRecords || []).map(ab => ({
       id: ab.id,
+      sourceType: 'abutment',
       label: `Tooth #${ab.tooth_number ?? '—'} — ${ab.abutment_type || 'Abutment'}`,
       date: ab.placement_date || '',
     }));
@@ -49,6 +51,7 @@ function buildSourceOptions(category, { implants, abutmentRecords, fpdRecords })
   if (category === 'crown') {
     return (fpdRecords || []).map(fpd => ({
       id: fpd.id,
+      sourceType: 'fpd',
       label: `Teeth ${fpd.tooth_numbers?.join(', ') || '—'} — ${fpd.crown_type || 'Crown'}${fpd.crown_material ? ` (${fpd.crown_material})` : ''}`,
       date: fpd.prosthetic_loading_date || '',
     }));
@@ -80,12 +83,18 @@ export default function FinancialLineItemModal({
 
   const applySource = (sourceId) => {
     setSelectedSourceId(sourceId);
+    if (!sourceId) {
+      setLineItemData(prev => ({ ...prev, source_type: null, source_id: null }));
+      return;
+    }
     const source = sourceOptions.find(o => o.id === sourceId);
     if (!source) return;
     setLineItemData(prev => ({
       ...prev,
       description: source.label,
       item_date: prev.item_date || source.date,
+      source_type: source.sourceType,
+      source_id: source.id,
     }));
   };
 
@@ -107,7 +116,7 @@ export default function FinancialLineItemModal({
             <Label className="text-xs">Category *</Label>
             <select
               value={lineItemData.category}
-              onChange={e => updateField('category', e.target.value)}
+              onChange={e => setLineItemData(prev => ({ ...prev, category: e.target.value, source_type: null, source_id: null }))}
               required
               data-testid="lineitem-category-select"
               className={`mt-1 ${selectClass}`}

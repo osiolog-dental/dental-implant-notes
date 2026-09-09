@@ -15,6 +15,8 @@ CATEGORIES = [
 class FinancialLineItemBase(BaseModel):
     category: str = "other"
     description: str | None = None
+    source_type: str | None = None  # 'implant' | 'abutment' | 'fpd' | None for free-form rows
+    source_id: uuid.UUID | None = None
     provider_type: str = "clinic"  # 'clinic' | 'consultant'
     consultant_charge: float = 0
     material_cost: float = 0
@@ -30,9 +32,14 @@ class FinancialLineItemBase(BaseModel):
     def _empty_date(cls, v):
         return None if v == '' else v
 
-    @field_validator('clinic_id', mode='before')
+    @field_validator('clinic_id', 'source_id', mode='before')
     @classmethod
     def _empty_uuid(cls, v):
+        return None if v == '' else v
+
+    @field_validator('source_type', mode='before')
+    @classmethod
+    def _empty_str(cls, v):
         return None if v == '' else v
 
     @field_validator('cost_amount', 'charged_amount', 'consultant_charge', 'material_cost', 'other_expenses', mode='before')

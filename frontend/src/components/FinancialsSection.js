@@ -86,7 +86,7 @@ export default function FinancialsSection({
                 onClick={onAddLineItem}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
               >
-                <Plus size={13} weight="bold" /> Expense / Charge
+                <Plus size={13} weight="bold" /> Log Costs
               </button>
             </div>
             {lineItems.length === 0 ? (

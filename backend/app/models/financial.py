@@ -31,6 +31,13 @@ class FinancialLineItem(Base):
     )
     category: Mapped[str] = mapped_column(String(50), nullable=False)  # implant/abutment/crown/full_mouth_rehab/overdenture/graft/membrane/lab/consultant/other
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Links this cost line back to the specific implant/abutment/FPD row it's
+    # for, so the bulk cost-entry list can find "does this implant already
+    # have a cost logged?" without matching on description text. Null for
+    # free-form rows (lab charges, consultant charges, other) with no
+    # backing clinical record.
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     # provider_type + the three fields below break down cost_amount for
     # transparency; cost_amount itself stays the authoritative total used by
     # every profit/summary calculation, so nothing else has to know they exist.
