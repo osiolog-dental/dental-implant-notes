@@ -24,11 +24,24 @@ function implantLabel(imp) {
 }
 
 function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems }) {
-  const findExisting = (sourceType, sourceId) =>
-    (lineItems || []).find(li => li.source_type === sourceType && li.source_id === sourceId);
+  const claimedIds = new Set();
+
+  // Entries saved before source_type/source_id existed (or via a manually
+  // typed description matching a quick-fill label) won't match by ID —
+  // fall back to matching on category + exact description text so they
+  // don't show up a second time as an unrelated free-form row.
+  const findExisting = (sourceType, sourceId, category, label) => {
+    const byId = (lineItems || []).find(li => li.source_type === sourceType && li.source_id === sourceId);
+    if (byId) { claimedIds.add(byId.id); return byId; }
+    const byLabel = (lineItems || []).find(li =>
+      !li.source_type && !claimedIds.has(li.id) && li.category === category && li.description === label
+    );
+    if (byLabel) claimedIds.add(byLabel.id);
+    return byLabel;
+  };
 
   const fromRecord = (sourceType, category, sourceId, label, date) => {
-    const existing = findExisting(sourceType, sourceId);
+    const existing = findExisting(sourceType, sourceId, category, label);
     return {
       key: `${sourceType}_${sourceId}`,
       existingId: existing?.id || null,
@@ -53,8 +66,9 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
   ];
 
   // Free-form entries (lab/consultant/other) that already exist but aren't tied to a record
+  // — excluding any that were just claimed above via the description fallback match.
   const freeform = (lineItems || [])
-    .filter(li => !li.source_type)
+    .filter(li => !li.source_type && !claimedIds.has(li.id))
     .map(li => ({
       key: `custom_${li.id}`,
       existingId: li.id,
