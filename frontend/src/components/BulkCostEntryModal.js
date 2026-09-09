@@ -331,7 +331,9 @@ export default function BulkCostEntryModal({
           {totals.consultant > 0 && <div className="flex justify-between"><span className="text-[#5C6773]">Total Consultant Charges</span><strong>{formatCurrency(totals.consultant)}</strong></div>}
           <div className="flex justify-between"><span className="text-[#5C6773]">Total Other Expenses</span><strong>{formatCurrency(totals.other)}</strong></div>
           <div className="flex justify-between border-t border-[#E5E5E2] pt-1"><span className="text-[#5C6773]">Total Charged to Patient</span><strong>{formatCurrency(totals.charged)}</strong></div>
-          <div className="flex justify-between"><span className="text-emerald-700">Total Profit</span><strong className="text-emerald-700">{formatCurrency(totals.charged - totals.cost)}</strong></div>
+          <p className="text-[10px] text-[#9CA3AF] pt-1">
+            Clinic Profit is shown on the Financials summary once payments are recorded — it's based on what's actually been paid, not just what's billed here.
+          </p>
         </div>
 
         <Button

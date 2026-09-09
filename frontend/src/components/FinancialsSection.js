@@ -33,7 +33,12 @@ export default function FinancialsSection({
   const totalCharged = lineItems.reduce((sum, i) => sum + (Number(i.charged_amount) || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const balance = totalCharged - totalPaid;
-  const profit = totalCharged - totalCost;
+  // Based on money actually collected, not billed — a consultant-performed
+  // item has no per-line "charged to patient" figure (that's often not
+  // knowable per procedure), so profit off totalCharged would always look
+  // like a loss for those. Amount Paid is the one revenue figure that's
+  // always real, whoever performed the work.
+  const profit = totalPaid - totalCost;
 
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl shadow-sm mb-6 overflow-hidden">
@@ -107,10 +112,16 @@ export default function FinancialsSection({
                       </div>
                       {item.description && <p className="text-sm text-[#2A2F35] mt-1 truncate">{item.description}</p>}
                       <p className="text-xs text-[#5C6773] mt-0.5">
-                        Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)} ·{' '}
-                        <span className="text-emerald-700 font-medium">
-                          Profit {formatCurrency((Number(item.charged_amount) || 0) - (Number(item.cost_amount) || 0))}
-                        </span>
+                        {item.provider_type === 'consultant' ? (
+                          `Cost ${formatCurrency(item.cost_amount)}`
+                        ) : (
+                          <>
+                            Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)} ·{' '}
+                            <span className="text-emerald-700 font-medium">
+                              Profit {formatCurrency((Number(item.charged_amount) || 0) - (Number(item.cost_amount) || 0))}
+                            </span>
+                          </>
+                        )}
                       </p>
                       {(Number(item.consultant_charge) > 0 || Number(item.material_cost) > 0 || Number(item.other_expenses) > 0) && (
                         <p className="text-[11px] text-[#9CA3AF] mt-0.5">
