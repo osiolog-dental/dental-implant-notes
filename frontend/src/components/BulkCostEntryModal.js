@@ -104,7 +104,11 @@ function RowCard({ row, onChange, onRemove }) {
             <button
               key={v}
               type="button"
-              onClick={() => onChange({ provider_type: v })}
+              onClick={() => onChange({
+                provider_type: v,
+                // A consultant is paid by the clinic only — no patient-charge figure on this line.
+                charged_amount: v === 'consultant' ? '' : row.charged_amount,
+              })}
               className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
                 row.provider_type === v ? 'bg-[#059669] text-white border-[#059669]' : 'border-[#E5E5E2] text-[#5C6773]'
               }`}
@@ -129,7 +133,7 @@ function RowCard({ row, onChange, onRemove }) {
         />
       )}
 
-      <div className={`grid gap-2 ${isConsultant ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
+      <div className={`grid gap-2 ${isConsultant ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-4'}`}>
         {isConsultant && (
           <div>
             <label className="text-[10px] text-[#9CA3AF]">Consultant Charge</label>
@@ -150,12 +154,14 @@ function RowCard({ row, onChange, onRemove }) {
             onChange={e => onChange({ other_expenses: e.target.value })}
             placeholder="0" className={inputClass} />
         </div>
-        <div>
-          <label className="text-[10px] text-[#9CA3AF]">Charged to Patient</label>
-          <input type="number" step="0.01" min="0" value={row.charged_amount}
-            onChange={e => onChange({ charged_amount: e.target.value })}
-            placeholder="0" className={inputClass} />
-        </div>
+        {!isConsultant && (
+          <div>
+            <label className="text-[10px] text-[#9CA3AF]">Charged to Patient</label>
+            <input type="number" step="0.01" min="0" value={row.charged_amount}
+              onChange={e => onChange({ charged_amount: e.target.value })}
+              placeholder="0" className={inputClass} />
+          </div>
+        )}
         <div>
           <label className="text-[10px] text-[#9CA3AF]">Date</label>
           <input type="date" value={row.item_date}
@@ -164,10 +170,14 @@ function RowCard({ row, onChange, onRemove }) {
         </div>
       </div>
 
-      {(rowCost > 0 || num(row.charged_amount) > 0) && (
-        <p className="text-[11px] text-[#5C6773] mt-1.5">
-          Cost {rowCost.toFixed(2)} · <span className={rowProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>Profit {rowProfit.toFixed(2)}</span>
-        </p>
+      {isConsultant ? (
+        rowCost > 0 && <p className="text-[11px] text-[#5C6773] mt-1.5">Cost {rowCost.toFixed(2)}</p>
+      ) : (
+        (rowCost > 0 || num(row.charged_amount) > 0) && (
+          <p className="text-[11px] text-[#5C6773] mt-1.5">
+            Cost {rowCost.toFixed(2)} · <span className={rowProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>Profit {rowProfit.toFixed(2)}</span>
+          </p>
+        )
       )}
     </div>
   );
@@ -254,7 +264,8 @@ export default function BulkCostEntryModal({
           material_cost: materialCost,
           other_expenses: otherExpenses,
           cost_amount: consultantCharge + materialCost + otherExpenses,
-          charged_amount: num(r.charged_amount),
+          // A consultant is paid by the clinic only — no patient-charge figure on this line.
+          charged_amount: r.provider_type === 'consultant' ? 0 : num(r.charged_amount),
           item_date: r.item_date || null,
         };
         return r.existingId

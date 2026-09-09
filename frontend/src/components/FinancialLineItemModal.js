@@ -160,7 +160,13 @@ export default function FinancialLineItemModal({
                   key={v}
                   type="button"
                   data-testid={`provider-type-${v}`}
-                  onClick={() => updateField('provider_type', v)}
+                  onClick={() => setLineItemData(prev => ({
+                    ...prev,
+                    provider_type: v,
+                    // A consultant is paid by the clinic only — there's no
+                    // patient-charge figure attached at this line's level.
+                    charged_amount: v === 'consultant' ? '' : prev.charged_amount,
+                  }))}
                   className={`py-2 rounded-md text-sm font-medium border transition-colors ${
                     lineItemData.provider_type === v
                       ? 'bg-[#059669] text-white border-[#059669]'
@@ -216,24 +222,30 @@ export default function FinancialLineItemModal({
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs">Charged to Patient *</Label>
-            <Input
-              type="number" step="0.01" min="0"
-              value={lineItemData.charged_amount}
-              onChange={e => updateField('charged_amount', e.target.value)}
-              required
-              data-testid="lineitem-charged-input"
-              placeholder="0"
-              className="mt-1"
-            />
-          </div>
+          {!isConsultant && (
+            <div>
+              <Label className="text-xs">Charged to Patient *</Label>
+              <Input
+                type="number" step="0.01" min="0"
+                value={lineItemData.charged_amount}
+                onChange={e => updateField('charged_amount', e.target.value)}
+                required
+                data-testid="lineitem-charged-input"
+                placeholder="0"
+                className="mt-1"
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#F0F0EE] text-sm">
             <span className="text-[#5C6773]">Total Cost: <strong className="text-[#2A2F35]">{totalCost.toFixed(2)}</strong></span>
-            <span className={profit >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-600 font-semibold'}>
-              Profit: {profit.toFixed(2)}
-            </span>
+            {isConsultant ? (
+              <span className="text-[11px] text-[#9CA3AF]">Consultant fee — no patient charge on this line</span>
+            ) : (
+              <span className={profit >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-600 font-semibold'}>
+                Profit: {profit.toFixed(2)}
+              </span>
+            )}
           </div>
 
           <div>

@@ -805,7 +805,10 @@ const PatientDetails = () => {
         other_expenses: otherExpenses,
         // cost_amount stays the authoritative total every summary/profit calc reads.
         cost_amount: consultantCharge + materialCost + otherExpenses,
-        charged_amount: lineItemData.charged_amount ? parseFloat(lineItemData.charged_amount) : 0,
+        // Consultants are paid by the clinic only — no patient-charge figure at this line's level.
+        charged_amount: lineItemData.provider_type === 'consultant'
+          ? 0
+          : (lineItemData.charged_amount ? parseFloat(lineItemData.charged_amount) : 0),
         item_date: lineItemData.item_date || null,
       };
       if (editingLineItemId) {
