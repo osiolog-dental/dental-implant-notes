@@ -160,13 +160,22 @@ export default function FinancialLineItemModal({
                   key={v}
                   type="button"
                   data-testid={`provider-type-${v}`}
-                  onClick={() => setLineItemData(prev => ({
-                    ...prev,
-                    provider_type: v,
-                    // A consultant is paid by the clinic only — there's no
-                    // patient-charge figure attached at this line's level.
-                    charged_amount: v === 'consultant' ? '' : prev.charged_amount,
-                  }))}
+                  onClick={() => {
+                    if (v === lineItemData.provider_type) return;
+                    setLineItemData(prev => ({
+                      ...prev,
+                      provider_type: v,
+                      // Clinic and consultant costs are entirely separate —
+                      // switching starts blank rather than carrying over the
+                      // other side's material cost, expenses, fee, or charge,
+                      // which would otherwise silently attribute one party's
+                      // costs to the other.
+                      consultant_charge: '',
+                      material_cost: '',
+                      other_expenses: '',
+                      charged_amount: '',
+                    }));
+                  }}
                   className={`py-2 rounded-md text-sm font-medium border transition-colors ${
                     lineItemData.provider_type === v
                       ? 'bg-[#059669] text-white border-[#059669]'
@@ -177,6 +186,7 @@ export default function FinancialLineItemModal({
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-[#9CA3AF] mt-1">Was this procedure done by you (the clinic owner) or by a visiting consultant?</p>
           </div>
 
           {isConsultant && (

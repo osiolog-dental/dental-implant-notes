@@ -26,7 +26,6 @@ import OverdentureRecordsSection from '../components/OverdentureRecordsSection';
 import FullMouthRehabRecordsSection from '../components/FullMouthRehabRecordsSection';
 import ExtractedTeethRecordsSection from '../components/ExtractedTeethRecordsSection';
 import FinancialsSection from '../components/FinancialsSection';
-import FinancialLineItemModal from '../components/FinancialLineItemModal';
 import BulkCostEntryModal from '../components/BulkCostEntryModal';
 import PatientPaymentModal from '../components/PatientPaymentModal';
 
@@ -129,20 +128,6 @@ const INITIAL_FOLLOWUP = {
   clinical_notes: '',
 };
 
-const INITIAL_LINEITEM = {
-  category: 'implant',
-  description: '',
-  source_type: null,
-  source_id: null,
-  provider_type: 'clinic',
-  consultant_charge: '',
-  material_cost: '',
-  other_expenses: '',
-  charged_amount: '',
-  item_date: '',
-  notes: '',
-};
-
 const INITIAL_PAYMENT = {
   amount: '',
   payment_date: '',
@@ -185,7 +170,6 @@ const PatientDetails = () => {
   const [isFullMouthRehabOpen, setIsFullMouthRehabOpen] = useState(false);
   const [isExtractionOpen, setIsExtractionOpen] = useState(false);
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
-  const [isLineItemOpen, setIsLineItemOpen] = useState(false);
   const [isBulkCostOpen, setIsBulkCostOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
@@ -193,14 +177,12 @@ const PatientDetails = () => {
   const [rehabData, setRehabData] = useState({ ...INITIAL_FULL_MOUTH_REHAB });
   const [extractionData, setExtractionData] = useState({ ...INITIAL_EXTRACTION });
   const [followUpData, setFollowUpData] = useState({ ...INITIAL_FOLLOWUP });
-  const [lineItemData, setLineItemData] = useState({ ...INITIAL_LINEITEM });
   const [paymentData, setPaymentData] = useState({ ...INITIAL_PAYMENT });
   const [editingAbutmentId, setEditingAbutmentId] = useState(null);
   const [editingOverdentureId, setEditingOverdentureId] = useState(null);
   const [editingRehabId, setEditingRehabId] = useState(null);
   const [editingExtractionId, setEditingExtractionId] = useState(null);
   const [editingFollowUpId, setEditingFollowUpId] = useState(null);
-  const [editingLineItemId, setEditingLineItemId] = useState(null);
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
@@ -767,66 +749,6 @@ const PatientDetails = () => {
   };
 
 
-  const openEditLineItem = (item) => {
-    setLineItemData({
-      category: item.category || 'implant',
-      description: item.description || '',
-      source_type: item.source_type || null,
-      source_id: item.source_id || null,
-      provider_type: item.provider_type || 'clinic',
-      consultant_charge: item.consultant_charge != null ? String(item.consultant_charge) : '',
-      material_cost: item.material_cost != null ? String(item.material_cost) : '',
-      other_expenses: item.other_expenses != null ? String(item.other_expenses) : '',
-      charged_amount: item.charged_amount != null ? String(item.charged_amount) : '',
-      item_date: item.item_date || '',
-      notes: item.notes || '',
-    });
-    setEditingLineItemId(item.id);
-    setIsLineItemOpen(true);
-  };
-
-  const handleLineItemOpenChange = (open) => {
-    setIsLineItemOpen(open);
-    if (!open) { setLineItemData({ ...INITIAL_LINEITEM }); setEditingLineItemId(null); }
-  };
-
-  const handleSubmitLineItem = async (e) => {
-    e.preventDefault();
-    try {
-      const consultantCharge = lineItemData.provider_type === 'consultant' && lineItemData.consultant_charge
-        ? parseFloat(lineItemData.consultant_charge) : 0;
-      const materialCost = lineItemData.material_cost ? parseFloat(lineItemData.material_cost) : 0;
-      const otherExpenses = lineItemData.other_expenses ? parseFloat(lineItemData.other_expenses) : 0;
-      const payload = {
-        ...lineItemData,
-        patient_id: id,
-        consultant_charge: consultantCharge,
-        material_cost: materialCost,
-        other_expenses: otherExpenses,
-        // cost_amount stays the authoritative total every summary/profit calc reads.
-        cost_amount: consultantCharge + materialCost + otherExpenses,
-        // Consultants are paid by the clinic only — no patient-charge figure at this line's level.
-        charged_amount: lineItemData.provider_type === 'consultant'
-          ? 0
-          : (lineItemData.charged_amount ? parseFloat(lineItemData.charged_amount) : 0),
-        item_date: lineItemData.item_date || null,
-      };
-      if (editingLineItemId) {
-        await client.patch(`/api/financial-line-items/${editingLineItemId}`, payload);
-        toast.success('Line item updated');
-      } else {
-        await client.post(`/api/financial-line-items`, payload);
-        toast.success('Line item added');
-      }
-      setIsLineItemOpen(false);
-      setLineItemData({ ...INITIAL_LINEITEM });
-      setEditingLineItemId(null);
-      fetchAll();
-    } catch (error) {
-      toast.error(editingLineItemId ? 'Failed to update line item' : 'Failed to add line item');
-    }
-  };
-
   const openAddPayment = () => {
     setPaymentData({ ...INITIAL_PAYMENT });
     setEditingPaymentId(null);
@@ -1108,7 +1030,7 @@ const PatientDetails = () => {
         lineItems={lineItems}
         payments={payments}
         onAddLineItem={() => setIsBulkCostOpen(true)}
-        onEditLineItem={openEditLineItem}
+        onEditLineItem={() => setIsBulkCostOpen(true)}
         onDeleteLineItem={setDeleteTarget}
         onAddPayment={openAddPayment}
         onEditPayment={openEditPayment}
@@ -1260,19 +1182,6 @@ const PatientDetails = () => {
           onSubmit={handleSubmitFollowUp}
           editingFollowUpId={editingFollowUpId}
           implants={implants}
-        />
-
-        {/* Financial Line Item Dialog */}
-        <FinancialLineItemModal
-          open={isLineItemOpen}
-          onOpenChange={handleLineItemOpenChange}
-          lineItemData={lineItemData}
-          setLineItemData={setLineItemData}
-          onSubmit={handleSubmitLineItem}
-          editingLineItemId={editingLineItemId}
-          implants={implants}
-          abutmentRecords={abutmentRecords}
-          fpdRecords={fpdRecords}
         />
 
         {/* Bulk cost entry — lists every implant/abutment/crown at once */}

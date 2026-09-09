@@ -122,11 +122,19 @@ function RowCard({ row, onChange, onRemove }) {
             <button
               key={v}
               type="button"
-              onClick={() => onChange({
-                provider_type: v,
-                // A consultant is paid by the clinic only — no patient-charge figure on this line.
-                charged_amount: v === 'consultant' ? '' : row.charged_amount,
-              })}
+              onClick={() => {
+                if (v === row.provider_type) return;
+                onChange({
+                  provider_type: v,
+                  // Clinic and consultant costs are entirely separate —
+                  // switching starts blank rather than carrying over the
+                  // other side's material cost, expenses, fee, or charge.
+                  consultant_charge: '',
+                  material_cost: '',
+                  other_expenses: '',
+                  charged_amount: '',
+                });
+              }}
               className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
                 row.provider_type === v ? 'bg-[#059669] text-white border-[#059669]' : 'border-[#E5E5E2] text-[#5C6773]'
               }`}

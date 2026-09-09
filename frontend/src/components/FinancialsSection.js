@@ -29,7 +29,6 @@ export default function FinancialsSection({
   const { formatCurrency } = useLocale();
   const [expanded, setExpanded] = useState(false);
 
-  const totalCost = lineItems.reduce((sum, i) => sum + (Number(i.cost_amount) || 0), 0);
   const totalCharged = lineItems.reduce((sum, i) => sum + (Number(i.charged_amount) || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const balance = totalCharged - totalPaid;
@@ -87,7 +86,7 @@ export default function FinancialsSection({
           {/* Summary tiles */}
           <div className={`grid grid-cols-2 ${consultantItems.length > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-3 mb-6`}>
             <StatTile label="Total Charged" value={totalCharged} color="#2A2F35" formatCurrency={formatCurrency} />
-            <StatTile label="Total Cost" value={totalCost} color="#5C6773" formatCurrency={formatCurrency} />
+            <StatTile label="Clinic Cost" value={clinicCost} color="#5C6773" formatCurrency={formatCurrency} />
             <StatTile label="Amount Paid" value={totalPaid} color="#2563EB" formatCurrency={formatCurrency} />
             <StatTile label="Balance Due" value={Math.max(balance, 0)} color={balance > 0 ? '#D97706' : '#16A34A'} formatCurrency={formatCurrency} />
             <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-200">
