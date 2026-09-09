@@ -171,6 +171,7 @@ const PatientDetails = () => {
   const [isExtractionOpen, setIsExtractionOpen] = useState(false);
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
   const [isBulkCostOpen, setIsBulkCostOpen] = useState(false);
+  const [financialsFilter, setFinancialsFilter] = useState(null); // null | 'clinic' | 'consultant'
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [abutmentData, setAbutmentData] = useState({ ...INITIAL_ABUTMENT });
   const [overdentureData, setOverdentureData] = useState({ ...INITIAL_OVERDENTURE });
@@ -1029,6 +1030,8 @@ const PatientDetails = () => {
       <FinancialsSection
         lineItems={lineItems}
         payments={payments}
+        providerFilter={financialsFilter}
+        onProviderFilterChange={setFinancialsFilter}
         onAddLineItem={() => setIsBulkCostOpen(true)}
         onEditLineItem={() => setIsBulkCostOpen(true)}
         onDeleteLineItem={setDeleteTarget}
@@ -1193,6 +1196,7 @@ const PatientDetails = () => {
           abutmentRecords={abutmentRecords}
           fpdRecords={fpdRecords}
           lineItems={lineItems}
+          providerFilter={financialsFilter}
           onSaved={fetchAll}
         />
 

@@ -19,6 +19,8 @@ function StatTile({ label, value, color, formatCurrency }) {
 export default function FinancialsSection({
   lineItems,
   payments,
+  providerFilter,
+  onProviderFilterChange,
   onAddLineItem,
   onEditLineItem,
   onDeleteLineItem,
@@ -52,23 +54,31 @@ export default function FinancialsSection({
   const profit = totalPaid - clinicCost;
 
   const consultantItems = lineItems.filter(i => i.provider_type === 'consultant');
+  const paidToConsultants = consultantItems.reduce((sum, i) => sum + (Number(i.consultant_charge) || 0), 0);
   const consultantProfit = consultantItems.reduce(
     (sum, i) => sum + (Number(i.consultant_charge) || 0) - (Number(i.material_cost) || 0) - (Number(i.other_expenses) || 0),
     0
   );
 
+  // Clinic and consultant finances are two separate businesses sharing one
+  // patient record — this filter shows only one side's boxes and expense
+  // rows at a time, instead of blending both together.
+  const visibleItems = providerFilter ? lineItems.filter(i => i.provider_type === providerFilter) : lineItems;
+  const showClinicTiles = providerFilter !== 'consultant';
+  const showConsultantTiles = providerFilter !== 'clinic' && consultantItems.length > 0;
+
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl shadow-sm mb-6 overflow-hidden">
-      <button
-        data-testid="financials-toggle"
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between p-6 hover:bg-[#F9F9F8] transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-50">
+      <div className="w-full flex items-center justify-between p-6 hover:bg-[#F9F9F8] transition-colors">
+        <button
+          data-testid="financials-toggle"
+          onClick={() => setExpanded(e => !e)}
+          className="flex items-center gap-3 flex-1 text-left min-w-0"
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-50 shrink-0">
             <CurrencyDollar size={20} className="text-emerald-600" weight="fill" />
           </div>
-          <div className="text-left">
+          <div className="text-left min-w-0">
             <h2 className="text-lg font-medium text-[#2A2F35]">Financials</h2>
             <p className="text-xs text-[#5C6773]">
               {formatCurrency(totalCharged)} billed · {formatCurrency(totalPaid)} paid ·{' '}
@@ -77,31 +87,65 @@ export default function FinancialsSection({
               </span>
             </p>
           </div>
-        </div>
-        {expanded ? <CaretUp size={18} className="text-[#5C6773]" /> : <CaretDown size={18} className="text-[#5C6773]" />}
-      </button>
+        </button>
+
+        {expanded && (
+          <div className="flex items-center gap-1.5 mx-3 shrink-0">
+            {[['clinic', 'Clinic'], ['consultant', 'Consultant']].map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                data-testid={`financials-filter-${v}`}
+                onClick={() => onProviderFilterChange(providerFilter === v ? null : v)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                  providerFilter === v
+                    ? 'bg-[#059669] text-white border-[#059669]'
+                    : 'border-[#E5E5E2] text-[#5C6773] hover:border-[#059669]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button
+          data-testid="financials-toggle-chevron"
+          onClick={() => setExpanded(e => !e)}
+          className="shrink-0"
+        >
+          {expanded ? <CaretUp size={18} className="text-[#5C6773]" /> : <CaretDown size={18} className="text-[#5C6773]" />}
+        </button>
+      </div>
 
       {expanded && (
         <div className="px-6 pb-6">
-          {/* Summary tiles */}
-          <div className={`grid grid-cols-2 ${consultantItems.length > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-3 mb-6`}>
-            <StatTile label="Total Charged" value={totalCharged} color="#2A2F35" formatCurrency={formatCurrency} />
-            <StatTile label="Clinic Cost" value={clinicCost} color="#5C6773" formatCurrency={formatCurrency} />
-            <StatTile label="Amount Paid" value={totalPaid} color="#2563EB" formatCurrency={formatCurrency} />
-            <StatTile label="Balance Due" value={Math.max(balance, 0)} color={balance > 0 ? '#D97706' : '#16A34A'} formatCurrency={formatCurrency} />
-            <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-200">
-              <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-700">
-                <TrendUp size={15} weight="bold" /> {formatCurrency(profit)}
-              </div>
-              <div className="text-[11px] text-emerald-700">Clinic Profit</div>
-            </div>
-            {consultantItems.length > 0 && (
-              <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
-                <div className="flex items-center justify-center gap-1 text-lg font-bold text-purple-700">
-                  <TrendUp size={15} weight="bold" /> {formatCurrency(consultantProfit)}
+          {/* Summary tiles — Clinic filter shows only the clinic's own boxes, Consultant only theirs */}
+          <div className={`grid grid-cols-2 ${showClinicTiles && showConsultantTiles ? 'sm:grid-cols-6' : 'sm:grid-cols-4'} gap-3 mb-6`}>
+            {showClinicTiles && (
+              <>
+                <StatTile label="Total Charged" value={totalCharged} color="#2A2F35" formatCurrency={formatCurrency} />
+                <StatTile label="Clinic Cost" value={clinicCost} color="#5C6773" formatCurrency={formatCurrency} />
+                <StatTile label="Amount Paid" value={totalPaid} color="#2563EB" formatCurrency={formatCurrency} />
+                <StatTile label="Balance Due" value={Math.max(balance, 0)} color={balance > 0 ? '#D97706' : '#16A34A'} formatCurrency={formatCurrency} />
+                <div className="bg-emerald-50 rounded-lg p-3 text-center border border-emerald-200">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-700">
+                    <TrendUp size={15} weight="bold" /> {formatCurrency(profit)}
+                  </div>
+                  <div className="text-[11px] text-emerald-700">Clinic Profit</div>
                 </div>
-                <div className="text-[11px] text-purple-700">Consultant Profit</div>
-              </div>
+              </>
+            )}
+            {showConsultantTiles && (
+              <>
+                <StatTile label="Paid to Consultant" value={paidToConsultants} color="#7C3AED" formatCurrency={formatCurrency} />
+                <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-purple-700">
+                    <TrendUp size={15} weight="bold" /> {formatCurrency(consultantProfit)}
+                  </div>
+                  <div className="text-[11px] text-purple-700">Consultant Profit</div>
+                </div>
+              </>
             )}
           </div>
 
@@ -109,7 +153,7 @@ export default function FinancialsSection({
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-[#2A2F35]">
-                Expenses & Charges {lineItems.length > 0 && `(${lineItems.length})`}
+                Expenses & Charges {visibleItems.length > 0 && `(${visibleItems.length})`}
               </h3>
               <button
                 data-testid="add-lineitem-button"
@@ -119,11 +163,13 @@ export default function FinancialsSection({
                 <Plus size={13} weight="bold" /> Log Costs
               </button>
             </div>
-            {lineItems.length === 0 ? (
-              <p className="text-xs text-[#9CA3AF]">No expenses or charges logged yet.</p>
+            {visibleItems.length === 0 ? (
+              <p className="text-xs text-[#9CA3AF]">
+                {providerFilter ? `No ${providerFilter} expenses or charges logged yet.` : 'No expenses or charges logged yet.'}
+              </p>
             ) : (
               <div className="space-y-2">
-                {lineItems.map(item => (
+                {visibleItems.map(item => (
                   <div key={item.id} data-testid={`lineitem-${item.id}`} className="flex items-center justify-between border border-[#E5E5E2] rounded-lg p-3 hover:border-emerald-400 transition-colors">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

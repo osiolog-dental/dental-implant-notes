@@ -23,7 +23,7 @@ function implantLabel(imp) {
   return `Tooth #${imp.tooth_number}${brandLine ? ` — ${brandLine}` : ''}${dims}`;
 }
 
-function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems }) {
+function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, providerFilter }) {
   const claimedIds = new Set();
 
   // Entries saved before source_type/source_id existed (or via a manually
@@ -50,7 +50,9 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
       category,
       description: label,
       custom: false,
-      provider_type: existing?.provider_type || 'clinic',
+      // A record already saved keeps its true provider — only a never-logged
+      // procedure defaults to whichever side is currently being filtered on.
+      provider_type: existing?.provider_type || providerFilter || 'clinic',
       consultant_charge: existing?.consultant_charge != null ? String(existing.consultant_charge) : '',
       material_cost: existing?.material_cost != null ? String(existing.material_cost) : '',
       other_expenses: existing?.other_expenses != null ? String(existing.other_expenses) : '',
@@ -222,6 +224,7 @@ export default function BulkCostEntryModal({
   abutmentRecords,
   fpdRecords,
   lineItems,
+  providerFilter,
   onSaved,
 }) {
   const { formatCurrency } = useLocale();
@@ -230,10 +233,15 @@ export default function BulkCostEntryModal({
 
   useEffect(() => {
     if (open) {
-      setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems }));
+      setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, providerFilter }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Mirrors whichever side is selected on the Financials filter above — a
+  // procedure already saved as the other side still keeps its own data,
+  // it's just not shown while this filter is active.
+  const visibleRows = providerFilter ? rows.filter(r => r.provider_type === providerFilter) : rows;
 
   const updateRow = (key, changes) => {
     setRows(prev => prev.map(r => r.key === key ? { ...r, ...changes } : r));
@@ -248,7 +256,7 @@ export default function BulkCostEntryModal({
       category: 'lab',
       description: '',
       custom: true,
-      provider_type: 'clinic',
+      provider_type: providerFilter || 'clinic',
       consultant_charge: '',
       material_cost: '',
       other_expenses: '',
@@ -259,7 +267,7 @@ export default function BulkCostEntryModal({
 
   const removeRow = (key) => setRows(prev => prev.filter(r => r.key !== key));
 
-  const totals = useMemo(() => rows.reduce((acc, r) => {
+  const totals = useMemo(() => visibleRows.reduce((acc, r) => {
     const rowCost = (r.provider_type === 'consultant' ? num(r.consultant_charge) : 0) + num(r.material_cost) + num(r.other_expenses);
     acc.material += num(r.material_cost);
     acc.other += num(r.other_expenses);
@@ -270,7 +278,7 @@ export default function BulkCostEntryModal({
       acc.consultantProfit += num(r.consultant_charge) - num(r.material_cost) - num(r.other_expenses);
     }
     return acc;
-  }, { material: 0, other: 0, consultant: 0, cost: 0, charged: 0, consultantProfit: 0 }), [rows]);
+  }, { material: 0, other: 0, consultant: 0, cost: 0, charged: 0, consultantProfit: 0 }), [visibleRows]);
 
   const hasAnyValue = (r) => num(r.material_cost) > 0 || num(r.other_expenses) > 0 || num(r.consultant_charge) > 0 || num(r.charged_amount) > 0;
 
@@ -325,9 +333,14 @@ export default function BulkCostEntryModal({
         <p className="text-xs text-[#5C6773] -mt-2 mb-3">
           Every implant, abutment, and crown/FPD for this patient is listed below — fill in whichever ones you need, then save all at once.
         </p>
+        {providerFilter && (
+          <p className="text-xs text-emerald-700 -mt-2 mb-3 font-medium">
+            Showing {providerFilter} only — matches the filter selected on the Financials section.
+          </p>
+        )}
 
         <div className="space-y-3">
-          {rows.map(row => (
+          {visibleRows.map(row => (
             <RowCard
               key={row.key}
               row={row}
