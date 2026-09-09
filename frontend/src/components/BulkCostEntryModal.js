@@ -92,6 +92,10 @@ function RowCard({ row, onChange, onRemove }) {
   const isConsultant = row.provider_type === 'consultant';
   const rowCost = (isConsultant ? num(row.consultant_charge) : 0) + num(row.material_cost) + num(row.other_expenses);
   const rowProfit = num(row.charged_amount) - rowCost;
+  // The consultant is paid a flat fee by the clinic and never sees what the
+  // patient was charged — their own profit is just that fee minus whatever
+  // materials/expenses came out of it.
+  const consultantProfit = num(row.consultant_charge) - num(row.material_cost) - num(row.other_expenses);
   const categoryLabel = LINE_ITEM_CATEGORIES.find(([v]) => v === row.category)?.[1] || row.category;
 
   return (
@@ -185,7 +189,12 @@ function RowCard({ row, onChange, onRemove }) {
       </div>
 
       {isConsultant ? (
-        rowCost > 0 && <p className="text-[11px] text-[#5C6773] mt-1.5">Cost {rowCost.toFixed(2)}</p>
+        num(row.consultant_charge) > 0 && (
+          <p className="text-[11px] text-[#5C6773] mt-1.5">
+            Paid to consultant {num(row.consultant_charge).toFixed(2)} ·{' '}
+            <span className={consultantProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>Consultant Profit {consultantProfit.toFixed(2)}</span>
+          </p>
+        )
       ) : (
         (rowCost > 0 || num(row.charged_amount) > 0) && (
           <p className="text-[11px] text-[#5C6773] mt-1.5">
@@ -249,8 +258,11 @@ export default function BulkCostEntryModal({
     acc.consultant += r.provider_type === 'consultant' ? num(r.consultant_charge) : 0;
     acc.cost += rowCost;
     acc.charged += num(r.charged_amount);
+    if (r.provider_type === 'consultant') {
+      acc.consultantProfit += num(r.consultant_charge) - num(r.material_cost) - num(r.other_expenses);
+    }
     return acc;
-  }, { material: 0, other: 0, consultant: 0, cost: 0, charged: 0 }), [rows]);
+  }, { material: 0, other: 0, consultant: 0, cost: 0, charged: 0, consultantProfit: 0 }), [rows]);
 
   const hasAnyValue = (r) => num(r.material_cost) > 0 || num(r.other_expenses) > 0 || num(r.consultant_charge) > 0 || num(r.charged_amount) > 0;
 
@@ -331,8 +343,14 @@ export default function BulkCostEntryModal({
           {totals.consultant > 0 && <div className="flex justify-between"><span className="text-[#5C6773]">Total Consultant Charges</span><strong>{formatCurrency(totals.consultant)}</strong></div>}
           <div className="flex justify-between"><span className="text-[#5C6773]">Total Other Expenses</span><strong>{formatCurrency(totals.other)}</strong></div>
           <div className="flex justify-between border-t border-[#E5E5E2] pt-1"><span className="text-[#5C6773]">Total Charged to Patient</span><strong>{formatCurrency(totals.charged)}</strong></div>
+          {totals.consultant > 0 && (
+            <div className="flex justify-between">
+              <span className="text-[#5C6773]">Total Consultant Profit</span>
+              <strong className={totals.consultantProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatCurrency(totals.consultantProfit)}</strong>
+            </div>
+          )}
           <p className="text-[10px] text-[#9CA3AF] pt-1">
-            Clinic Profit is shown on the Financials summary once payments are recorded — it's based on what's actually been paid, not just what's billed here.
+            Clinic Profit is shown on the Financials summary once payments are recorded — it's based on what's actually been paid, minus consultant fees paid out. A consultant's own material and other expenses come out of their fee above and never count as a clinic cost.
           </p>
         </div>
 

@@ -33,12 +33,30 @@ export default function FinancialsSection({
   const totalCharged = lineItems.reduce((sum, i) => sum + (Number(i.charged_amount) || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const balance = totalCharged - totalPaid;
+
+  // A consultant is paid one flat fee by the clinic and covers their own
+  // materials and expenses (kit wear, travel, etc.) out of that fee — none
+  // of that is a clinic expense. The clinic's only cost on a
+  // consultant-performed item is the fee itself. Clinic-performed items
+  // still carry their own material/other cost directly.
+  const clinicCost = lineItems.reduce((sum, i) => {
+    if (i.provider_type === 'consultant') {
+      return sum + (Number(i.consultant_charge) || 0);
+    }
+    return sum + (Number(i.cost_amount) || 0);
+  }, 0);
   // Based on money actually collected, not billed — a consultant-performed
   // item has no per-line "charged to patient" figure (that's often not
   // knowable per procedure), so profit off totalCharged would always look
   // like a loss for those. Amount Paid is the one revenue figure that's
   // always real, whoever performed the work.
-  const profit = totalPaid - totalCost;
+  const profit = totalPaid - clinicCost;
+
+  const consultantItems = lineItems.filter(i => i.provider_type === 'consultant');
+  const consultantProfit = consultantItems.reduce(
+    (sum, i) => sum + (Number(i.consultant_charge) || 0) - (Number(i.material_cost) || 0) - (Number(i.other_expenses) || 0),
+    0
+  );
 
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl shadow-sm mb-6 overflow-hidden">
@@ -67,7 +85,7 @@ export default function FinancialsSection({
       {expanded && (
         <div className="px-6 pb-6">
           {/* Summary tiles */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          <div className={`grid grid-cols-2 ${consultantItems.length > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-3 mb-6`}>
             <StatTile label="Total Charged" value={totalCharged} color="#2A2F35" formatCurrency={formatCurrency} />
             <StatTile label="Total Cost" value={totalCost} color="#5C6773" formatCurrency={formatCurrency} />
             <StatTile label="Amount Paid" value={totalPaid} color="#2563EB" formatCurrency={formatCurrency} />
@@ -78,6 +96,14 @@ export default function FinancialsSection({
               </div>
               <div className="text-[11px] text-emerald-700">Clinic Profit</div>
             </div>
+            {consultantItems.length > 0 && (
+              <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
+                <div className="flex items-center justify-center gap-1 text-lg font-bold text-purple-700">
+                  <TrendUp size={15} weight="bold" /> {formatCurrency(consultantProfit)}
+                </div>
+                <div className="text-[11px] text-purple-700">Consultant Profit</div>
+              </div>
+            )}
           </div>
 
           {/* Line items */}
@@ -113,7 +139,12 @@ export default function FinancialsSection({
                       {item.description && <p className="text-sm text-[#2A2F35] mt-1 truncate">{item.description}</p>}
                       <p className="text-xs text-[#5C6773] mt-0.5">
                         {item.provider_type === 'consultant' ? (
-                          `Cost ${formatCurrency(item.cost_amount)}`
+                          <>
+                            Paid to consultant {formatCurrency(item.consultant_charge)} ·{' '}
+                            <span className="text-purple-700 font-medium">
+                              Consultant Profit {formatCurrency((Number(item.consultant_charge) || 0) - (Number(item.material_cost) || 0) - (Number(item.other_expenses) || 0))}
+                            </span>
+                          </>
                         ) : (
                           <>
                             Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)} ·{' '}
@@ -123,9 +154,8 @@ export default function FinancialsSection({
                           </>
                         )}
                       </p>
-                      {(Number(item.consultant_charge) > 0 || Number(item.material_cost) > 0 || Number(item.other_expenses) > 0) && (
+                      {(Number(item.material_cost) > 0 || Number(item.other_expenses) > 0) && (
                         <p className="text-[11px] text-[#9CA3AF] mt-0.5">
-                          {item.provider_type === 'consultant' && Number(item.consultant_charge) > 0 && `Consultant ${formatCurrency(item.consultant_charge)} · `}
                           Material {formatCurrency(item.material_cost)}
                           {Number(item.other_expenses) > 0 && ` · Other ${formatCurrency(item.other_expenses)}`}
                         </p>
