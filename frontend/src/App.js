@@ -11,6 +11,7 @@ import Patients from './pages/Patients';
 import PatientDetails from './pages/PatientDetails';
 import MedicalVault from './pages/MedicalVault';
 import Analytics from './pages/Analytics';
+import Stock from './pages/Stock';
 import Clinics from './pages/Clinics';
 import Account from './pages/Account';
 import Backup from './pages/Backup';
@@ -42,6 +43,7 @@ function App() {
             <Route path="patients/:id" element={<PatientDetails />} />
             <Route path="patients/:patientId/vault" element={<MedicalVault />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="stock" element={<Stock />} />
             <Route path="clinics" element={<Clinics />} />
             <Route path="account" element={<Account />} />
             <Route path="backup" element={<Backup />} />

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
-import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope, Package } from '@phosphor-icons/react';
 import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
@@ -109,6 +109,7 @@ const Layout = () => {
     { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
     { path: '/analytics', label: 'Analytics', icon: ChartLine },
+    { path: '/stock', label: 'Stock', icon: Package },
     { path: '/clinics', label: 'Clinics', icon: Buildings },
     { path: '/backup', label: 'Backup', icon: CloudArrowUp },
     { path: '/subscription', label: 'Subscription', icon: Crown },
@@ -118,6 +119,7 @@ const Layout = () => {
     { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
     { path: '/analytics', label: 'Analytics', icon: ChartLine },
+    { path: '/stock', label: 'Stock', icon: Package },
     { path: '/clinics', label: 'Clinics', icon: Buildings },
     { path: '/backup', label: 'Backup', icon: CloudArrowUp },
     { path: '/subscription', label: 'Subscription', icon: Crown },
