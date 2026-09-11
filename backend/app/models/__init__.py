@@ -12,6 +12,7 @@ from app.models.tooth_extraction import ToothExtraction
 from app.models.implant_follow_up import ImplantFollowUp
 from app.models.financial import FinancialLineItem, PatientPayment
 from app.models.contact_message import ContactMessage
+from app.models.sent_email import SentEmail
 from app.models.inventory_item import InventoryItem
 from app.models.stock_purchase import StockPurchase
 from app.models.stock_transaction import StockTransaction
@@ -22,7 +23,7 @@ __all__ = [
     "Organization", "User", "Clinic", "Patient",
     "Case", "CaseImage", "Implant", "ProstheticFPD",
     "Abutment", "Overdenture", "FullMouthRehab", "ToothExtraction", "ImplantFollowUp",
-    "FinancialLineItem", "PatientPayment", "ContactMessage",
+    "FinancialLineItem", "PatientPayment", "ContactMessage", "SentEmail",
     "InventoryItem", "StockPurchase", "StockTransaction", "CatalogueReference",
     "AuditEvent", "DeviceToken", "Invite",
 ]

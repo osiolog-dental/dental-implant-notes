@@ -93,6 +93,7 @@ export default function Admin() {
   const [messages, setMessages] = useState([]);
   const [firebaseUsers, setFirebaseUsers] = useState([]);
   const [firebaseError, setFirebaseError] = useState(null);
+  const [sentEmails, setSentEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrgIds, setSelectedOrgIds] = useState(new Set());
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -100,14 +101,16 @@ export default function Admin() {
 
   const fetchAll = async () => {
     try {
-      const [overviewRes, orgsRes, messagesRes] = await Promise.all([
+      const [overviewRes, orgsRes, messagesRes, sentEmailsRes] = await Promise.all([
         client.get('/api/admin/overview'),
         client.get('/api/admin/organizations'),
         client.get('/api/admin/contact-messages'),
+        client.get('/api/admin/sent-emails'),
       ]);
       setOverview(overviewRes.data);
       setOrgs(orgsRes.data);
       setMessages(messagesRes.data);
+      setSentEmails(sentEmailsRes.data);
     } catch {
       toast.error('Failed to load admin data — you may not have admin access');
     } finally {
@@ -344,7 +347,28 @@ export default function Admin() {
         ))}
       </div>
 
-      <SendEmailModal open={emailModalOpen} onOpenChange={setEmailModalOpen} initialRecipients={emailPrefill} />
+      <h2 className="text-lg font-semibold text-[#2A2F35] mb-3 flex items-center gap-2">
+        <PaperPlaneTilt size={18} /> Sent Emails
+      </h2>
+      <div className="bg-white border border-[#E5E5E2] rounded-xl divide-y divide-[#F0F0EE] mb-8">
+        {sentEmails.length === 0 ? (
+          <p className="p-4 text-sm text-[#9CA3AF]">No emails sent from the admin panel yet.</p>
+        ) : sentEmails.map(e => (
+          <div key={e.id} className="p-4" data-testid={`admin-sent-email-${e.id}`}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="text-sm font-medium text-[#2A2F35]">{e.recipient}</p>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${e.delivered ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {e.delivered ? 'Delivered' : 'Failed'}
+              </span>
+            </div>
+            <p className="text-xs text-[#5C6773] font-medium">{e.subject}</p>
+            <p className="text-sm text-[#2A2F35] mt-1 whitespace-pre-wrap">{e.message}</p>
+            <p className="text-[11px] text-[#9CA3AF] mt-1">{new Date(e.created_at).toLocaleString()}</p>
+          </div>
+        ))}
+      </div>
+
+      <SendEmailModal open={emailModalOpen} onOpenChange={setEmailModalOpen} initialRecipients={emailPrefill} onSent={fetchAll} />
     </div>
   );
 }

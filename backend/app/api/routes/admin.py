@@ -16,6 +16,7 @@ from app.models.contact_message import ContactMessage
 from app.models.implant import Implant
 from app.models.organization import Organization
 from app.models.patient import Patient
+from app.models.sent_email import SentEmail
 from app.models.user import User
 from app.services import email as email_service
 
@@ -139,10 +140,13 @@ class SendEmailBody(BaseModel):
 async def send_admin_email(
     body: SendEmailBody,
     _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Sends the same subject/message to one or many recipients — maintenance
     notices, promotional offers, or a one-off reply to a specific person.
+    Each send is logged to sent_emails so it can be reviewed later from
+    GET /admin/sent-emails.
     """
     recipients = [r.strip() for r in body.recipients if r.strip()]
     if not recipients:
@@ -152,8 +156,37 @@ async def send_admin_email(
     for recipient in recipients:
         ok = email_service.send_email(recipient, body.subject, body.message)
         (sent if ok else failed).append(recipient)
+        db.add(SentEmail(
+            recipient=recipient,
+            subject=body.subject,
+            message=body.message,
+            delivered=ok,
+        ))
+    await db.flush()
 
     return {"sent": sent, "failed": failed}
+
+
+@router.get("/sent-emails")
+async def list_sent_emails(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """History of every email sent from the admin panel, most recent first."""
+    emails = (await db.execute(
+        select(SentEmail).order_by(SentEmail.created_at.desc()).limit(200)
+    )).scalars().all()
+    return [
+        {
+            "id": str(e.id),
+            "recipient": e.recipient,
+            "subject": e.subject,
+            "message": e.message,
+            "delivered": e.delivered,
+            "created_at": e.created_at,
+        }
+        for e in emails
+    ]
 
 
 @router.get("/firebase-users")

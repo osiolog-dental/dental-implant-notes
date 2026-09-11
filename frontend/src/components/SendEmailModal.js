@@ -33,7 +33,7 @@ const TEMPLATES = [
   },
 ];
 
-export default function SendEmailModal({ open, onOpenChange, initialRecipients = [] }) {
+export default function SendEmailModal({ open, onOpenChange, initialRecipients = [], onSent }) {
   const [recipientsText, setRecipientsText] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -66,6 +66,7 @@ export default function SendEmailModal({ open, onOpenChange, initialRecipients =
       const { sent, failed } = res.data;
       if (sent.length > 0) toast.success(`Sent to ${sent.length} recipient${sent.length === 1 ? '' : 's'}`);
       if (failed.length > 0) toast.error(`Failed for: ${failed.join(', ')}`);
+      onSent?.();
       if (failed.length === 0) onOpenChange(false);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Could not send');
