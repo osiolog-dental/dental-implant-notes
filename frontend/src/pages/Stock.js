@@ -61,6 +61,28 @@ export default function Stock() {
     return byCategory;
   }, [items]);
 
+  // Implants are tracked primarily by size — the same 4.2×10mm slot often
+  // gets restocked with whichever brand was available at the time — so
+  // group by implant system, then by exact size, merging brands that share
+  // a size into one row-group rather than scattering them as separate cards.
+  const implantSystems = useMemo(() => {
+    const implants = grouped.implant || [];
+    const bySystem = new Map();
+    for (const item of implants) {
+      const systemKey = item.implant_system || item.brand || 'Other';
+      if (!bySystem.has(systemKey)) bySystem.set(systemKey, new Map());
+      const sizeKey = `${item.diameter_mm ?? '?'}x${item.length_mm ?? '?'}`;
+      const sizes = bySystem.get(systemKey);
+      if (!sizes.has(sizeKey)) sizes.set(sizeKey, { diameter_mm: item.diameter_mm, length_mm: item.length_mm, items: [] });
+      sizes.get(sizeKey).items.push(item);
+    }
+    return Array.from(bySystem.entries()).map(([system, sizesMap]) => {
+      const sizes = Array.from(sizesMap.values()).sort((a, b) => (a.diameter_mm - b.diameter_mm) || (a.length_mm - b.length_mm));
+      const total = sizes.reduce((sum, s) => sum + s.items.reduce((s2, it) => s2 + it.available_quantity, 0), 0);
+      return { system, sizes, total };
+    }).sort((a, b) => a.system.localeCompare(b.system));
+  }, [grouped]);
+
   const lowStockCount = items.filter(i => i.available_quantity <= i.low_stock_threshold).length;
   const totalUnits = items.reduce((sum, i) => sum + i.available_quantity, 0);
 
@@ -160,7 +182,68 @@ export default function Stock() {
           </div>
         ) : (
           <div className="space-y-8">
-            {CATEGORIES.map(([cat, label]) => {
+            {implantSystems.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-[#2A2F35] mb-3 uppercase tracking-wide">Implants</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {implantSystems.map(({ system, sizes, total }) => (
+                    <div key={system} className="bg-white rounded-xl border border-[#E5E5E2] overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E5E5E2] bg-[#F9F9F8]">
+                        <span className="text-sm font-medium text-[#2A2F35]">{system}</span>
+                        <span className="text-xl font-bold text-[#2A2F35] border-2 border-emerald-300 rounded-md px-2.5 py-0.5" data-testid={`system-total-${system}`}>{total}</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+                            <th className="px-4 py-1.5 font-medium">Size</th>
+                            <th className="px-2 py-1.5 font-medium">Brand</th>
+                            <th className="px-2 py-1.5 font-medium text-right">Available</th>
+                            <th className="w-20"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sizes.map(sizeGroup => sizeGroup.items.map((item, idx) => {
+                            const low = item.available_quantity <= item.low_stock_threshold;
+                            return (
+                              <tr key={item.id} data-testid={`stock-item-${item.id}`} className="border-t border-[#F0F0EE]">
+                                {idx === 0 && (
+                                  <td className="px-4 py-2 font-medium text-[#2A2F35] align-top" rowSpan={sizeGroup.items.length}>
+                                    {sizeGroup.diameter_mm}×{sizeGroup.length_mm}mm
+                                  </td>
+                                )}
+                                <td className="px-2 py-2 text-[#5C6773] truncate max-w-[110px]">{item.brand || '—'}</td>
+                                <td className={`px-2 py-2 text-right font-semibold ${item.available_quantity === 0 ? 'text-[#9CA3AF]' : low ? 'text-amber-600' : 'text-emerald-700'}`}>
+                                  {item.available_quantity}
+                                  {low && item.available_quantity > 0 && <Warning size={11} weight="fill" className="inline ml-1 mb-0.5" />}
+                                </td>
+                                <td className="px-2 py-2">
+                                  <div className="flex items-center justify-end gap-0.5">
+                                    <button onClick={() => setUsageItem(item)} disabled={item.available_quantity <= 0} className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Log usage" data-testid={`use-item-${item.id}`}>
+                                      <Package size={14} weight="bold" />
+                                    </button>
+                                    <button onClick={() => openHistory(item)} className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-emerald-600 transition-colors" title="History">
+                                      <ClockCounterClockwise size={14} />
+                                    </button>
+                                    <button onClick={() => { setEditingItem(item); setIsItemModalOpen(true); }} className="p-1.5 rounded-md hover:bg-[#F0F0EE] text-[#5C6773] hover:text-emerald-600 transition-colors" title="Edit">
+                                      <PencilSimple size={14} weight="bold" />
+                                    </button>
+                                    <button onClick={() => handleDeleteItem(item)} className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors" title="Delete">
+                                      <Trash size={14} weight="bold" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {CATEGORIES.filter(([cat]) => cat !== 'implant').map(([cat, label]) => {
               const catItems = grouped[cat];
               if (!catItems || catItems.length === 0) return null;
               return (
