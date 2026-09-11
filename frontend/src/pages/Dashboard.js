@@ -201,6 +201,7 @@ const Dashboard = () => {
   const [dueExtractions, setDueExtractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null); // null | 'active' | 'completed' | 'guarded' | 'failed'
+  const [sortOrder, setSortOrder] = useState('recent'); // 'recent' | 'past' — by surgery date
 
   useEffect(() => { fetchData(); }, []);
 
@@ -258,7 +259,12 @@ const Dashboard = () => {
   }
 
   const tabCfg = activeTab ? TAB_CONFIG[activeTab] : null;
-  const tabCases = activeTab ? caseBuckets[activeTab] : [];
+  // Sort by the most recent surgery date within each case/patient group —
+  // "date done" — most-recent-first or oldest-first per the sort control.
+  const caseDate = (group) => Math.max(0, ...group.map(imp => imp.surgery_date ? new Date(imp.surgery_date).getTime() : 0));
+  const tabCases = activeTab
+    ? [...caseBuckets[activeTab]].sort((a, b) => sortOrder === 'recent' ? caseDate(b) - caseDate(a) : caseDate(a) - caseDate(b))
+    : [];
 
   return (
     <div className="min-h-screen bg-[#F9F9F8]" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -327,6 +333,15 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <select
+                  value={sortOrder}
+                  onChange={e => setSortOrder(e.target.value)}
+                  data-testid="case-sort-order"
+                  className="text-xs font-medium bg-white border border-[#E5E5E2] rounded-lg px-2 py-1.5 text-[#2A2F35] focus:outline-none focus:ring-2 focus:ring-[#82A098]"
+                >
+                  <option value="recent">Date: Recent to Past</option>
+                  <option value="past">Date: Past to Recent</option>
+                </select>
                 <span
                   className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
                   style={{ backgroundColor: tabCfg.accent }}
