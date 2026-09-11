@@ -5,10 +5,12 @@ import uuid
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.catalogue_reference import CatalogueReference
 from app.models.inventory_item import InventoryItem
 from app.models.stock_purchase import StockPurchase
 from app.models.stock_transaction import StockTransaction
 from app.schemas.inventory import (
+    CatalogueReferenceEntry,
     InventoryItemCreate, InventoryItemUpdate,
     StockPurchaseCreate, StockPurchaseUpdate,
     StockTransactionCreate,
@@ -139,4 +141,63 @@ class StockTransactionRepository:
 
     async def delete(self, txn: StockTransaction) -> None:
         await self.db.delete(txn)
+        await self.db.flush()
+
+
+class CatalogueReferenceRepository:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def list(self, org_id: uuid.UUID) -> list[CatalogueReference]:
+        result = await self.db.execute(
+            select(CatalogueReference)
+            .where(CatalogueReference.org_id == org_id)
+            .order_by(CatalogueReference.article_no)
+        )
+        return list(result.scalars().all())
+
+    async def get(self, ref_id: uuid.UUID, org_id: uuid.UUID) -> CatalogueReference | None:
+        result = await self.db.execute(
+            select(CatalogueReference).where(CatalogueReference.id == ref_id, CatalogueReference.org_id == org_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_many(self, org_id: uuid.UUID, entries: list[CatalogueReferenceEntry]) -> list[CatalogueReference]:
+        """Insert or overwrite one row per article number for this org."""
+        saved: list[CatalogueReference] = []
+        for entry in entries:
+            article_no = entry.article_no.strip()
+            if not article_no:
+                continue
+            result = await self.db.execute(
+                select(CatalogueReference).where(
+                    CatalogueReference.org_id == org_id,
+                    func.lower(CatalogueReference.article_no) == article_no.lower(),
+                )
+            )
+            existing = result.scalar_one_or_none()
+            fields = {
+                "article_no": article_no,
+                "category": entry.category,
+                "brand": entry.brand,
+                "implant_system": entry.implant_system,
+                "diameter_mm": entry.diameter_mm,
+                "length_mm": entry.length_mm,
+                "abutment_type": entry.abutment_type,
+                "size_label": entry.size_label,
+            }
+            if existing:
+                for k, v in fields.items():
+                    setattr(existing, k, v)
+                self.db.add(existing)
+                saved.append(existing)
+            else:
+                new_ref = CatalogueReference(id=uuid.uuid4(), org_id=org_id, **fields)
+                self.db.add(new_ref)
+                saved.append(new_ref)
+        await self.db.flush()
+        return saved
+
+    async def delete(self, ref: CatalogueReference) -> None:
+        await self.db.delete(ref)
         await self.db.flush()

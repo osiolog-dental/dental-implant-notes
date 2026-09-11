@@ -34,6 +34,8 @@ const ABUTMENT_TYPES = [
   'Ti Base',
 ];
 
+const norm = (v) => (v || '').trim().toLowerCase();
+
 export default function AbutmentFormModal({
   open,
   onOpenChange,
@@ -42,7 +44,23 @@ export default function AbutmentFormModal({
   onSubmit,
   editingAbutmentId,
   implants,
+  catalogueRefs = [],
 }) {
+  // Article number uniquely identifies one exact component in a brand's
+  // catalogue — typing one you've scanned before fills in the rest.
+  const handleArticleNoChange = (value) => {
+    setAbutmentData(p => ({ ...p, article_no: value }));
+    const match = value.trim() ? catalogueRefs.find(r => norm(r.article_no) === norm(value)) : null;
+    if (!match) return;
+    setAbutmentData(p => ({
+      ...p,
+      article_no: value,
+      brand: match.brand || p.brand,
+      abutment_type: ABUTMENT_TYPES.includes(match.abutment_type) ? match.abutment_type : p.abutment_type,
+      size_label: match.size_label || p.size_label,
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -70,11 +88,27 @@ export default function AbutmentFormModal({
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Article No.</Label>
+              <Input value={abutmentData.article_no || ''} onChange={e => handleArticleNoChange(e.target.value)} data-testid="abutment-article-no" className="mt-1" placeholder="e.g. ABT5433" />
+            </div>
+            <div>
+              <Label className="text-xs">Brand</Label>
+              <Input value={abutmentData.brand || ''} onChange={e => setAbutmentData(p => ({ ...p, brand: e.target.value }))} data-testid="abutment-brand" className="mt-1" placeholder="e.g. Nobel Biocare" />
+            </div>
+          </div>
+
           <div>
             <Label className="text-xs">Abutment Type *</Label>
             <select value={abutmentData.abutment_type} onChange={e => setAbutmentData(p => ({ ...p, abutment_type: e.target.value }))} data-testid="abutment-type-select" className={`mt-1 ${selectClass}`} required>
               {ABUTMENT_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
+          </div>
+
+          <div>
+            <Label className="text-xs">Size / Height (GH)</Label>
+            <Input value={abutmentData.size_label || ''} onChange={e => setAbutmentData(p => ({ ...p, size_label: e.target.value }))} data-testid="abutment-size-label" className="mt-1" placeholder="e.g. H2.5mm" />
           </div>
 
           {/* Connected implants */}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Package, PencilSimple, Trash, Warning, ClockCounterClockwise, Receipt } from '@phosphor-icons/react';
+import { Plus, Package, PencilSimple, Trash, Warning, ClockCounterClockwise, Receipt, MagicWand, BookOpen } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import client from '../api/client';
 import { useLocale } from '../contexts/LocaleContext';
 import InventoryItemModal, { CATEGORIES } from '../components/InventoryItemModal';
@@ -24,6 +25,7 @@ export default function Stock() {
   const [items, setItems] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [catalogueRefs, setCatalogueRefs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('items'); // 'items' | 'purchases'
 
@@ -33,17 +35,21 @@ export default function Stock() {
   const [usageItem, setUsageItem] = useState(null);
   const [historyItem, setHistoryItem] = useState(null);
   const [historyTxns, setHistoryTxns] = useState([]);
+  const [catalogueFile, setCatalogueFile] = useState(null);
+  const [scanningCatalogue, setScanningCatalogue] = useState(false);
 
   const fetchAll = async () => {
     try {
-      const [itemsRes, purchasesRes, patientsRes] = await Promise.all([
+      const [itemsRes, purchasesRes, patientsRes, catalogueRes] = await Promise.all([
         client.get('/api/inventory-items'),
         client.get('/api/stock-purchases'),
         client.get('/api/patients'),
+        client.get('/api/catalogue-references').catch(() => ({ data: [] })),
       ]);
       setItems(itemsRes.data);
       setPurchases(purchasesRes.data);
       setPatients(patientsRes.data.items ?? patientsRes.data);
+      setCatalogueRefs(catalogueRes.data);
     } catch {
       toast.error('Failed to load stock data');
     } finally {
@@ -52,6 +58,35 @@ export default function Stock() {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  const handleScanCatalogue = async () => {
+    if (!catalogueFile) return;
+    setScanningCatalogue(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', catalogueFile);
+      const res = await client.post('/api/catalogue-references/scan', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { entries, warnings } = res.data;
+      if (entries.length > 0) {
+        setCatalogueRefs(prev => {
+          const byId = new Map(prev.map(r => [r.id, r]));
+          entries.forEach(e => byId.set(e.id, e));
+          return Array.from(byId.values());
+        });
+        toast.success(`Saved ${entries.length} reference number${entries.length === 1 ? '' : 's'} to your catalogue library`);
+        setCatalogueFile(null);
+      } else {
+        toast.warning('Could not find any reference numbers on this page');
+      }
+      if (warnings?.length) warnings.forEach(w => toast.warning(w));
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not read this catalogue');
+    } finally {
+      setScanningCatalogue(false);
+    }
+  };
 
   const grouped = useMemo(() => {
     const byCategory = {};
@@ -141,13 +176,36 @@ export default function Stock() {
           </h1>
           <p className="text-[#5C6773] mt-2">Implants, abutments, and kits bought in bulk — what's on hand today.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setIsItemModalOpen(true)} variant="outline" data-testid="add-item-button">
-            <Plus size={18} weight="bold" className="mr-1.5" /> Add Item
-          </Button>
-          <Button onClick={() => setIsPurchaseModalOpen(true)} data-testid="add-purchase-button" className="bg-[#059669] hover:bg-[#047857] text-white">
-            <Plus size={18} weight="bold" className="mr-1.5" /> Log Purchase
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setIsItemModalOpen(true)} variant="outline" data-testid="add-item-button">
+              <Plus size={18} weight="bold" className="mr-1.5" /> Add Item
+            </Button>
+            <Button onClick={() => setIsPurchaseModalOpen(true)} data-testid="add-purchase-button" className="bg-[#059669] hover:bg-[#047857] text-white">
+              <Plus size={18} weight="bold" className="mr-1.5" /> Log Purchase
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-[#E5E5E2] rounded-lg p-2">
+            <BookOpen size={16} className="text-[#5C6773] ml-1 shrink-0" />
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={e => setCatalogueFile(e.target.files?.[0] || null)}
+              data-testid="stock-catalogue-file-input"
+              className="text-xs h-8 w-56"
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleScanCatalogue}
+              disabled={!catalogueFile || scanningCatalogue}
+              data-testid="stock-scan-catalogue-button"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white shrink-0"
+            >
+              <MagicWand size={14} weight="bold" className="mr-1" /> {scanningCatalogue ? 'Reading...' : 'Upload Catalogue'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-[#9CA3AF]">{catalogueRefs.length} reference number{catalogueRefs.length === 1 ? '' : 's'} saved — auto-fills article numbers everywhere</p>
         </div>
       </div>
 
@@ -380,6 +438,12 @@ export default function Stock() {
         open={isPurchaseModalOpen}
         onOpenChange={setIsPurchaseModalOpen}
         inventoryItems={items}
+        catalogueRefs={catalogueRefs}
+        onCatalogueUpdated={(entries) => setCatalogueRefs(prev => {
+          const byId = new Map(prev.map(r => [r.id, r]));
+          entries.forEach(e => byId.set(e.id, e));
+          return Array.from(byId.values());
+        })}
         onSaved={fetchAll}
       />
       <StockUsageModal

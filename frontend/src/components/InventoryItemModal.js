@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import client from '../api/client';
+import { useLocale } from '../contexts/LocaleContext';
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none";
 
@@ -51,9 +52,14 @@ export const INITIAL_ITEM = {
   article_no: '',
   low_stock_threshold: '5',
   notes: '',
+  current_quantity: '',
+  per_unit_price: '',
 };
 
+const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
+
 export default function InventoryItemModal({ open, onOpenChange, editingItem, onSaved }) {
+  const { formatCurrency } = useLocale();
   const [form, setForm] = useState({ ...INITIAL_ITEM });
   const [saving, setSaving] = useState(false);
 
@@ -97,6 +103,18 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
       const res = editingItem
         ? await client.patch(`/api/inventory-items/${editingItem.id}`, payload)
         : await client.post('/api/inventory-items', payload);
+
+      const startingQty = !editingItem && form.current_quantity ? parseInt(form.current_quantity, 10) : 0;
+      if (startingQty > 0) {
+        await client.post(`/api/inventory-items/${res.data.id}/transactions`, {
+          transaction_type: 'in',
+          quantity: startingQty,
+          unit_cost: form.per_unit_price ? parseFloat(form.per_unit_price) : null,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          notes: 'Starting stock count',
+        });
+      }
+
       toast.success(editingItem ? 'Item updated' : 'Item added to stock list');
       onOpenChange(false);
       onSaved(res.data);
@@ -164,6 +182,26 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
             <div>
               <Label className="text-xs">Size / Description</Label>
               <Input value={form.size_label} onChange={e => update('size_label', e.target.value)} placeholder="e.g. Surgical Kit A" data-testid="item-size-input" className="mt-1" />
+            </div>
+          )}
+
+          {!editingItem && (
+            <div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Current Quantity On Hand</Label>
+                  <Input type="number" min="0" value={form.current_quantity} onChange={e => update('current_quantity', e.target.value)} placeholder="0" data-testid="item-current-quantity-input" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">Purchase Price / Unit</Label>
+                  <Input type="number" step="0.01" min="0" value={form.per_unit_price} onChange={e => update('per_unit_price', e.target.value)} placeholder="0" data-testid="item-unit-price-input" className="mt-1" />
+                </div>
+              </div>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">
+                {num(form.current_quantity) > 0 && num(form.per_unit_price) > 0
+                  ? `Total: ${formatCurrency(num(form.current_quantity) * num(form.per_unit_price))} — leave blank if you don't have any yet`
+                  : "How many of these you already have — leave blank if you don't have any yet"}
+              </p>
             </div>
           )}
 

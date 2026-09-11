@@ -33,6 +33,7 @@ const INITIAL_IMPLANT = {
   tooth_number: '',
   implant_type: 'Single',
   brand: '',
+  article_no: '',
   implant_system: '',
   diameter_mm: '',
   length_mm: '',
@@ -81,6 +82,9 @@ const INITIAL_FPD = {
 const INITIAL_ABUTMENT = {
   tooth_number: '',
   abutment_type: 'Stock Abutment Straight',
+  brand: '',
+  size_label: '',
+  article_no: '',
   connected_implant_ids: [],
   placement_date: '',
   clinical_notes: '',
@@ -186,6 +190,7 @@ const PatientDetails = () => {
   const [editingFollowUpId, setEditingFollowUpId] = useState(null);
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [clinics, setClinics] = useState([]);
+  const [catalogueRefs, setCatalogueRefs] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
   const [editPatientData, setEditPatientData] = useState({});
@@ -231,7 +236,7 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes, lineItemsRes, paymentsRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes, lineItemsRes, paymentsRes, catalogueRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
@@ -244,6 +249,7 @@ const PatientDetails = () => {
         client.get(`/api/implant-follow-ups?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/financial-line-items?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/patient-payments?patient_id=${id}`).catch(() => ({ data: [] })),
+        client.get(`/api/catalogue-references`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -256,6 +262,7 @@ const PatientDetails = () => {
       setFollowUpRecords(followUpRes.data);
       setLineItems(lineItemsRes.data);
       setPayments(paymentsRes.data);
+      setCatalogueRefs(catalogueRes.data);
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -511,6 +518,9 @@ const PatientDetails = () => {
     setAbutmentData({
       tooth_number: rec.tooth_number?.toString() || '',
       abutment_type: rec.abutment_type || 'Stock Abutment Straight',
+      brand: rec.brand || '',
+      size_label: rec.size_label || '',
+      article_no: rec.article_no || '',
       connected_implant_ids: rec.connected_implant_ids || [],
       placement_date: rec.placement_date || '',
       clinical_notes: rec.clinical_notes || '',
@@ -813,6 +823,7 @@ const PatientDetails = () => {
         isq_value: formData.isq_value ? parseFloat(formData.isq_value) : null,
         clinic_id: formData.clinic_id || null,
         implant_system: formData.implant_system || null,
+        article_no: formData.article_no || null,
         surgeon_name: formData.surgeon_name || null,
         follow_up_date: formData.follow_up_date || null,
       };
@@ -837,6 +848,7 @@ const PatientDetails = () => {
     setFormData({
       tooth_number: implant.tooth_number?.toString() || '',
       brand: implant.brand || '',
+      article_no: implant.article_no || '',
       implant_system: implant.implant_system || '',
       diameter_mm: implant.diameter_mm?.toString() || '',
       length_mm: implant.length_mm?.toString() || '',
@@ -1112,6 +1124,7 @@ const PatientDetails = () => {
             editingImplantId={editingImplantId}
             selectedTooth={selectedTooth}
             clinics={clinics}
+            catalogueRefs={catalogueRefs}
           />
 
           {/* FPD Log Sheet Dialog (opened via chart tooth click) */}
@@ -1140,6 +1153,7 @@ const PatientDetails = () => {
           onSubmit={handleSubmitAbutment}
           editingAbutmentId={editingAbutmentId}
           implants={implants}
+          catalogueRefs={catalogueRefs}
         />
 
         {/* Overdenture Log Dialog */}

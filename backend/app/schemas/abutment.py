@@ -10,6 +10,9 @@ from pydantic import BaseModel, field_validator, model_serializer
 class AbutmentBase(BaseModel):
     tooth_number: int | None = None
     abutment_type: str = "Stock Abutment Straight"
+    brand: str | None = None
+    size_label: str | None = None
+    article_no: str | None = None
     connected_implant_ids: list[uuid.UUID] = []
     placement_date: date | None = None
     clinical_notes: str | None = None

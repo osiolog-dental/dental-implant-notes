@@ -75,6 +75,25 @@ function findMatchingItem(row, inventoryItems) {
   );
 }
 
+// Looks up a permanently-saved catalogue reference by article number — used
+// to fill in brand/system/dimension fields for a size never stocked before.
+function findCatalogueMatch(articleNo, catalogueRefs) {
+  const a = norm(articleNo);
+  if (!a) return null;
+  return catalogueRefs.find(r => norm(r.article_no) === a) || null;
+}
+
+function fieldsFromCatalogueRef(ref) {
+  return {
+    brand: ref.brand || '',
+    implant_system: ref.implant_system || '',
+    diameter_mm: ref.diameter_mm != null ? String(ref.diameter_mm) : '',
+    length_mm: ref.length_mm != null ? String(ref.length_mm) : '',
+    abutment_type: ABUTMENT_TYPES.includes(ref.abutment_type) ? ref.abutment_type : '',
+    size_label: ref.size_label || '',
+  };
+}
+
 function rowHasData(row) {
   if (row.category === 'implant') return !!(row.brand || row.implant_system || row.diameter_mm || row.length_mm);
   if (row.category === 'abutment') return !!(row.brand || row.abutment_type || row.size_label);
@@ -97,25 +116,35 @@ function rowFromScan(raw) {
   };
 }
 
-function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurrency }) {
+function RowsTable({ category, title, rows, setRows, inventoryItems, catalogueRefs = [], formatCurrency }) {
   const updateRow = (key, changes) => setRows(prev => prev.map(r => r.key === key ? { ...r, ...changes } : r));
   const removeRow = (key) => setRows(prev => prev.filter(r => r.key !== key));
   const addRows = (n) => setRows(prev => [...prev, ...Array.from({ length: n }, () => blankRow(category))]);
 
-  // Typing an article/catalogue number that matches a stock item you've
-  // already registered fills in the rest of the row automatically.
+  // Typing an article/catalogue number fills in the rest of the row
+  // automatically — first checked against stock you've already registered
+  // (so quantity adds onto the right item), then against the saved
+  // catalogue library for a size never stocked before.
   const handleArticleNoChange = (row, value) => {
-    const match = value.trim() ? inventoryItems.find(it => norm(it.article_no) === norm(value)) : null;
-    if (!match) { updateRow(row.key, { article_no: value }); return; }
-    updateRow(row.key, {
-      article_no: value,
-      brand: match.brand || row.brand,
-      implant_system: match.implant_system || row.implant_system,
-      diameter_mm: match.diameter_mm != null ? String(match.diameter_mm) : row.diameter_mm,
-      length_mm: match.length_mm != null ? String(match.length_mm) : row.length_mm,
-      abutment_type: match.abutment_type || row.abutment_type,
-      size_label: match.size_label || row.size_label,
-    });
+    const stockMatch = value.trim() ? inventoryItems.find(it => norm(it.article_no) === norm(value)) : null;
+    if (stockMatch) {
+      updateRow(row.key, {
+        article_no: value,
+        brand: stockMatch.brand || row.brand,
+        implant_system: stockMatch.implant_system || row.implant_system,
+        diameter_mm: stockMatch.diameter_mm != null ? String(stockMatch.diameter_mm) : row.diameter_mm,
+        length_mm: stockMatch.length_mm != null ? String(stockMatch.length_mm) : row.length_mm,
+        abutment_type: stockMatch.abutment_type || row.abutment_type,
+        size_label: stockMatch.size_label || row.size_label,
+      });
+      return;
+    }
+    const catalogueMatch = findCatalogueMatch(value, catalogueRefs);
+    if (catalogueMatch) {
+      updateRow(row.key, { article_no: value, ...fieldsFromCatalogueRef(catalogueMatch) });
+      return;
+    }
+    updateRow(row.key, { article_no: value });
   };
 
   return (
@@ -203,7 +232,7 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
   );
 }
 
-export default function StockPurchaseModal({ open, onOpenChange, inventoryItems, onSaved }) {
+export default function StockPurchaseModal({ open, onOpenChange, inventoryItems, catalogueRefs = [], onCatalogueUpdated, onSaved }) {
   const { formatCurrency } = useLocale();
   const [header, setHeader] = useState({ purchase_date: '', supplier_name: '', order_ref: '', total_amount: '', notes: '' });
   const [billFile, setBillFile] = useState(null);
@@ -229,15 +258,15 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
   const linesTotal = useMemo(() => allRows.reduce((sum, r) => sum + num(r.line_net_cost), 0), [allRows]);
 
   // A reference number typed in that doesn't match anything already stocked
-  // — the catalogue lookup box appears so it can be identified instead of
-  // typed in by hand.
+  // OR anything in the saved catalogue library — the scan box appears so it
+  // can be identified instead of typed in by hand.
   const unknownArticleNos = useMemo(() => {
     const seen = new Set();
     return allRows
-      .filter(r => r.article_no.trim() && !findMatchingItem(r, inventoryItems))
+      .filter(r => r.article_no.trim() && !findMatchingItem(r, inventoryItems) && !findCatalogueMatch(r.article_no, catalogueRefs))
       .map(r => r.article_no.trim())
       .filter(a => (seen.has(a.toLowerCase()) ? false : (seen.add(a.toLowerCase()), true)));
-  }, [allRows, inventoryItems]);
+  }, [allRows, inventoryItems, catalogueRefs]);
 
   const handleScanCatalogue = async () => {
     if (!catalogueFile) return;
@@ -245,10 +274,11 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
     try {
       const formData = new FormData();
       formData.append('file', catalogueFile);
-      const res = await client.post('/api/inventory-items/scan-catalogue', formData, {
+      const res = await client.post('/api/catalogue-references/scan', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const { entries, warnings } = res.data;
+      if (entries.length > 0) onCatalogueUpdated?.(entries);
 
       const applyMatches = (rows) => rows.map(row => {
         if (!row.article_no.trim()) return row;
@@ -425,8 +455,8 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
             </div>
           </div>
 
-          <RowsTable category="implant" title="Implants" rows={implantRows} setRows={setImplantRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
-          <RowsTable category="abutment" title="Abutments" rows={abutmentRows} setRows={setAbutmentRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
+          <RowsTable category="implant" title="Implants" rows={implantRows} setRows={setImplantRows} inventoryItems={inventoryItems} catalogueRefs={catalogueRefs} formatCurrency={formatCurrency} />
+          <RowsTable category="abutment" title="Abutments" rows={abutmentRows} setRows={setAbutmentRows} inventoryItems={inventoryItems} catalogueRefs={catalogueRefs} formatCurrency={formatCurrency} />
 
           {unknownArticleNos.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">

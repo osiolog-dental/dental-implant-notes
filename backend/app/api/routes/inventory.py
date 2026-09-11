@@ -14,10 +14,11 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 from app.repositories.inventory import (
-    InventoryItemRepository, StockPurchaseRepository, StockTransactionRepository,
+    CatalogueReferenceRepository, InventoryItemRepository, StockPurchaseRepository, StockTransactionRepository,
 )
 from app.schemas.inventory import (
     ABUTMENT_TYPES,
+    CatalogueReferenceEntry, CatalogueReferenceRead,
     InventoryItemCreate, InventoryItemRead, InventoryItemUpdate,
     StockPurchaseCreate, StockPurchaseRead, StockPurchaseUpdate,
     StockTransactionCreate, StockTransactionRead,
@@ -141,17 +142,41 @@ Rules:
 router = APIRouter(tags=["inventory"])
 
 
-@router.post("/inventory-items/scan-catalogue")
+@router.get("/catalogue-references", response_model=list[CatalogueReferenceRead])
+async def list_catalogue_references(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CatalogueReferenceRead]:
+    repo = CatalogueReferenceRepository(db)
+    records = await repo.list(current_user.org_id)
+    return [CatalogueReferenceRead.model_validate(r) for r in records]
+
+
+@router.delete("/catalogue-references/{ref_id}")
+async def delete_catalogue_reference(
+    ref_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    repo = CatalogueReferenceRepository(db)
+    ref = await repo.get(ref_id, current_user.org_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="Catalogue reference not found")
+    await repo.delete(ref)
+    return {"deleted": True}
+
+
+@router.post("/catalogue-references/scan")
 async def scan_catalogue(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Reads a page (or a few pages) of a supplier's product catalogue via Claude
-    and returns article-number-to-component mappings, so an unknown reference
-    number typed on a purchase can be looked up and auto-filled. Nothing is
-    saved server-side — the frontend matches entries against the rows that
-    need them.
+    Reads a page (or a few pages) of a supplier's product catalogue via Claude,
+    extracts article-number-to-component mappings, and saves them permanently
+    to this clinic's reference library — so re-ordering (or logging) a known
+    article number is auto-filled from here from now on, no re-scanning needed.
     """
     api_key = settings.ANTHROPIC_API_KEY
     if not api_key:
@@ -201,8 +226,18 @@ async def scan_catalogue(
         logger.exception("Failed to scan catalogue %s", file.filename)
         raise HTTPException(status_code=500, detail=f"Could not process this catalogue: {exc}")
 
+    raw_entries = parsed.get("entries") or []
+    entries: list[CatalogueReferenceEntry] = []
+    for e in raw_entries:
+        try:
+            entries.append(CatalogueReferenceEntry(**e))
+        except Exception:
+            continue
+    repo = CatalogueReferenceRepository(db)
+    saved = await repo.upsert_many(current_user.org_id, entries)
+
     return {
-        "entries": parsed.get("entries") or [],
+        "entries": [CatalogueReferenceRead.model_validate(r).model_dump() for r in saved],
         "warnings": parsed.get("warnings") or [],
     }
 

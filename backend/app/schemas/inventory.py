@@ -184,3 +184,38 @@ class StockTransactionRead(StockTransactionBase):
         d = handler(self)
         d["_id"] = d["id"]
         return d
+
+
+class CatalogueReferenceEntry(BaseModel):
+    """One article-number mapping extracted from a scanned catalogue."""
+    article_no: str
+    raw_description: str | None = None
+    category: str = "implant"
+    brand: str | None = None
+    implant_system: str | None = None
+    diameter_mm: float | None = None
+    length_mm: float | None = None
+    abutment_type: str | None = None
+    size_label: str | None = None
+
+
+class CatalogueReferenceRead(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    article_no: str
+    category: str
+    brand: str | None = None
+    implant_system: str | None = None
+    diameter_mm: float | None = None
+    length_mm: float | None = None
+    abutment_type: str | None = None
+    size_label: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @model_serializer(mode="wrap")
+    def _inject_id_alias(self, handler: Any) -> dict:
+        d = handler(self)
+        d["_id"] = d["id"]
+        return d

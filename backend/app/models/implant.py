@@ -35,6 +35,7 @@ class Implant(Base):
     # Implant details
     implant_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    article_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # dealer/manufacturer SKU, e.g. "ABT1300"
     size: Mapped[str | None] = mapped_column(String(50), nullable=True)
     length: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     insertion_torque: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)

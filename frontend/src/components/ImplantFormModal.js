@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const checkboxClass = "w-4 h-4 text-[#82A098] border-[#E5E5E2] rounded focus:ring-[#82A098]";
 
+const norm = (v) => (v || '').trim().toLowerCase();
+
 export default function ImplantFormModal({
   open,
   onOpenChange,
@@ -22,7 +24,20 @@ export default function ImplantFormModal({
   editingImplantId,
   selectedTooth,
   clinics,
+  catalogueRefs = [],
 }) {
+  // Article number uniquely identifies one exact component in a brand's
+  // catalogue — typing one you've scanned before fills in the rest.
+  const handleArticleNoChange = (value) => {
+    updateField('article_no', value);
+    const match = value.trim() ? catalogueRefs.find(r => norm(r.article_no) === norm(value)) : null;
+    if (!match) return;
+    if (match.brand) updateField('brand', match.brand);
+    if (match.implant_system) updateField('implant_system', match.implant_system);
+    if (match.diameter_mm != null) updateField('diameter_mm', String(match.diameter_mm));
+    if (match.length_mm != null) updateField('length_mm', String(match.length_mm));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -39,8 +54,8 @@ export default function ImplantFormModal({
             onImageCapture={(img) => updateField('tag_image', img)}
           />
 
-          {/* Row 1: Tooth, Type, Brand */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {/* Row 1: Tooth, Type, Article No., Brand */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Tooth Number *</Label>
               <Input type="number" value={formData.tooth_number} onChange={(e) => updateField('tooth_number', e.target.value)} required data-testid="tooth-number-input" className="mt-1" />
@@ -50,6 +65,10 @@ export default function ImplantFormModal({
               <select value={formData.implant_type} onChange={(e) => updateField('implant_type', e.target.value)} data-testid="implant-type-select" className={`mt-1 ${selectClass}`}>
                 <option>Single</option><option>Bridge</option><option>Full Mouth</option>
               </select>
+            </div>
+            <div>
+              <Label className="text-xs">Article No.</Label>
+              <Input value={formData.article_no || ''} onChange={(e) => handleArticleNoChange(e.target.value)} data-testid="implant-article-no-input" placeholder="e.g. ABT1300" className="mt-1" />
             </div>
             <div>
               <Label className="text-xs">Brand *</Label>

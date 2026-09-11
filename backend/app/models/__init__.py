@@ -15,6 +15,7 @@ from app.models.contact_message import ContactMessage
 from app.models.inventory_item import InventoryItem
 from app.models.stock_purchase import StockPurchase
 from app.models.stock_transaction import StockTransaction
+from app.models.catalogue_reference import CatalogueReference
 from app.models.audit import AuditEvent, DeviceToken, Invite
 
 __all__ = [
@@ -22,6 +23,6 @@ __all__ = [
     "Case", "CaseImage", "Implant", "ProstheticFPD",
     "Abutment", "Overdenture", "FullMouthRehab", "ToothExtraction", "ImplantFollowUp",
     "FinancialLineItem", "PatientPayment", "ContactMessage",
-    "InventoryItem", "StockPurchase", "StockTransaction",
+    "InventoryItem", "StockPurchase", "StockTransaction", "CatalogueReference",
     "AuditEvent", "DeviceToken", "Invite",
 ]

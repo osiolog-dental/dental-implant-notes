@@ -25,6 +25,9 @@ class Abutment(Base):
     )
     tooth_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     abutment_type: Mapped[str] = mapped_column(String(255), nullable=False, default="Stock Abutment Straight")
+    brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    size_label: Mapped[str | None] = mapped_column(String(255), nullable=True)  # e.g. gingival height "GH 2.5mm"
+    article_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # dealer/manufacturer SKU
     connected_implant_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list
     )

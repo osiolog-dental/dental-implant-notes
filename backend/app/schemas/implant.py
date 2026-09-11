@@ -29,6 +29,7 @@ class ImplantBase(BaseModel):
     tooth_number: int | None = None
     implant_type: str | None = None
     brand: str | None = None
+    article_no: str | None = None
     size: str | None = None
     length: float | None = None
     diameter_mm: float | None = None
