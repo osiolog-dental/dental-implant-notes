@@ -142,8 +142,6 @@ async def send_admin_email(
     """
     Sends the same subject/message to one or many recipients — maintenance
     notices, promotional offers, or a one-off reply to a specific person.
-    Note: until osiolog.com's domain is verified with Resend, delivery only
-    succeeds to admin@osiolog.com itself (see app/services/email.py).
     """
     recipients = [r.strip() for r in body.recipients if r.strip()]
     if not recipients:

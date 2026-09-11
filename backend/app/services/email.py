@@ -6,10 +6,9 @@ from app.core.config import settings
 
 CONTACT_RECIPIENT = "admin@osiolog.com"
 RESEND_ENDPOINT = "https://api.resend.com/emails"
-# Resend's shared test domain — fine here since we only ever send TO
-# admin@osiolog.com, which is the same address that owns the Resend account.
-# Sending to arbitrary recipients would require verifying osiolog.com's DNS.
-RESEND_FROM = "Osiolog Contact Form <onboarding@resend.dev>"
+# osiolog.com is verified with Resend (DKIM/SPF/DMARC), so we can send to
+# any recipient now — not just admin@osiolog.com.
+RESEND_FROM = "Osiolog <hello@osiolog.com>"
 
 
 def is_configured() -> bool:
@@ -56,13 +55,6 @@ def send_email(to_email: str, subject: str, body_text: str) -> bool:
     """
     Send a plain-text email to an arbitrary recipient — used by the admin
     panel for maintenance notices, offers, and one-off customer replies.
-
-    Note: with only the shared onboarding@resend.dev sender configured,
-    Resend restricts delivery to the account's own verified address
-    (admin@osiolog.com) — sends to any other address will fail until
-    osiolog.com's domain is verified with Resend (a DNS step at the
-    registrar). Once verified, swap RESEND_FROM to an @osiolog.com address
-    and this same function starts reaching real recipients.
     """
     if not is_configured():
         return False

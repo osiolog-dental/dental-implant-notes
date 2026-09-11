@@ -65,7 +65,7 @@ export default function SendEmailModal({ open, onOpenChange, initialRecipients =
       const res = await client.post('/api/admin/send-email', { recipients, subject, message });
       const { sent, failed } = res.data;
       if (sent.length > 0) toast.success(`Sent to ${sent.length} recipient${sent.length === 1 ? '' : 's'}`);
-      if (failed.length > 0) toast.error(`Failed for: ${failed.join(', ')} — likely blocked until osiolog.com's domain is verified with Resend`);
+      if (failed.length > 0) toast.error(`Failed for: ${failed.join(', ')}`);
       if (failed.length === 0) onOpenChange(false);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Could not send');
@@ -80,10 +80,6 @@ export default function SendEmailModal({ open, onOpenChange, initialRecipients =
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Send Email</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 -mt-2">
-          Delivery only reaches admin@osiolog.com until osiolog.com's domain is verified with Resend — other recipients will show as "failed" for now.
-        </p>
-
         <div className="flex flex-wrap gap-1.5">
           {TEMPLATES.map(tpl => (
             <button key={tpl.key} type="button" onClick={() => applyTemplate(tpl)} className="px-2.5 py-1 text-xs font-medium border border-[#E5E5E2] rounded-full text-[#5C6773] hover:border-[#82A098] hover:text-[#2A2F35] transition-colors">
