@@ -12,65 +12,179 @@ import { Label } from '@/components/ui/label';
 import { Plus, Trash, Paperclip, MagicWand } from '@phosphor-icons/react';
 import client from '../api/client';
 import { useLocale } from '../contexts/LocaleContext';
-import { CATEGORIES, ABUTMENT_TYPES } from './InventoryItemModal';
+import { ABUTMENT_TYPES } from './InventoryItemModal';
 
 const selectClass = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-md text-xs focus:ring-2 focus:ring-[#059669] focus:outline-none";
 const cellInputClass = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-md text-xs focus:ring-2 focus:ring-[#059669] focus:outline-none";
 const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
-const NEW_ITEM = '__new__';
+const ROWS_TO_START = 20;
 
-function itemLabel(item) {
-  if (item.category === 'implant') {
-    const dims = item.diameter_mm && item.length_mm ? ` ${item.diameter_mm}×${item.length_mm}mm` : '';
-    return `${item.brand || 'Implant'}${item.implant_system ? ` ${item.implant_system}` : ''}${dims}`;
-  }
-  if (item.category === 'abutment') {
-    return `${item.brand || 'Abutment'} — ${item.abutment_type || ''}${item.size_label ? ` ${item.size_label}` : ''}`;
-  }
-  return `${item.brand || ''} ${item.size_label || item.category}`.trim();
-}
-
-function blankNewItem() {
-  return { category: 'implant', brand: '', implant_system: '', diameter_mm: '', length_mm: '', abutment_type: ABUTMENT_TYPES[0], size_label: '', article_no: '' };
-}
-
-function newLine() {
+function blankRow(category) {
   return {
-    key: `line_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    itemId: '',
-    isNew: false,
-    newItem: blankNewItem(),
+    key: `row_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    category,
+    brand: '',
+    implant_system: '',
+    diameter_mm: '',
+    length_mm: '',
+    abutment_type: '',
+    size_label: '',
+    article_no: '',
     quantity: '',
     line_net_cost: '',
   };
 }
 
-// Turns one AI-extracted line into a row — matches it to an existing item by
-// article number when one already exists, so scanning a repeat order never
-// creates a duplicate stock item.
-function lineFromScan(raw, inventoryItems) {
-  const articleNo = (raw.article_no || '').trim();
-  const existing = articleNo
-    ? inventoryItems.find(it => (it.article_no || '').trim().toLowerCase() === articleNo.toLowerCase())
-    : null;
+function startingRows(category) {
+  return Array.from({ length: ROWS_TO_START }, () => blankRow(category));
+}
 
+const norm = (v) => (v || '').trim().toLowerCase();
+
+// Finds the stock item this row refers to, so quantity gets added onto it
+// rather than creating a duplicate. Article number is the most reliable
+// match (same SKU, whatever the brand text says); otherwise match on the
+// same fields that make a size distinct for that category.
+function findMatchingItem(row, inventoryItems) {
+  const articleNo = norm(row.article_no);
+  if (articleNo) {
+    const byArticle = inventoryItems.find(it => norm(it.article_no) === articleNo);
+    if (byArticle) return byArticle;
+  }
+  if (row.category === 'implant') {
+    return inventoryItems.find(it =>
+      it.category === 'implant' &&
+      norm(it.brand) === norm(row.brand) &&
+      norm(it.implant_system) === norm(row.implant_system) &&
+      num(it.diameter_mm) === num(row.diameter_mm) &&
+      num(it.length_mm) === num(row.length_mm)
+    );
+  }
+  if (row.category === 'abutment') {
+    return inventoryItems.find(it =>
+      it.category === 'abutment' &&
+      norm(it.brand) === norm(row.brand) &&
+      it.abutment_type === row.abutment_type &&
+      norm(it.size_label) === norm(row.size_label)
+    );
+  }
+  return inventoryItems.find(it =>
+    it.category === row.category &&
+    norm(it.brand) === norm(row.brand) &&
+    norm(it.size_label) === norm(row.size_label)
+  );
+}
+
+function rowHasData(row) {
+  if (row.category === 'implant') return !!(row.brand || row.implant_system || row.diameter_mm || row.length_mm);
+  if (row.category === 'abutment') return !!(row.brand || row.abutment_type || row.size_label);
+  return !!(row.brand || row.size_label);
+}
+
+// Turns one AI-extracted line into a table row.
+function rowFromScan(raw) {
   return {
-    key: `line_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    itemId: existing ? existing.id : '',
-    isNew: !existing,
-    newItem: {
-      category: raw.category || 'implant',
-      brand: raw.brand || '',
-      implant_system: raw.implant_system || '',
-      diameter_mm: raw.diameter_mm != null ? String(raw.diameter_mm) : '',
-      length_mm: raw.length_mm != null ? String(raw.length_mm) : '',
-      abutment_type: ABUTMENT_TYPES.includes(raw.abutment_type) ? raw.abutment_type : ABUTMENT_TYPES[0],
-      size_label: raw.size_label || raw.raw_description || '',
-      article_no: articleNo,
-    },
+    ...blankRow(raw.category || 'implant'),
+    brand: raw.brand || '',
+    implant_system: raw.implant_system || '',
+    diameter_mm: raw.diameter_mm != null ? String(raw.diameter_mm) : '',
+    length_mm: raw.length_mm != null ? String(raw.length_mm) : '',
+    abutment_type: ABUTMENT_TYPES.includes(raw.abutment_type) ? raw.abutment_type : '',
+    size_label: raw.size_label || raw.raw_description || '',
+    article_no: (raw.article_no || '').trim(),
     quantity: raw.quantity != null ? String(raw.quantity) : '',
     line_net_cost: raw.net_cost != null ? String(raw.net_cost) : '',
   };
+}
+
+function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurrency }) {
+  const updateRow = (key, changes) => setRows(prev => prev.map(r => r.key === key ? { ...r, ...changes } : r));
+  const removeRow = (key) => setRows(prev => prev.filter(r => r.key !== key));
+  const addRows = (n) => setRows(prev => [...prev, ...Array.from({ length: n }, () => blankRow(category))]);
+
+  return (
+    <div>
+      <Label className="text-xs">{title}</Label>
+      <div className="mt-1.5 overflow-x-auto border border-[#E5E5E2] rounded-lg max-h-80 overflow-y-auto">
+        <table className="w-full text-xs min-w-[820px]">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[#F0F0EE] text-[#5C6773] text-left">
+              <th className="px-2 py-2 font-medium w-10">S.No.</th>
+              <th className="px-2 py-2 font-medium w-28">Brand</th>
+              <th className="px-2 py-2 font-medium w-40">{category === 'implant' ? 'Product Line' : category === 'abutment' ? 'Type of Abutment' : 'Description'}</th>
+              <th className="px-2 py-2 font-medium w-32">Dimension{category === 'abutment' ? ' (GH)' : ''}</th>
+              <th className="px-2 py-2 font-medium w-16">Qty</th>
+              <th className="px-2 py-2 font-medium w-20">Total Available</th>
+              <th className="px-2 py-2 font-medium w-24">Net Cost</th>
+              <th className="px-2 py-2 font-medium w-20">Cost/Unit</th>
+              <th className="px-2 py-2 font-medium w-24">Article No.</th>
+              <th className="w-8"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const match = rowHasData(row) ? findMatchingItem(row, inventoryItems) : null;
+              const totalAfter = (match ? match.available_quantity : 0) + num(row.quantity);
+              return (
+                <tr key={row.key} className="border-t border-[#F0F0EE] align-top" data-testid={`purchase-row-${row.key}`}>
+                  <td className="px-2 py-2 text-[#9CA3AF]">{idx + 1}</td>
+                  <td className="px-2 py-2">
+                    <Input value={row.brand} onChange={e => updateRow(row.key, { brand: e.target.value })} className={cellInputClass} />
+                  </td>
+                  <td className="px-2 py-2">
+                    {category === 'abutment' ? (
+                      <select value={row.abutment_type} onChange={e => updateRow(row.key, { abutment_type: e.target.value })} className={selectClass}>
+                        <option value="">—</option>
+                        {ABUTMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : category === 'implant' ? (
+                      <Input value={row.implant_system} onChange={e => updateRow(row.key, { implant_system: e.target.value })} className={cellInputClass} />
+                    ) : (
+                      <Input value={row.size_label} onChange={e => updateRow(row.key, { size_label: e.target.value })} className={cellInputClass} />
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {category === 'implant' ? (
+                      <div className="flex items-center gap-1">
+                        <Input type="number" step="0.01" placeholder="⌀mm" value={row.diameter_mm} onChange={e => updateRow(row.key, { diameter_mm: e.target.value })} className={`${cellInputClass} w-14`} />
+                        <span className="text-[#9CA3AF]">×</span>
+                        <Input type="number" step="0.01" placeholder="Lmm" value={row.length_mm} onChange={e => updateRow(row.key, { length_mm: e.target.value })} className={`${cellInputClass} w-14`} />
+                      </div>
+                    ) : (
+                      <Input placeholder={category === 'abutment' ? 'e.g. 2.5mm' : ''} value={row.size_label} onChange={e => updateRow(row.key, { size_label: e.target.value })} className={cellInputClass} />
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input type="number" min="0" value={row.quantity} onChange={e => updateRow(row.key, { quantity: e.target.value })} className={cellInputClass} data-testid={`row-qty-${row.key}`} />
+                  </td>
+                  <td className={`px-2 py-2 font-semibold ${rowHasData(row) && num(row.quantity) > 0 ? 'text-emerald-700' : 'text-[#D1D5DB]'}`}>
+                    {rowHasData(row) && num(row.quantity) > 0 ? totalAfter : '—'}
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input type="number" step="0.01" min="0" value={row.line_net_cost} onChange={e => updateRow(row.key, { line_net_cost: e.target.value })} className={cellInputClass} />
+                  </td>
+                  <td className="px-2 py-2 text-[#5C6773] whitespace-nowrap">
+                    {num(row.quantity) > 0 && num(row.line_net_cost) > 0 ? formatCurrency(num(row.line_net_cost) / num(row.quantity)) : '—'}
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input value={row.article_no} onChange={e => updateRow(row.key, { article_no: e.target.value })} className={cellInputClass} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <button type="button" onClick={() => removeRow(row.key)} className="p-1 rounded-md hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 transition-colors">
+                      <Trash size={13} weight="bold" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={() => addRows(10)} className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 border border-dashed border-emerald-300 hover:bg-emerald-50 rounded-lg transition-colors w-full justify-center">
+        <Plus size={13} weight="bold" /> Add 10 More Rows
+      </button>
+    </div>
+  );
 }
 
 export default function StockPurchaseModal({ open, onOpenChange, inventoryItems, onSaved }) {
@@ -78,24 +192,23 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
   const [header, setHeader] = useState({ purchase_date: '', supplier_name: '', order_ref: '', total_amount: '', notes: '' });
   const [billFile, setBillFile] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [lines, setLines] = useState([newLine()]);
+  const [implantRows, setImplantRows] = useState([]);
+  const [abutmentRows, setAbutmentRows] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setHeader({ purchase_date: new Date().toISOString().slice(0, 10), supplier_name: '', order_ref: '', total_amount: '', notes: '' });
       setBillFile(null);
-      setLines([newLine()]);
+      setImplantRows(startingRows('implant'));
+      setAbutmentRows(startingRows('abutment'));
     }
   }, [open]);
 
-  const linesTotal = useMemo(() => lines.reduce((sum, l) => sum + num(l.line_net_cost), 0), [lines]);
-
   const updateHeader = (field, value) => setHeader(prev => ({ ...prev, [field]: value }));
-  const updateLine = (key, changes) => setLines(prev => prev.map(l => l.key === key ? { ...l, ...changes } : l));
-  const updateNewItemField = (key, field, value) => setLines(prev => prev.map(l => l.key === key ? { ...l, newItem: { ...l.newItem, [field]: value } } : l));
-  const addLine = () => setLines(prev => [...prev, newLine()]);
-  const removeLine = (key) => setLines(prev => prev.filter(l => l.key !== key));
+
+  const allRows = useMemo(() => [...implantRows, ...abutmentRows], [implantRows, abutmentRows]);
+  const linesTotal = useMemo(() => allRows.reduce((sum, r) => sum + num(r.line_net_cost), 0), [allRows]);
 
   const handleScanBill = async () => {
     if (!billFile) return;
@@ -117,7 +230,11 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
       }));
 
       if (scannedLines.length > 0) {
-        setLines(scannedLines.map(l => lineFromScan(l, inventoryItems)));
+        const scannedImplants = scannedLines.filter(l => (l.category || 'implant') === 'implant').map(rowFromScan);
+        const scannedAbutments = scannedLines.filter(l => l.category === 'abutment').map(rowFromScan);
+        const scannedOther = scannedLines.filter(l => l.category && !['implant', 'abutment'].includes(l.category)).map(rowFromScan);
+        setImplantRows([...scannedImplants, ...scannedOther, ...startingRows('implant').slice(0, 5)]);
+        setAbutmentRows([...scannedAbutments, ...startingRows('abutment').slice(0, 5)]);
         toast.success(`Read ${scannedLines.length} line item${scannedLines.length === 1 ? '' : 's'} from the bill — review before saving`);
       } else {
         toast.warning('Could not find any line items on this bill — you can still add them manually below');
@@ -126,7 +243,7 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
         warnings.forEach(w => toast.warning(w));
       }
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Could not read this bill — try a clearer photo, or fill in the lines manually');
+      toast.error(err?.response?.data?.detail || 'Could not read this bill — try a clearer photo, or fill in the rows manually');
     } finally {
       setScanning(false);
     }
@@ -134,9 +251,9 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const validLines = lines.filter(l => num(l.quantity) > 0 && ((l.itemId && l.itemId !== NEW_ITEM) || l.isNew));
-    if (validLines.length === 0) {
-      toast.error('Add at least one line item with a quantity');
+    const validRows = allRows.filter(r => rowHasData(r) && num(r.quantity) > 0);
+    if (validRows.length === 0) {
+      toast.error('Fill in at least one row with a quantity');
       return;
     }
     setSaving(true);
@@ -149,32 +266,30 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
         notes: header.notes || null,
       });
       const purchase = purchaseRes.data;
+      let knownItems = inventoryItems;
 
-      for (const line of lines) {
-        if (!line.itemId && !line.isNew) continue;
-        if (num(line.quantity) <= 0) continue;
-
-        let itemId = line.itemId;
-        if (line.isNew) {
-          const ni = line.newItem;
+      for (const row of validRows) {
+        let item = findMatchingItem(row, knownItems);
+        if (!item) {
           const itemRes = await client.post('/api/inventory-items', {
-            category: ni.category,
-            brand: ni.brand || null,
-            implant_system: ni.category === 'implant' ? (ni.implant_system || null) : null,
-            diameter_mm: ni.category === 'implant' && ni.diameter_mm ? parseFloat(ni.diameter_mm) : null,
-            length_mm: ni.category === 'implant' && ni.length_mm ? parseFloat(ni.length_mm) : null,
-            abutment_type: ni.category === 'abutment' ? ni.abutment_type : null,
-            size_label: ni.size_label || null,
-            article_no: ni.article_no || null,
+            category: row.category,
+            brand: row.brand || null,
+            implant_system: row.category === 'implant' ? (row.implant_system || null) : null,
+            diameter_mm: row.category === 'implant' && row.diameter_mm ? parseFloat(row.diameter_mm) : null,
+            length_mm: row.category === 'implant' && row.length_mm ? parseFloat(row.length_mm) : null,
+            abutment_type: row.category === 'abutment' ? (row.abutment_type || null) : null,
+            size_label: row.size_label || null,
+            article_no: row.article_no || null,
           });
-          itemId = itemRes.data.id;
+          item = { ...itemRes.data, available_quantity: 0 };
+          knownItems = [...knownItems, item];
         }
 
-        await client.post(`/api/inventory-items/${itemId}/transactions`, {
+        await client.post(`/api/inventory-items/${item.id}/transactions`, {
           transaction_type: 'in',
-          quantity: parseInt(line.quantity, 10),
+          quantity: parseInt(row.quantity, 10),
           purchase_id: purchase.id,
-          line_net_cost: line.line_net_cost ? parseFloat(line.line_net_cost) : null,
+          line_net_cost: row.line_net_cost ? parseFloat(row.line_net_cost) : null,
           transaction_date: header.purchase_date,
         });
       }
@@ -199,12 +314,12 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Log a Purchase</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-[#5C6773] -mt-2 mb-3">
-          Upload the bill to auto-fill the table below, or fill it in yourself.
+          Upload the bill to auto-fill the tables below, or fill them in yourself. "Total Available" previews what stock will be after saving.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -238,106 +353,8 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs">Line Items *</Label>
-            <div className="mt-1.5 overflow-x-auto border border-[#E5E5E2] rounded-lg">
-              <table className="w-full text-xs min-w-[720px]">
-                <thead>
-                  <tr className="bg-[#F0F0EE] text-[#5C6773] text-left">
-                    <th className="px-2 py-2 font-medium w-16">Category</th>
-                    <th className="px-2 py-2 font-medium">Item</th>
-                    <th className="px-2 py-2 font-medium w-24">Article No.</th>
-                    <th className="px-2 py-2 font-medium w-20">Qty</th>
-                    <th className="px-2 py-2 font-medium w-28">Net Cost</th>
-                    <th className="px-2 py-2 font-medium w-24">₹/Unit</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map(line => {
-                    const perUnit = num(line.quantity) > 0 && num(line.line_net_cost) > 0 ? num(line.line_net_cost) / num(line.quantity) : null;
-                    return (
-                      <tr key={line.key} className="border-t border-[#E5E5E2] align-top" data-testid={`purchase-line-${line.key}`}>
-                        <td className="px-2 py-2">
-                          {line.isNew ? (
-                            <select value={line.newItem.category} onChange={e => updateNewItemField(line.key, 'category', e.target.value)} className={selectClass}>
-                              {CATEGORIES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-                            </select>
-                          ) : (
-                            <span className="text-[#9CA3AF]">—</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 min-w-[220px]">
-                          <select
-                            value={line.isNew ? NEW_ITEM : line.itemId}
-                            onChange={e => {
-                              const v = e.target.value;
-                              if (v === NEW_ITEM) updateLine(line.key, { isNew: true, itemId: '', newItem: line.newItem.brand ? line.newItem : blankNewItem() });
-                              else updateLine(line.key, { isNew: false, itemId: v });
-                            }}
-                            className={`${selectClass} mb-1`}
-                          >
-                            <option value="">Select existing item...</option>
-                            {inventoryItems.map(it => (
-                              <option key={it.id} value={it.id}>{itemLabel(it)}{it.article_no ? ` (${it.article_no})` : ''}</option>
-                            ))}
-                            <option value={NEW_ITEM}>+ New item</option>
-                          </select>
-                          {line.isNew && (
-                            <div className="flex flex-wrap gap-1">
-                              <Input placeholder="Brand" value={line.newItem.brand} onChange={e => updateNewItemField(line.key, 'brand', e.target.value)} className={`${cellInputClass} w-24`} />
-                              {line.newItem.category === 'implant' && (
-                                <>
-                                  <Input placeholder="System" value={line.newItem.implant_system} onChange={e => updateNewItemField(line.key, 'implant_system', e.target.value)} className={`${cellInputClass} w-20`} />
-                                  <Input type="number" step="0.01" placeholder="⌀mm" value={line.newItem.diameter_mm} onChange={e => updateNewItemField(line.key, 'diameter_mm', e.target.value)} className={`${cellInputClass} w-16`} />
-                                  <Input type="number" step="0.01" placeholder="Lmm" value={line.newItem.length_mm} onChange={e => updateNewItemField(line.key, 'length_mm', e.target.value)} className={`${cellInputClass} w-16`} />
-                                </>
-                              )}
-                              {line.newItem.category === 'abutment' && (
-                                <>
-                                  <select value={line.newItem.abutment_type} onChange={e => updateNewItemField(line.key, 'abutment_type', e.target.value)} className={`${selectClass} w-40`}>
-                                    {ABUTMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                  </select>
-                                  <Input placeholder="Size/Height" value={line.newItem.size_label} onChange={e => updateNewItemField(line.key, 'size_label', e.target.value)} className={`${cellInputClass} w-24`} />
-                                </>
-                              )}
-                              {(line.newItem.category === 'kit' || line.newItem.category === 'other') && (
-                                <Input placeholder="Description" value={line.newItem.size_label} onChange={e => updateNewItemField(line.key, 'size_label', e.target.value)} className={`${cellInputClass} w-40`} />
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 py-2">
-                          {line.isNew ? (
-                            <Input value={line.newItem.article_no} onChange={e => updateNewItemField(line.key, 'article_no', e.target.value)} className={cellInputClass} />
-                          ) : (
-                            <span className="text-[#9CA3AF]">{inventoryItems.find(it => it.id === line.itemId)?.article_no || '—'}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2">
-                          <Input type="number" min="1" value={line.quantity} onChange={e => updateLine(line.key, { quantity: e.target.value })} className={cellInputClass} data-testid={`line-qty-${line.key}`} />
-                        </td>
-                        <td className="px-2 py-2">
-                          <Input type="number" step="0.01" min="0" value={line.line_net_cost} onChange={e => updateLine(line.key, { line_net_cost: e.target.value })} className={cellInputClass} data-testid={`line-cost-${line.key}`} />
-                        </td>
-                        <td className="px-2 py-2 text-[#5C6773] whitespace-nowrap">{perUnit != null ? formatCurrency(perUnit) : '—'}</td>
-                        <td className="px-2 py-2">
-                          {lines.length > 1 && (
-                            <button type="button" onClick={() => removeLine(line.key)} className="p-1 rounded-md hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 transition-colors">
-                              <Trash size={13} weight="bold" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <button type="button" onClick={addLine} data-testid="purchase-add-line-button" className="mt-2 flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-700 border border-dashed border-emerald-300 hover:bg-emerald-50 rounded-lg transition-colors w-full justify-center">
-              <Plus size={13} weight="bold" /> Add Another Line
-            </button>
-          </div>
+          <RowsTable category="implant" title="Implants" rows={implantRows} setRows={setImplantRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
+          <RowsTable category="abutment" title="Abutments" rows={abutmentRows} setRows={setAbutmentRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
 
           <div>
             <Label className="text-xs">Notes</Label>

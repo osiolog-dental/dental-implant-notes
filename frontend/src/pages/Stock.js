@@ -85,6 +85,8 @@ export default function Stock() {
 
   const lowStockCount = items.filter(i => i.available_quantity <= i.low_stock_threshold).length;
   const totalUnits = items.reduce((sum, i) => sum + i.available_quantity, 0);
+  const totalImplants = (grouped.implant || []).reduce((sum, i) => sum + i.available_quantity, 0);
+  const totalAbutments = (grouped.abutment || []).reduce((sum, i) => sum + i.available_quantity, 0);
 
   const openHistory = async (item) => {
     setHistoryItem(item);
@@ -120,6 +122,18 @@ export default function Stock() {
 
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+      {/* Headline totals — the numbers that matter most, right at the top */}
+      <div className="grid grid-cols-2 gap-3 mb-5 max-w-md">
+        <div className="bg-white border-2 border-emerald-200 rounded-xl p-4 text-center" data-testid="total-available-implants">
+          <div className="text-3xl font-bold text-emerald-700">{totalImplants}</div>
+          <div className="text-xs text-[#5C6773] mt-0.5">Total Available Implants</div>
+        </div>
+        <div className="bg-white border-2 border-emerald-200 rounded-xl p-4 text-center" data-testid="total-available-abutments">
+          <div className="text-3xl font-bold text-emerald-700">{totalAbutments}</div>
+          <div className="text-xs text-[#5C6773] mt-0.5">Total Available Abutments</div>
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
           <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
