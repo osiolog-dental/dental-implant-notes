@@ -102,6 +102,22 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
   const removeRow = (key) => setRows(prev => prev.filter(r => r.key !== key));
   const addRows = (n) => setRows(prev => [...prev, ...Array.from({ length: n }, () => blankRow(category))]);
 
+  // Typing an article/catalogue number that matches a stock item you've
+  // already registered fills in the rest of the row automatically.
+  const handleArticleNoChange = (row, value) => {
+    const match = value.trim() ? inventoryItems.find(it => norm(it.article_no) === norm(value)) : null;
+    if (!match) { updateRow(row.key, { article_no: value }); return; }
+    updateRow(row.key, {
+      article_no: value,
+      brand: match.brand || row.brand,
+      implant_system: match.implant_system || row.implant_system,
+      diameter_mm: match.diameter_mm != null ? String(match.diameter_mm) : row.diameter_mm,
+      length_mm: match.length_mm != null ? String(match.length_mm) : row.length_mm,
+      abutment_type: match.abutment_type || row.abutment_type,
+      size_label: match.size_label || row.size_label,
+    });
+  };
+
   return (
     <div>
       <Label className="text-xs">{title}</Label>
@@ -110,9 +126,9 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#F0F0EE] text-[#5C6773] text-left">
               <th className="px-2 py-2 font-medium w-10">S.No.</th>
-              <th className="px-2 py-2 font-medium w-28">Brand</th>
-              <th className="px-2 py-2 font-medium w-40">{category === 'implant' ? 'Product Line' : category === 'abutment' ? 'Type of Abutment' : 'Description'}</th>
-              <th className="px-2 py-2 font-medium w-32">Dimension{category === 'abutment' ? ' (GH)' : ''}</th>
+              <th className="px-2 py-2 font-medium w-44">Brand</th>
+              <th className={`px-2 py-2 font-medium ${category === 'implant' ? 'w-24' : 'w-44'}`}>{category === 'implant' ? 'Product Line' : category === 'abutment' ? 'Type of Abutment' : 'Description'}</th>
+              <th className="px-2 py-2 font-medium w-44">Dimension{category === 'abutment' ? ' (GH)' : ''}</th>
               <th className="px-2 py-2 font-medium w-16">Qty</th>
               <th className="px-2 py-2 font-medium w-20">Total Available</th>
               <th className="px-2 py-2 font-medium w-24">Net Cost</th>
@@ -146,9 +162,9 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
                   <td className="px-2 py-2">
                     {category === 'implant' ? (
                       <div className="flex items-center gap-1">
-                        <Input type="number" step="0.01" placeholder="⌀mm" value={row.diameter_mm} onChange={e => updateRow(row.key, { diameter_mm: e.target.value })} className={`${cellInputClass} w-14`} />
+                        <Input type="number" step="0.01" placeholder="⌀mm" value={row.diameter_mm} onChange={e => updateRow(row.key, { diameter_mm: e.target.value })} className={`${cellInputClass} w-20`} />
                         <span className="text-[#9CA3AF]">×</span>
-                        <Input type="number" step="0.01" placeholder="Lmm" value={row.length_mm} onChange={e => updateRow(row.key, { length_mm: e.target.value })} className={`${cellInputClass} w-14`} />
+                        <Input type="number" step="0.01" placeholder="Lmm" value={row.length_mm} onChange={e => updateRow(row.key, { length_mm: e.target.value })} className={`${cellInputClass} w-20`} />
                       </div>
                     ) : (
                       <Input placeholder={category === 'abutment' ? 'e.g. 2.5mm' : ''} value={row.size_label} onChange={e => updateRow(row.key, { size_label: e.target.value })} className={cellInputClass} />
@@ -157,7 +173,7 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
                   <td className="px-2 py-2">
                     <Input type="number" min="0" value={row.quantity} onChange={e => updateRow(row.key, { quantity: e.target.value })} className={cellInputClass} data-testid={`row-qty-${row.key}`} />
                   </td>
-                  <td className={`px-2 py-2 font-semibold ${rowHasData(row) && num(row.quantity) > 0 ? 'text-emerald-700' : 'text-[#D1D5DB]'}`}>
+                  <td className={`px-2 py-2 text-base font-bold ${rowHasData(row) && num(row.quantity) > 0 ? 'text-emerald-700' : 'text-[#D1D5DB]'}`}>
                     {rowHasData(row) && num(row.quantity) > 0 ? totalAfter : '—'}
                   </td>
                   <td className="px-2 py-2">
@@ -167,7 +183,7 @@ function RowsTable({ category, title, rows, setRows, inventoryItems, formatCurre
                     {num(row.quantity) > 0 && num(row.line_net_cost) > 0 ? formatCurrency(num(row.line_net_cost) / num(row.quantity)) : '—'}
                   </td>
                   <td className="px-2 py-2">
-                    <Input value={row.article_no} onChange={e => updateRow(row.key, { article_no: e.target.value })} className={cellInputClass} />
+                    <Input value={row.article_no} onChange={e => handleArticleNoChange(row, e.target.value)} className={cellInputClass} />
                   </td>
                   <td className="px-2 py-2">
                     <button type="button" onClick={() => removeRow(row.key)} className="p-1 rounded-md hover:bg-red-50 text-[#9CA3AF] hover:text-red-500 transition-colors">
@@ -195,6 +211,8 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
   const [implantRows, setImplantRows] = useState([]);
   const [abutmentRows, setAbutmentRows] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [catalogueFile, setCatalogueFile] = useState(null);
+  const [scanningCatalogue, setScanningCatalogue] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -209,6 +227,60 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
 
   const allRows = useMemo(() => [...implantRows, ...abutmentRows], [implantRows, abutmentRows]);
   const linesTotal = useMemo(() => allRows.reduce((sum, r) => sum + num(r.line_net_cost), 0), [allRows]);
+
+  // A reference number typed in that doesn't match anything already stocked
+  // — the catalogue lookup box appears so it can be identified instead of
+  // typed in by hand.
+  const unknownArticleNos = useMemo(() => {
+    const seen = new Set();
+    return allRows
+      .filter(r => r.article_no.trim() && !findMatchingItem(r, inventoryItems))
+      .map(r => r.article_no.trim())
+      .filter(a => (seen.has(a.toLowerCase()) ? false : (seen.add(a.toLowerCase()), true)));
+  }, [allRows, inventoryItems]);
+
+  const handleScanCatalogue = async () => {
+    if (!catalogueFile) return;
+    setScanningCatalogue(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', catalogueFile);
+      const res = await client.post('/api/inventory-items/scan-catalogue', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { entries, warnings } = res.data;
+
+      const applyMatches = (rows) => rows.map(row => {
+        if (!row.article_no.trim()) return row;
+        const found = entries.find(e => norm(e.article_no) === norm(row.article_no));
+        if (!found) return row;
+        return {
+          ...row,
+          brand: found.brand || row.brand,
+          implant_system: found.implant_system || row.implant_system,
+          diameter_mm: found.diameter_mm != null ? String(found.diameter_mm) : row.diameter_mm,
+          length_mm: found.length_mm != null ? String(found.length_mm) : row.length_mm,
+          abutment_type: ABUTMENT_TYPES.includes(found.abutment_type) ? found.abutment_type : row.abutment_type,
+          size_label: found.size_label || row.size_label,
+        };
+      });
+
+      const matchedCount = allRows.filter(r => r.article_no.trim() && entries.some(e => norm(e.article_no) === norm(r.article_no))).length;
+      setImplantRows(prev => applyMatches(prev));
+      setAbutmentRows(prev => applyMatches(prev));
+
+      if (matchedCount > 0) {
+        toast.success(`Matched ${matchedCount} reference number${matchedCount === 1 ? '' : 's'} from the catalogue`);
+      } else {
+        toast.warning("Couldn't find those reference numbers in this catalogue — try a different page or brand");
+      }
+      if (warnings?.length) warnings.forEach(w => toast.warning(w));
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not read this catalogue');
+    } finally {
+      setScanningCatalogue(false);
+    }
+  };
 
   const handleScanBill = async () => {
     if (!billFile) return;
@@ -355,6 +427,20 @@ export default function StockPurchaseModal({ open, onOpenChange, inventoryItems,
 
           <RowsTable category="implant" title="Implants" rows={implantRows} setRows={setImplantRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
           <RowsTable category="abutment" title="Abutments" rows={abutmentRows} setRows={setAbutmentRows} inventoryItems={inventoryItems} formatCurrency={formatCurrency} />
+
+          {unknownArticleNos.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs font-medium text-amber-800 mb-2">
+                Couldn't recognize reference number{unknownArticleNos.length === 1 ? '' : 's'}: {unknownArticleNos.join(', ')} — upload your catalogue to look {unknownArticleNos.length === 1 ? 'it' : 'them'} up.
+              </p>
+              <div className="flex items-end gap-2">
+                <Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setCatalogueFile(e.target.files?.[0] || null)} data-testid="catalogue-file-input" className="mt-1 bg-white flex-1" />
+                <Button type="button" onClick={handleScanCatalogue} disabled={!catalogueFile || scanningCatalogue} data-testid="scan-catalogue-button" className="bg-amber-600 hover:bg-amber-700 text-white shrink-0">
+                  <MagicWand size={16} weight="bold" className="mr-1.5" /> {scanningCatalogue ? 'Reading catalogue...' : 'Scan Catalogue'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div>
             <Label className="text-xs">Notes</Label>

@@ -97,7 +97,114 @@ def _extract_json(text: str) -> dict:
             text = text[4:]
     return json.loads(text.strip())
 
+
+_CATALOGUE_EXTRACTION_PROMPT = f"""
+You are reading a page (or a few pages) of a dental implant/abutment manufacturer's product
+catalogue — not an invoice, just a reference listing of products and their article/reference
+numbers.
+
+Extract every distinct product entry you can find. For each one, read off:
+- article_no: the article/SKU/reference number exactly as printed
+- raw_description: the product name/description text exactly as printed
+
+Then classify each entry clinically, the same way as for an invoice line:
+- category: "implant", "abutment", "kit", or "other"
+- If "implant": brand (manufacturer, e.g. "Alpha Bio Tech"), implant_system (product line,
+  e.g. "Spiral"), diameter_mm and length_mm as numbers, parsed from the description or from a
+  size table this entry belongs to.
+- If "abutment": brand, and abutment_type — the SINGLE closest match from this exact list:
+  {', '.join(ABUTMENT_TYPES)}
+  Set size_label to any remaining spec (e.g. "H2.5mm").
+- If "kit" or "other": brand and size_label.
+
+Return ONLY a JSON object (no markdown fences, no commentary) with this exact shape:
+
+{{
+  "entries": [
+    {{
+      "article_no": string, "raw_description": string,
+      "category": "implant"|"abutment"|"kit"|"other",
+      "brand": string or null, "implant_system": string or null,
+      "diameter_mm": number or null, "length_mm": number or null,
+      "abutment_type": string or null, "size_label": string or null
+    }}
+  ],
+  "warnings": [string, ...]
+}}
+
+Rules:
+- Only include an entry if it has a real article/reference number printed next to it.
+- If a field is unclear or not present, set it to null and add a short note to "warnings".
+- Return ONLY the JSON object, nothing else.
+"""
+
 router = APIRouter(tags=["inventory"])
+
+
+@router.post("/inventory-items/scan-catalogue")
+async def scan_catalogue(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Reads a page (or a few pages) of a supplier's product catalogue via Claude
+    and returns article-number-to-component mappings, so an unknown reference
+    number typed on a purchase can be looked up and auto-filled. Nothing is
+    saved server-side — the frontend matches entries against the rows that
+    need them.
+    """
+    api_key = settings.ANTHROPIC_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Catalogue scanning is not configured yet. Ask your administrator to add ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        import anthropic
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Catalogue scanning is not available on this server.")
+
+    content_type = file.content_type or "application/octet-stream"
+    content = await file.read()
+    b64 = base64.b64encode(content).decode("ascii")
+
+    if content_type == "application/pdf":
+        block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}
+    elif content_type in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+        block = {"type": "image", "source": {"type": "base64", "media_type": content_type, "data": b64}}
+    else:
+        raise HTTPException(status_code=400, detail=f"File type not supported for scanning: {content_type}")
+
+    try:
+        async with anthropic.AsyncAnthropic(api_key=api_key) as ai_client:
+            response = await ai_client.messages.create(
+                model=_VISION_MODEL,
+                max_tokens=4096,
+                messages=[{
+                    "role": "user",
+                    "content": [block, {"type": "text", "text": _CATALOGUE_EXTRACTION_PROMPT}],
+                }],
+            )
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        parsed = _extract_json(text)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not read a structured result from this catalogue — try a clearer photo, or upload just the relevant pages.",
+        )
+    except anthropic.AuthenticationError:
+        raise HTTPException(status_code=503, detail="AI service is misconfigured on the server.")
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=503, detail="AI service is busy right now — try again in a minute.")
+    except Exception as exc:
+        logger.exception("Failed to scan catalogue %s", file.filename)
+        raise HTTPException(status_code=500, detail=f"Could not process this catalogue: {exc}")
+
+    return {
+        "entries": parsed.get("entries") or [],
+        "warnings": parsed.get("warnings") or [],
+    }
 
 
 # ── Inventory items (distinct implant/abutment/kit + size a clinic stocks) ──
