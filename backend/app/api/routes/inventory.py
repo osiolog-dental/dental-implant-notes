@@ -1,23 +1,101 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 from app.repositories.inventory import (
     InventoryItemRepository, StockPurchaseRepository, StockTransactionRepository,
 )
 from app.schemas.inventory import (
+    ABUTMENT_TYPES,
     InventoryItemCreate, InventoryItemRead, InventoryItemUpdate,
     StockPurchaseCreate, StockPurchaseRead, StockPurchaseUpdate,
     StockTransactionCreate, StockTransactionRead,
 )
 from app.services import s3 as s3_service
+
+logger = logging.getLogger("dentalhub.inventory")
+
+# Keep in sync with app/services/chat.py CHAT_MODEL / implant_log_scan.py
+_VISION_MODEL = "claude-opus-4-8"
+
+_BILL_EXTRACTION_PROMPT = f"""
+You are reading a dental implant/abutment supplier invoice or order confirmation (a photo or a PDF).
+
+Extract two things:
+
+1. Purchase header: supplier/company name, invoice or order date, order/invoice number, and
+   the final total amount actually payable (the tax-inclusive grand total if one is shown,
+   e.g. "Total Pay Amount" — otherwise the net total).
+
+2. Every line item in the goods table. For each line, read off:
+   - article_no: the article/SKU/reference number (e.g. "ABT1300")
+   - raw_description: the description text exactly as printed
+   - quantity: the quantity/qty column (integer)
+   - net_cost: that line's own net total AFTER any discount (the "Total Net" column or
+     equivalent) — never the pre-discount list price or unit price column.
+
+   Then classify each line clinically:
+   - category: "implant", "abutment", "kit", or "other"
+   - If category is "implant": brand (manufacturer, e.g. "Alpha Bio Tech", "Nobel Biocare"),
+     implant_system (product line, e.g. "Spiral", "NobelActive"), diameter_mm and length_mm
+     as numbers — parse these straight out of the description (e.g. "D3.3mm L10.0mm" means
+     diameter_mm=3.3, length_mm=10.0).
+   - If category is "abutment": brand, and abutment_type — pick the SINGLE closest match from
+     this exact list based on the description (match any angle in degrees mentioned; a
+     "Multi-Unit"/"MUA"/tapered-connection/full-arch style description maps to one of the
+     Multi-Unit options; a plain single-tooth screw-retained abutment maps to one of the Stock
+     Abutment options):
+     {', '.join(ABUTMENT_TYPES)}
+     Set size_label to any remaining spec not captured above (e.g. "H2.5mm", "L 2.5mm").
+   - If category is "kit" or "other": brand and size_label (a short description).
+
+Return ONLY a JSON object (no markdown fences, no commentary) with this exact shape:
+
+{{
+  "purchase": {{
+    "supplier_name": string or null, "purchase_date": "YYYY-MM-DD" or null,
+    "order_ref": string or null, "total_amount": number or null
+  }},
+  "lines": [
+    {{
+      "article_no": string or null, "raw_description": string,
+      "category": "implant"|"abutment"|"kit"|"other",
+      "brand": string or null, "implant_system": string or null,
+      "diameter_mm": number or null, "length_mm": number or null,
+      "abutment_type": string or null, "size_label": string or null,
+      "quantity": integer, "net_cost": number or null
+    }}
+  ],
+  "warnings": [string, ...]
+}}
+
+Rules:
+- Only include a line if its quantity is greater than 0. Skip subtotal/tax/summary rows.
+- If a field is unclear, illegible, or not present, set it to null and add a short note to
+  "warnings" — never guess a number.
+- Convert any date to YYYY-MM-DD. If the year is written as 2 digits, assume 20XX.
+- Return ONLY the JSON object, nothing else.
+"""
+
+
+def _extract_json(text: str) -> dict:
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+    return json.loads(text.strip())
 
 router = APIRouter(tags=["inventory"])
 
@@ -137,6 +215,71 @@ async def delete_stock_transaction(
 
 
 # ── Stock purchases (one dealer invoice, made up of one or more line items) ─
+
+@router.post("/stock-purchases/scan-bill")
+async def scan_purchase_bill(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Reads a photo or PDF of a supplier invoice via Claude and returns draft
+    header + line-item data. Nothing is saved here — the frontend shows an
+    editable table and only saves what the doctor confirms.
+    """
+    api_key = settings.ANTHROPIC_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Bill scanning is not configured yet. Ask your administrator to add ANTHROPIC_API_KEY.",
+        )
+
+    try:
+        import anthropic
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Bill scanning is not available on this server.")
+
+    content_type = file.content_type or "application/octet-stream"
+    content = await file.read()
+    b64 = base64.b64encode(content).decode("ascii")
+
+    if content_type == "application/pdf":
+        block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}
+    elif content_type in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+        block = {"type": "image", "source": {"type": "base64", "media_type": content_type, "data": b64}}
+    else:
+        raise HTTPException(status_code=400, detail=f"File type not supported for scanning: {content_type}")
+
+    try:
+        async with anthropic.AsyncAnthropic(api_key=api_key) as ai_client:
+            response = await ai_client.messages.create(
+                model=_VISION_MODEL,
+                max_tokens=4096,
+                messages=[{
+                    "role": "user",
+                    "content": [block, {"type": "text", "text": _BILL_EXTRACTION_PROMPT}],
+                }],
+            )
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        parsed = _extract_json(text)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not read a structured result from this bill — try a clearer photo or a text-based PDF.",
+        )
+    except anthropic.AuthenticationError:
+        raise HTTPException(status_code=503, detail="AI service is misconfigured on the server.")
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=503, detail="AI service is busy right now — try again in a minute.")
+    except Exception as exc:
+        logger.exception("Failed to scan purchase bill %s", file.filename)
+        raise HTTPException(status_code=500, detail=f"Could not process this bill: {exc}")
+
+    return {
+        "purchase": parsed.get("purchase") or {},
+        "lines": parsed.get("lines") or [],
+        "warnings": parsed.get("warnings") or [],
+    }
+
 
 @router.get("/stock-purchases", response_model=list[StockPurchaseRead])
 async def list_stock_purchases(
