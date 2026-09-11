@@ -5,6 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.firebase import verify_id_token
 from app.db.session import get_db
 from app.models.user import User
@@ -72,3 +73,14 @@ async def get_current_user_optional(
         return result.scalar_one_or_none()
     except Exception:
         return None
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Gates /api/admin/* routes. There's no stored role — the one admin
+    account is identified purely by matching the logged-in email against
+    settings.ADMIN_EMAIL, since this app only ever has one operator.
+    """
+    if current_user.email.lower() != settings.ADMIN_EMAIL.lower():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

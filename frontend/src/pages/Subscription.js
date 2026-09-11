@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import client from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import { useLocale } from '../contexts/LocaleContext';
+import ContactModal from '../components/ContactModal';
 import {
   CheckCircle, X, Crown, Buildings, User,
-  HardDrive, ArrowRight, Star, Rocket, Plus,
+  HardDrive, ArrowRight, Star, Rocket, Plus, Users,
 } from '@phosphor-icons/react';
 
 
@@ -193,13 +195,14 @@ function StorageMeter({ usedMB, limitMB, color }) {
 }
 
 export default function Subscription() {
+  const { user } = useAuth();
   const { country } = useLocale();
   const isIndia = country.currency === 'INR';
   const currencySymbol = isIndia ? '₹' : '$';
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'sixmonth' | 'yearly'
   const [status, setStatus] = useState(null);
-  const [upgrading, setUpgrading] = useState(null);
   const [addingStorage, setAddingStorage] = useState(null); // blocks count currently submitting
+  const [upgradeRequest, setUpgradeRequest] = useState(null); // { subject, message } or null
 
   useEffect(() => {
     client.get('/api/subscription/status')
@@ -209,19 +212,17 @@ export default function Subscription() {
 
   const currentPlan = status?.plan || 'free';
 
-  const handleUpgrade = async (planKey, effectiveBilling) => {
+  // There's no self-serve checkout yet — requesting a plan change opens the
+  // Contact form pre-filled, so it reaches admin@osiolog.com directly
+  // instead of hitting a payment integration that doesn't exist.
+  const requestUpgrade = (planKey, effectiveBilling) => {
     if (planKey === currentPlan) return;
-    setUpgrading(planKey);
-    try {
-      await client.post('/api/subscription/upgrade', { plan: planKey, billing: effectiveBilling });
-      toast.success(`Upgraded to ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan!`);
-      const r = await client.get('/api/subscription/status');
-      setStatus(r.data);
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Upgrade failed');
-    } finally {
-      setUpgrading(null);
-    }
+    const planName = planKey.charAt(0).toUpperCase() + planKey.slice(1);
+    const billingLabel = effectiveBilling === 'yearly' ? 'yearly' : effectiveBilling === 'sixmonth' ? '6-month' : 'monthly';
+    setUpgradeRequest({
+      subject: `${planKey === 'free' ? 'Downgrade' : 'Upgrade'} to ${planName} plan`,
+      message: `I'd like to switch from my current ${currentPlan} plan to the ${planName} plan (${billingLabel} billing). Please let me know how to proceed with payment.`,
+    });
   };
 
   const handleAddStorage = async (blocks) => {
@@ -264,16 +265,35 @@ export default function Subscription() {
               <p className="font-bold text-[#2A2F35]">{currentPlanDef.name}</p>
             </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <HardDrive size={14} className="text-[#82A098]" />
-              <span className="text-xs font-medium text-[#5C6773]">Storage Usage</span>
+          <div className="flex-1 min-w-0 space-y-3">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <HardDrive size={14} className="text-[#82A098]" />
+                <span className="text-xs font-medium text-[#5C6773]">Storage Usage</span>
+              </div>
+              <StorageMeter
+                usedMB={status.used_mb}
+                limitMB={status.limit_mb}
+                color={currentPlanDef.color}
+              />
             </div>
-            <StorageMeter
-              usedMB={status.used_mb}
-              limitMB={status.limit_mb}
-              color={currentPlanDef.color}
-            />
+            {status.patient_limit != null && (
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="flex items-center gap-1.5 font-medium text-[#5C6773]"><Users size={14} className="text-[#82A098]" /> Patients</span>
+                  <span className="text-[#5C6773]">{status.patient_count} / {status.patient_limit}</span>
+                </div>
+                <div className="h-2 bg-[#E5E5E2] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min((status.patient_count / status.patient_limit) * 100, 100)}%`,
+                      background: status.patient_count >= status.patient_limit ? '#EF4444' : currentPlanDef.color,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           {status.plan_end && (
             <div className="shrink-0 text-right">
@@ -409,8 +429,8 @@ export default function Subscription() {
               {/* CTA button */}
               <button
                 data-testid={`upgrade-${plan.key}`}
-                onClick={() => handleUpgrade(plan.key, effectiveBilling)}
-                disabled={isCurrent || upgrading === plan.key}
+                onClick={() => requestUpgrade(plan.key, effectiveBilling)}
+                disabled={isCurrent}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{
                   background: isCurrent ? plan.color + '18' : plan.color,
@@ -418,9 +438,7 @@ export default function Subscription() {
                   border: `1.5px solid ${plan.color}`,
                 }}
               >
-                {upgrading === plan.key ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : isCurrent ? (
+                {isCurrent ? (
                   <>
                     <CheckCircle size={15} weight="fill" /> Current Plan
                   </>
@@ -530,6 +548,15 @@ export default function Subscription() {
         All plans include a 7-day free trial. No credit card required for Free plan.
         Prices in {isIndia ? 'INR' : 'USD'}. Cancel anytime.
       </p>
+
+      <ContactModal
+        open={!!upgradeRequest}
+        onOpenChange={(open) => { if (!open) setUpgradeRequest(null); }}
+        defaultName={user?.name || ''}
+        defaultEmail={user?.email || ''}
+        defaultSubject={upgradeRequest?.subject || ''}
+        defaultMessage={upgradeRequest?.message || ''}
+      />
     </div>
   );
 }

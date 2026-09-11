@@ -173,6 +173,12 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     ENVIRONMENT: str = "development"
 
+    # The one admin account for this app — whoever is logged in with this
+    # email gets access to /api/admin/* (org list, plan changes, contact
+    # messages). No self-serve signup path for this; it's just a login-email
+    # match, not a stored role, since there's only ever one admin.
+    ADMIN_EMAIL: str = "admin@osiolog.com"
+
     def model_post_init(self, __context: object) -> None:  # noqa: ANN001
         if not self.DATABASE_URL:
             print(

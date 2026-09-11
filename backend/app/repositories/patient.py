@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.patient import Patient
@@ -12,6 +12,12 @@ from app.schemas.patient import PatientCreate, PatientUpdate
 class PatientRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def count(self, org_id: uuid.UUID) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(Patient).where(Patient.org_id == org_id, Patient.deleted_at.is_(None))
+        )
+        return int(result.scalar_one())
 
     async def list(
         self,

@@ -15,17 +15,17 @@ const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-m
 
 const INITIAL = { name: '', email: '', subject: '', message: '' };
 
-export default function ContactModal({ open, onOpenChange, defaultName = '', defaultEmail = '' }) {
-  const [form, setForm] = useState({ ...INITIAL, name: defaultName, email: defaultEmail });
+export default function ContactModal({ open, onOpenChange, defaultName = '', defaultEmail = '', defaultSubject = '', defaultMessage = '' }) {
+  const [form, setForm] = useState({ ...INITIAL, name: defaultName, email: defaultEmail, subject: defaultSubject, message: defaultMessage });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm({ ...INITIAL, name: defaultName, email: defaultEmail });
+      setForm({ ...INITIAL, name: defaultName, email: defaultEmail, subject: defaultSubject, message: defaultMessage });
       setSent(false);
     }
-  }, [open, defaultName, defaultEmail]);
+  }, [open, defaultName, defaultEmail, defaultSubject, defaultMessage]);
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 

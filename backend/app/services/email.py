@@ -50,3 +50,37 @@ def send_contact_notification(name: str | None, email: str, subject: str | None,
         return response.status_code == 200
     except Exception:
         return False
+
+
+def send_email(to_email: str, subject: str, body_text: str) -> bool:
+    """
+    Send a plain-text email to an arbitrary recipient — used by the admin
+    panel for maintenance notices, offers, and one-off customer replies.
+
+    Note: with only the shared onboarding@resend.dev sender configured,
+    Resend restricts delivery to the account's own verified address
+    (admin@osiolog.com) — sends to any other address will fail until
+    osiolog.com's domain is verified with Resend (a DNS step at the
+    registrar). Once verified, swap RESEND_FROM to an @osiolog.com address
+    and this same function starts reaching real recipients.
+    """
+    if not is_configured():
+        return False
+
+    payload = {
+        "from": RESEND_FROM,
+        "to": [to_email],
+        "subject": subject,
+        "text": body_text,
+    }
+
+    try:
+        response = requests.post(
+            RESEND_ENDPOINT,
+            json=payload,
+            headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+            timeout=10,
+        )
+        return response.status_code == 200
+    except Exception:
+        return False

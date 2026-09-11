@@ -3,10 +3,13 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.plans import patient_limit
 from app.db.session import get_db
+from app.models.organization import Organization
 from app.models.user import User
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate, PatientRead, PatientUpdate
@@ -40,6 +43,18 @@ async def create_patient(
     db: AsyncSession = Depends(get_db),
 ) -> PatientRead:
     repo = PatientRepository(db)
+
+    org = (await db.execute(select(Organization).where(Organization.id == current_user.org_id))).scalar_one_or_none()
+    limit = patient_limit(org.plan if org else "free")
+    if limit is not None:
+        current_count = await repo.count(current_user.org_id)
+        if current_count >= limit:
+            raise HTTPException(
+                status_code=402,
+                detail=f"You've reached the {limit}-patient limit on your current plan. "
+                       f"Contact admin@osiolog.com to upgrade.",
+            )
+
     patient = await repo.create(current_user.org_id, current_user.id, body)
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="create", entity_type="patient", entity_id=str(patient.id))

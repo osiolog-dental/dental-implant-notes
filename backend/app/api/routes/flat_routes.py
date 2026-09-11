@@ -17,15 +17,17 @@ import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.plans import patient_limit, storage_limit_mb
 from app.db.session import get_db
 from app.models.audit import AuditEvent
 from app.models.case import CaseImage
 from app.models.fpd import ProstheticFPD
 from app.models.implant import Implant
+from app.models.organization import Organization
 from app.models.patient import Patient
 from app.models.user import User
 from app.repositories.fpd import FPDRepository
@@ -1259,11 +1261,20 @@ async def subscription_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    org = (await db.execute(select(Organization).where(Organization.id == current_user.org_id))).scalar_one_or_none()
+    plan = org.plan if org else "free"
+    patient_count = int((await db.execute(
+        select(func.count()).select_from(Patient).where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )).scalar_one())
     return {
-        "plan": "free",
+        "plan": plan,
+        # Storage usage isn't tracked yet — always reporting 0 used until
+        # actual R2 usage is measured; the limit itself is still accurate.
         "used_mb": 0,
-        "limit_mb": 500,
+        "limit_mb": storage_limit_mb(plan),
         "plan_end": None,
+        "patient_count": patient_count,
+        "patient_limit": patient_limit(plan),
     }
 
 

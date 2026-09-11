@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
-import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope, Package } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope, Package, ShieldCheck } from '@phosphor-icons/react';
 import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
@@ -105,6 +105,11 @@ const Layout = () => {
     navigate('/login');
   };
 
+  // Cosmetic only — the real gate is server-side (require_admin checks the
+  // logged-in email against ADMIN_EMAIL), this just hides the nav link for
+  // everyone else.
+  const isAdmin = user?.email?.toLowerCase() === 'admin@osiolog.com';
+
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: House },
     { path: '/patients', label: 'Patients', icon: Users },
@@ -113,6 +118,7 @@ const Layout = () => {
     { path: '/clinics', label: 'Clinics', icon: Buildings },
     { path: '/backup', label: 'Backup', icon: CloudArrowUp },
     { path: '/subscription', label: 'Subscription', icon: Crown },
+    ...(isAdmin ? [{ path: '/admin', label: 'Admin', icon: ShieldCheck }] : []),
   ];
 
   const footerItems = [
@@ -123,6 +129,7 @@ const Layout = () => {
     { path: '/clinics', label: 'Clinics', icon: Buildings },
     { path: '/backup', label: 'Backup', icon: CloudArrowUp },
     { path: '/subscription', label: 'Subscription', icon: Crown },
+    ...(isAdmin ? [{ path: '/admin', label: 'Admin', icon: ShieldCheck }] : []),
   ];
 
   const rawName = user?.name || 'Doctor';
