@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Buildings, Users, Tooth, Envelope, PaperPlaneTilt, ChartLine, GlobeHemisphereWest } from '@phosphor-icons/react';
+import { Buildings, Users, Tooth, Envelope, PaperPlaneTilt, ChartLine, GlobeHemisphereWest, Fingerprint } from '@phosphor-icons/react';
 import client from '../api/client';
 import SendEmailModal from '../components/SendEmailModal';
 
@@ -91,6 +91,8 @@ export default function Admin() {
   const [overview, setOverview] = useState(null);
   const [orgs, setOrgs] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [firebaseUsers, setFirebaseUsers] = useState([]);
+  const [firebaseError, setFirebaseError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedOrgIds, setSelectedOrgIds] = useState(new Set());
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -110,6 +112,14 @@ export default function Admin() {
       toast.error('Failed to load admin data — you may not have admin access');
     } finally {
       setLoading(false);
+    }
+
+    try {
+      const firebaseRes = await client.get('/api/admin/firebase-users');
+      setFirebaseUsers(firebaseRes.data);
+      setFirebaseError(null);
+    } catch (err) {
+      setFirebaseError(err?.response?.data?.detail || 'Could not load Firebase accounts');
     }
   };
 
@@ -265,6 +275,47 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="text-lg font-semibold text-[#2A2F35] mb-1 flex items-center gap-2">
+        <Fingerprint size={18} /> Firebase Logins
+      </h2>
+      <p className="text-xs text-[#9CA3AF] mb-3">
+        Everyone who has ever signed in via Firebase, not just those who finished registering in the app.
+      </p>
+      <div className="bg-white border border-[#E5E5E2] rounded-xl overflow-hidden mb-8 overflow-x-auto">
+        {firebaseError ? (
+          <p className="p-4 text-sm text-amber-700 bg-amber-50">{firebaseError}</p>
+        ) : firebaseUsers.length === 0 ? (
+          <p className="p-4 text-sm text-[#9CA3AF]">No Firebase accounts found.</p>
+        ) : (
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="bg-[#F9F9F8] text-left text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+                <th className="px-3 py-2 font-medium">Email</th>
+                <th className="px-3 py-2 font-medium">Provider</th>
+                <th className="px-3 py-2 font-medium">Signed Up</th>
+                <th className="px-3 py-2 font-medium">Last Login</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {firebaseUsers.map(u => (
+                <tr key={u.uid} className="border-t border-[#F0F0EE]" data-testid={`admin-firebase-user-${u.uid}`}>
+                  <td className="px-3 py-2.5 text-[#2A2F35]">{u.email || '—'}</td>
+                  <td className="px-3 py-2.5 text-[#5C6773] text-xs">{(u.provider || '—').replace('.com', '')}</td>
+                  <td className="px-3 py-2.5 text-[#5C6773] text-xs whitespace-nowrap">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-3 py-2.5 text-[#5C6773] text-xs whitespace-nowrap">{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${u.registered_in_app ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {u.registered_in_app ? 'Registered' : 'Signed up only'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <h2 className="text-lg font-semibold text-[#2A2F35] mb-3 flex items-center gap-2">

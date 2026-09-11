@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from firebase_admin import auth as firebase_auth
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -153,6 +154,43 @@ async def send_admin_email(
         (sent if ok else failed).append(recipient)
 
     return {"sent": sent, "failed": failed}
+
+
+@router.get("/firebase-users")
+async def list_firebase_users(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """
+    Every Firebase Auth account, cross-referenced against our own users
+    table. Someone who signs up via Firebase but never finishes the app's
+    registration step never gets a row in `users` — so they're invisible
+    everywhere else in this admin panel. This surfaces them too, flagged
+    as not yet registered, so drop-offs are visible for growth analysis.
+    """
+    db_uids = set((await db.execute(select(User.firebase_uid))).scalars().all())
+
+    results = []
+    try:
+        page = firebase_auth.list_users()
+        while page:
+            for u in page.users:
+                created_ms = u.user_metadata.creation_timestamp
+                last_login_ms = u.user_metadata.last_sign_in_timestamp
+                results.append({
+                    "uid": u.uid,
+                    "email": u.email,
+                    "provider": u.provider_data[0].provider_id if u.provider_data else None,
+                    "created_at": datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc) if created_ms else None,
+                    "last_login_at": datetime.fromtimestamp(last_login_ms / 1000, tz=timezone.utc) if last_login_ms else None,
+                    "registered_in_app": u.uid in db_uids,
+                })
+            page = page.get_next_page()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach Firebase Admin API: {exc}")
+
+    results.sort(key=lambda u: u["created_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return results
 
 
 @router.get("/contact-messages")
