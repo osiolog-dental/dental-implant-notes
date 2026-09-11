@@ -219,6 +219,13 @@ async def list_firebase_users(
                     "registered_in_app": u.uid in db_uids,
                 })
             page = page.get_next_page()
+    except NotImplementedError:
+        raise HTTPException(
+            status_code=502,
+            detail="Firebase Admin credentials aren't configured on the server — "
+                   "set FIREBASE_SERVICE_ACCOUNT_JSON to a real service account key "
+                   "to enable this list.",
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach Firebase Admin API: {exc}")
 

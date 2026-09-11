@@ -96,6 +96,7 @@ export default function Admin() {
   const [sentEmails, setSentEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrgIds, setSelectedOrgIds] = useState(new Set());
+  const [selectedFirebaseUids, setSelectedFirebaseUids] = useState(new Set());
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailPrefill, setEmailPrefill] = useState([]);
 
@@ -157,6 +158,33 @@ export default function Admin() {
 
   const openSingleEmail = (email) => {
     setEmailPrefill([email]);
+    setEmailModalOpen(true);
+  };
+
+  const toggleFirebaseSelect = (u) => {
+    setSelectedFirebaseUids(prev => {
+      const next = new Set(prev);
+      if (next.has(u.uid)) next.delete(u.uid); else next.add(u.uid);
+      return next;
+    });
+  };
+
+  const toggleFirebaseSelectAll = () => {
+    const selectable = firebaseUsers.filter(u => u.email);
+    setSelectedFirebaseUids(prev => prev.size === selectable.length ? new Set() : new Set(selectable.map(u => u.uid)));
+  };
+
+  const selectedFirebaseEmails = useMemo(
+    () => firebaseUsers.filter(u => selectedFirebaseUids.has(u.uid) && u.email).map(u => u.email),
+    [firebaseUsers, selectedFirebaseUids]
+  );
+
+  const openFirebaseBulkEmail = () => {
+    if (selectedFirebaseEmails.length === 0) {
+      toast.error('Select at least one account first');
+      return;
+    }
+    setEmailPrefill(selectedFirebaseEmails);
     setEmailModalOpen(true);
   };
 
@@ -280,9 +308,16 @@ export default function Admin() {
         </table>
       </div>
 
-      <h2 className="text-lg font-semibold text-[#2A2F35] mb-1 flex items-center gap-2">
-        <Fingerprint size={18} /> Firebase Logins
-      </h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-lg font-semibold text-[#2A2F35] flex items-center gap-2">
+          <Fingerprint size={18} /> Firebase Logins
+        </h2>
+        {selectedFirebaseUids.size > 0 && (
+          <button onClick={openFirebaseBulkEmail} data-testid="admin-firebase-bulk-email-button" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-medium rounded-md">
+            <PaperPlaneTilt size={14} weight="bold" /> Email {selectedFirebaseUids.size} Selected
+          </button>
+        )}
+      </div>
       <p className="text-xs text-[#9CA3AF] mb-3">
         Everyone who has ever signed in via Firebase, not just those who finished registering in the app.
       </p>
@@ -292,9 +327,12 @@ export default function Admin() {
         ) : firebaseUsers.length === 0 ? (
           <p className="p-4 text-sm text-[#9CA3AF]">No Firebase accounts found.</p>
         ) : (
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[680px]">
             <thead>
               <tr className="bg-[#F9F9F8] text-left text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+                <th className="px-3 py-2 font-medium">
+                  <input type="checkbox" onChange={toggleFirebaseSelectAll} checked={selectedFirebaseUids.size > 0 && selectedFirebaseUids.size === firebaseUsers.filter(u => u.email).length} data-testid="admin-firebase-select-all" />
+                </th>
                 <th className="px-3 py-2 font-medium">Email</th>
                 <th className="px-3 py-2 font-medium">Provider</th>
                 <th className="px-3 py-2 font-medium">Signed Up</th>
@@ -305,6 +343,9 @@ export default function Admin() {
             <tbody>
               {firebaseUsers.map(u => (
                 <tr key={u.uid} className="border-t border-[#F0F0EE]" data-testid={`admin-firebase-user-${u.uid}`}>
+                  <td className="px-3 py-2.5">
+                    <input type="checkbox" checked={selectedFirebaseUids.has(u.uid)} onChange={() => toggleFirebaseSelect(u)} disabled={!u.email} data-testid={`admin-firebase-select-${u.uid}`} />
+                  </td>
                   <td className="px-3 py-2.5 text-[#2A2F35]">{u.email || '—'}</td>
                   <td className="px-3 py-2.5 text-[#5C6773] text-xs">{(u.provider || '—').replace('.com', '')}</td>
                   <td className="px-3 py-2.5 text-[#5C6773] text-xs whitespace-nowrap">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
