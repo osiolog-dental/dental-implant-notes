@@ -41,6 +41,11 @@ class InventoryItem(Base):
     size_label: Mapped[str | None] = mapped_column(String(255), nullable=True)       # free-text spec (height, kit contents, etc.)
     article_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # dealer/manufacturer SKU, e.g. "ABT1300"
     low_stock_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    # Kits only: drill bits wear out after repeated use, not after a quantity
+    # runs out. usage_threshold is how many implant surgeries this kit is
+    # good for before it needs replacing; usage count itself is derived live
+    # from implant records logged since this kit's created_at, not stored.
+    usage_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     clinic_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 

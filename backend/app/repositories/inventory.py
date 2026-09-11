@@ -6,6 +6,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalogue_reference import CatalogueReference
+from app.models.implant import Implant
 from app.models.inventory_item import InventoryItem
 from app.models.stock_purchase import StockPurchase
 from app.models.stock_transaction import StockTransaction
@@ -50,6 +51,17 @@ class InventoryItemRepository:
     async def get_available_quantity(self, item_id: uuid.UUID) -> int:
         result = await self.db.execute(
             select(func.coalesce(func.sum(_SIGNED_QTY), 0)).where(StockTransaction.inventory_item_id == item_id)
+        )
+        return int(result.scalar_one())
+
+    async def count_implants_for_kit(self, kit_id: uuid.UUID) -> int:
+        """
+        How many implant surgeries have been explicitly logged against this
+        specific kit — a drill bit wears out from repeated use of that exact
+        kit, not from any implant done anywhere in the clinic.
+        """
+        result = await self.db.execute(
+            select(func.count(Implant.id)).where(Implant.surgical_kit_id == kit_id)
         )
         return int(result.scalar_one())
 

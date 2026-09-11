@@ -30,6 +30,7 @@ class ImplantBase(BaseModel):
     implant_type: str | None = None
     brand: str | None = None
     article_no: str | None = None
+    surgical_kit_id: uuid.UUID | None = None
     size: str | None = None
     length: float | None = None
     diameter_mm: float | None = None
@@ -75,6 +76,11 @@ class ImplantBase(BaseModel):
     @classmethod
     def coerce_date(cls, v: Any) -> Any:
         return _empty_to_none_date(v)
+
+    @field_validator("surgical_kit_id", mode="before")
+    @classmethod
+    def coerce_uuid(cls, v: Any) -> Any:
+        return None if v == "" else v
 
     @field_validator("peri_implant_health", mode="before")
     @classmethod

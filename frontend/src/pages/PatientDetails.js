@@ -34,6 +34,7 @@ const INITIAL_IMPLANT = {
   implant_type: 'Single',
   brand: '',
   article_no: '',
+  surgical_kit_id: '',
   implant_system: '',
   diameter_mm: '',
   length_mm: '',
@@ -191,6 +192,7 @@ const PatientDetails = () => {
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [clinics, setClinics] = useState([]);
   const [catalogueRefs, setCatalogueRefs] = useState([]);
+  const [surgicalKits, setSurgicalKits] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
   const [editPatientData, setEditPatientData] = useState({});
@@ -236,7 +238,7 @@ const PatientDetails = () => {
 
   const fetchAll = async () => {
     try {
-      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes, lineItemsRes, paymentsRes, catalogueRes] = await Promise.all([
+      const [patientRes, implantsRes, fpdRes, clinicsRes, abutmentRes, overdentureRes, rehabRes, extractionRes, followUpRes, lineItemsRes, paymentsRes, catalogueRes, inventoryRes] = await Promise.all([
         client.get(`/api/patients/${id}`),
         client.get(`/api/implants?patient_id=${id}`),
         client.get(`/api/fpd-records?patient_id=${id}`),
@@ -250,6 +252,7 @@ const PatientDetails = () => {
         client.get(`/api/financial-line-items?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/patient-payments?patient_id=${id}`).catch(() => ({ data: [] })),
         client.get(`/api/catalogue-references`).catch(() => ({ data: [] })),
+        client.get(`/api/inventory-items`).catch(() => ({ data: [] })),
       ]);
       setPatient(patientRes.data);
       setImplants(implantsRes.data);
@@ -263,6 +266,7 @@ const PatientDetails = () => {
       setLineItems(lineItemsRes.data);
       setPayments(paymentsRes.data);
       setCatalogueRefs(catalogueRes.data);
+      setSurgicalKits((inventoryRes.data || []).filter(i => i.category === 'kit'));
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -824,6 +828,7 @@ const PatientDetails = () => {
         clinic_id: formData.clinic_id || null,
         implant_system: formData.implant_system || null,
         article_no: formData.article_no || null,
+        surgical_kit_id: formData.surgical_kit_id || null,
         surgeon_name: formData.surgeon_name || null,
         follow_up_date: formData.follow_up_date || null,
       };
@@ -849,6 +854,7 @@ const PatientDetails = () => {
       tooth_number: implant.tooth_number?.toString() || '',
       brand: implant.brand || '',
       article_no: implant.article_no || '',
+      surgical_kit_id: implant.surgical_kit_id || '',
       implant_system: implant.implant_system || '',
       diameter_mm: implant.diameter_mm?.toString() || '',
       length_mm: implant.length_mm?.toString() || '',
@@ -1125,6 +1131,7 @@ const PatientDetails = () => {
             selectedTooth={selectedTooth}
             clinics={clinics}
             catalogueRefs={catalogueRefs}
+            surgicalKits={surgicalKits}
           />
 
           {/* FPD Log Sheet Dialog (opened via chart tooth click) */}

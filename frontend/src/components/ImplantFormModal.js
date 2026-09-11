@@ -25,6 +25,7 @@ export default function ImplantFormModal({
   selectedTooth,
   clinics,
   catalogueRefs = [],
+  surgicalKits = [],
 }) {
   // Article number uniquely identifies one exact component in a brand's
   // catalogue — typing one you've scanned before fills in the rest.
@@ -137,6 +138,22 @@ export default function ImplantFormModal({
               </select>
             </div>
           </div>
+
+          {surgicalKits.length > 0 && (
+            <div>
+              <Label className="text-xs">Surgical Kit Used</Label>
+              <select value={formData.surgical_kit_id || ''} onChange={(e) => updateField('surgical_kit_id', e.target.value)} data-testid="surgical-kit-select" className={`mt-1 ${selectClass}`}>
+                <option value="">Not tracked</option>
+                {surgicalKits.map(kit => (
+                  <option key={kit.id} value={kit.id}>
+                    {[kit.brand, kit.size_label].filter(Boolean).join(' — ') || 'Surgical Kit'}
+                    {kit.article_no ? ` (${kit.article_no})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">Counts one use toward that kit's drill-bit wear tracking, on Stock.</p>
+            </div>
+          )}
 
           {/* Row 5: Surgery Date, Follow-up, Prosthetic Loading, Surgeon */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

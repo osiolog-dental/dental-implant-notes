@@ -51,6 +51,7 @@ export const INITIAL_ITEM = {
   size_label: '',
   article_no: '',
   low_stock_threshold: '5',
+  usage_threshold: '100',
   notes: '',
   current_quantity: '',
   per_unit_price: '',
@@ -75,6 +76,7 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
         size_label: editingItem.size_label || '',
         article_no: editingItem.article_no || '',
         low_stock_threshold: editingItem.low_stock_threshold != null ? String(editingItem.low_stock_threshold) : '5',
+        usage_threshold: editingItem.usage_threshold != null ? String(editingItem.usage_threshold) : '100',
         notes: editingItem.notes || '',
       } : { ...INITIAL_ITEM });
     }
@@ -83,6 +85,7 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
   const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
   const isImplant = form.category === 'implant';
   const isAbutment = form.category === 'abutment';
+  const isKit = form.category === 'kit';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -98,6 +101,7 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
         size_label: form.size_label || null,
         article_no: form.article_no || null,
         low_stock_threshold: form.low_stock_threshold ? parseInt(form.low_stock_threshold, 10) : 5,
+        usage_threshold: isKit && form.usage_threshold ? parseInt(form.usage_threshold, 10) : null,
         notes: form.notes || null,
       };
       const res = editingItem
@@ -182,6 +186,14 @@ export default function InventoryItemModal({ open, onOpenChange, editingItem, on
             <div>
               <Label className="text-xs">Size / Description</Label>
               <Input value={form.size_label} onChange={e => update('size_label', e.target.value)} placeholder="e.g. Surgical Kit A" data-testid="item-size-input" className="mt-1" />
+            </div>
+          )}
+
+          {isKit && (
+            <div>
+              <Label className="text-xs">Replace Drill Bits After (implant cases)</Label>
+              <Input type="number" min="0" value={form.usage_threshold} onChange={e => update('usage_threshold', e.target.value)} placeholder="100" data-testid="item-usage-threshold-input" className="mt-1" />
+              <p className="text-[10px] text-[#9CA3AF] mt-1">Every implant logged from now on counts as one use of this kit — you'll get a reminder once it reaches this many.</p>
             </div>
           )}
 

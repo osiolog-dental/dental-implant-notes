@@ -41,6 +41,7 @@ class InventoryItemBase(BaseModel):
     size_label: str | None = None
     article_no: str | None = None
     low_stock_threshold: int = 5
+    usage_threshold: int | None = None  # kits only — implant surgeries before drill bits need replacing
     notes: str | None = None
     clinic_id: uuid.UUID | None = None
 
@@ -59,6 +60,11 @@ class InventoryItemBase(BaseModel):
     def _empty_number(cls, v):
         return None if v in ('', None) else v
 
+    @field_validator('usage_threshold', mode='before')
+    @classmethod
+    def _empty_int(cls, v):
+        return None if v in ('', None) else v
+
 
 class InventoryItemCreate(InventoryItemBase):
     pass
@@ -73,6 +79,7 @@ class InventoryItemRead(InventoryItemBase):
     org_id: uuid.UUID
     created_at: datetime
     available_quantity: int = 0
+    kit_usage_count: int | None = None  # kits only — implant surgeries logged since this kit was added
 
     model_config = {"from_attributes": True}
 

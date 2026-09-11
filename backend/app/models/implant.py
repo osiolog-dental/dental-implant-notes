@@ -17,6 +17,7 @@ class Implant(Base):
         sa.Index("ix_implants_case_id", "case_id"),
         sa.Index("ix_implants_patient_id", "patient_id"),
         sa.Index("ix_implants_follow_up_date", "follow_up_date"),
+        sa.Index("ix_implants_surgical_kit_id", "surgical_kit_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -36,6 +37,12 @@ class Implant(Base):
     implant_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
     article_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # dealer/manufacturer SKU, e.g. "ABT1300"
+    # Which surgical kit (InventoryItem, category='kit') this case used —
+    # drives per-kit drill-bit wear tracking. Kept even if the kit is later
+    # deleted, so past usage history isn't lost.
+    surgical_kit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="SET NULL"), nullable=True
+    )
     size: Mapped[str | None] = mapped_column(String(50), nullable=True)
     length: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     insertion_torque: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)

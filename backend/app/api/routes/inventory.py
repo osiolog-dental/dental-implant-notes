@@ -251,10 +251,13 @@ async def list_inventory_items(
 ) -> list[InventoryItemRead]:
     repo = InventoryItemRepository(db)
     rows = await repo.list_with_stock(current_user.org_id)
-    return [
-        InventoryItemRead.model_validate(item).model_copy(update={"available_quantity": qty})
-        for item, qty in rows
-    ]
+    results = []
+    for item, qty in rows:
+        updates = {"available_quantity": qty}
+        if item.category == "kit":
+            updates["kit_usage_count"] = await repo.count_implants_for_kit(item.id)
+        results.append(InventoryItemRead.model_validate(item).model_copy(update=updates))
+    return results
 
 
 @router.post("/inventory-items", response_model=InventoryItemRead, status_code=201)

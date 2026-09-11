@@ -122,6 +122,9 @@ export default function Stock() {
   const totalUnits = items.reduce((sum, i) => sum + i.available_quantity, 0);
   const totalImplants = (grouped.implant || []).reduce((sum, i) => sum + i.available_quantity, 0);
   const totalAbutments = (grouped.abutment || []).reduce((sum, i) => sum + i.available_quantity, 0);
+  // A surgical kit's drill bits wear out from repeated use, not from a
+  // quantity running low — flag any kit that's crossed its use threshold.
+  const wornKits = (grouped.kit || []).filter(i => i.usage_threshold && (i.kit_usage_count || 0) >= i.usage_threshold);
 
   const openHistory = async (item) => {
     setHistoryItem(item);
@@ -168,6 +171,24 @@ export default function Stock() {
           <div className="text-xs text-[#5C6773] mt-0.5">Total Available Abutments</div>
         </div>
       </div>
+
+      {wornKits.length > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-5 max-w-2xl" data-testid="worn-kit-alert">
+          <div className="flex items-start gap-3">
+            <Warning size={22} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Surgical kit drill bits may be worn — reminder to replace</p>
+              <ul className="mt-1 space-y-0.5">
+                {wornKits.map(k => (
+                  <li key={k.id} className="text-xs text-amber-700">
+                    <strong>{itemTitle(k)}</strong> has been used in {k.kit_usage_count} implant case{k.kit_usage_count === 1 ? '' : 's'} since it was added (replace after {k.usage_threshold}).
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
@@ -324,8 +345,9 @@ export default function Stock() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {catItems.map(item => {
                       const low = item.available_quantity <= item.low_stock_threshold;
+                      const isWornKit = cat === 'kit' && item.usage_threshold && (item.kit_usage_count || 0) >= item.usage_threshold;
                       return (
-                        <div key={item.id} data-testid={`stock-item-${item.id}`} className={`bg-white rounded-xl border p-4 ${low ? 'border-amber-300' : 'border-[#E5E5E2]'}`}>
+                        <div key={item.id} data-testid={`stock-item-${item.id}`} className={`bg-white rounded-xl border p-4 ${isWornKit ? 'border-amber-300' : low ? 'border-amber-300' : 'border-[#E5E5E2]'}`}>
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-[#2A2F35] truncate">{itemTitle(item)}</p>
@@ -351,6 +373,27 @@ export default function Stock() {
                               </span>
                             )}
                           </div>
+                          {cat === 'kit' && item.usage_threshold != null && (
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between text-[11px] mb-1">
+                                <span className="text-[#5C6773]">Drill bit wear</span>
+                                <span className={isWornKit ? 'text-amber-600 font-semibold' : 'text-[#5C6773]'}>
+                                  {item.kit_usage_count || 0} / {item.usage_threshold} cases
+                                </span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-[#F0F0EE] overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${isWornKit ? 'bg-amber-500' : 'bg-emerald-400'}`}
+                                  style={{ width: `${Math.min(100, ((item.kit_usage_count || 0) / item.usage_threshold) * 100)}%` }}
+                                />
+                              </div>
+                              {isWornKit && (
+                                <p className="flex items-center gap-1 text-[11px] font-medium text-amber-600 mt-1">
+                                  <Warning size={12} weight="fill" /> Drill bits may be worn — consider replacing
+                                </p>
+                              )}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 mt-3">
                             <Button size="sm" variant="outline" onClick={() => setUsageItem(item)} disabled={item.available_quantity <= 0} data-testid={`use-item-${item.id}`} className="flex-1 text-xs">
                               Log Usage
