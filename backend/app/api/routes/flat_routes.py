@@ -21,10 +21,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.plans import patient_limit, storage_limit_mb
+from app.core.plans import clinic_limit, patient_limit, storage_limit_mb
 from app.db.session import get_db
 from app.models.audit import AuditEvent
 from app.models.case import CaseImage
+from app.models.clinic import Clinic
 from app.models.fpd import ProstheticFPD
 from app.models.implant import Implant
 from app.models.organization import Organization
@@ -1263,8 +1264,12 @@ async def subscription_status(
 ) -> dict:
     org = (await db.execute(select(Organization).where(Organization.id == current_user.org_id))).scalar_one_or_none()
     plan = org.plan if org else "free"
+    extra_clinics = org.extra_clinics if org else 0
     patient_count = int((await db.execute(
         select(func.count()).select_from(Patient).where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
+    )).scalar_one())
+    clinic_count = int((await db.execute(
+        select(func.count()).select_from(Clinic).where(Clinic.org_id == current_user.org_id)
     )).scalar_one())
     return {
         "plan": plan,
@@ -1275,6 +1280,9 @@ async def subscription_status(
         "plan_end": None,
         "patient_count": patient_count,
         "patient_limit": patient_limit(plan),
+        "clinic_count": clinic_count,
+        "clinic_limit": clinic_limit(plan, extra_clinics),
+        "extra_clinics": extra_clinics,
     }
 
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Buildings, MapPin, Phone, EnvelopeSimple, PencilSimple, Trash, MagicWand, X } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import {
@@ -32,9 +33,11 @@ const Clinics = () => {
   const [formData, setFormData] = useState({ ...INITIAL_FORM });
   const [resolvingMaps, setResolvingMaps] = useState(false);
   const [detailsClinic, setDetailsClinic] = useState(null);
+  const [subStatus, setSubStatus] = useState(null);
 
   useEffect(() => {
     fetchClinics();
+    client.get('/api/subscription/status').then(r => setSubStatus(r.data)).catch(() => {});
   }, []);
 
   const fetchClinics = async () => {
@@ -116,8 +119,12 @@ const Clinics = () => {
       setFormData({ ...INITIAL_FORM });
       setEditingClinic(null);
       fetchClinics();
+      client.get('/api/subscription/status').then(r => setSubStatus(r.data)).catch(() => {});
     } catch (error) {
-      toast.error(editingClinic ? 'Failed to update clinic' : 'Failed to add clinic');
+      toast.error(
+        error?.response?.data?.detail ||
+        (editingClinic ? 'Failed to update clinic' : 'Failed to add clinic')
+      );
     }
   };
 
@@ -129,6 +136,16 @@ const Clinics = () => {
             Clinics
           </h1>
           <p className="text-[#5C6773] mt-2">Manage your practice locations</p>
+          {subStatus && (
+            <p className="text-xs text-[#9CA3AF] mt-1" data-testid="clinic-usage-count">
+              {subStatus.clinic_limit == null
+                ? `${subStatus.clinic_count} clinic${subStatus.clinic_count === 1 ? '' : 's'} · unlimited on your plan`
+                : `${subStatus.clinic_count} of ${subStatus.clinic_limit} clinics used`}
+              {subStatus.clinic_limit != null && subStatus.clinic_count >= subStatus.clinic_limit && (
+                <> — <Link to="/subscription" className="text-[#82A098] underline">add more clinics</Link></>
+              )}
+            </p>
+          )}
         </div>
 
         <Button

@@ -7,10 +7,13 @@ import uuid
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.plans import clinic_limit
 from app.db.session import get_db
+from app.models.organization import Organization
 from app.models.user import User
 from app.repositories.clinic import ClinicRepository
 from app.schemas.clinic import ClinicCreate, ClinicRead, ClinicUpdate, ResolveMapsLinkRequest, ResolveMapsLinkResponse
@@ -141,6 +144,18 @@ async def create_clinic(
     db: AsyncSession = Depends(get_db),
 ) -> ClinicRead:
     repo = ClinicRepository(db)
+
+    org = (await db.execute(select(Organization).where(Organization.id == current_user.org_id))).scalar_one_or_none()
+    limit = clinic_limit(org.plan if org else "free", org.extra_clinics if org else 0)
+    if limit is not None:
+        current_count = await repo.count(current_user.org_id)
+        if current_count >= limit:
+            raise HTTPException(
+                status_code=402,
+                detail=f"You've reached the {limit}-clinic limit on your current plan. "
+                       f"Contact admin@osiolog.com to add more clinics.",
+            )
+
     clinic = await repo.create(current_user.org_id, body)
     return ClinicRead.model_validate(clinic)
 

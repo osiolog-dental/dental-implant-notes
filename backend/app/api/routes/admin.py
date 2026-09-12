@@ -10,8 +10,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
-from app.core.plans import VALID_PLANS
+from app.core.plans import VALID_PLANS, clinic_limit
 from app.db.session import get_db
+from app.models.clinic import Clinic
 from app.models.contact_message import ContactMessage
 from app.models.implant import Implant
 from app.models.organization import Organization
@@ -86,6 +87,9 @@ async def list_organizations(
             .join(Patient, Implant.patient_id == Patient.id)
             .where(Patient.org_id == org.id)
         )).scalar_one())
+        clinic_count = int((await db.execute(
+            select(func.count()).select_from(Clinic).where(Clinic.org_id == org.id)
+        )).scalar_one())
 
         results.append({
             "id": str(org.id),
@@ -98,6 +102,9 @@ async def list_organizations(
             "plan_notes": org.plan_notes,
             "patient_count": patient_count,
             "implant_count": implant_count,
+            "clinic_count": clinic_count,
+            "extra_clinics": org.extra_clinics,
+            "clinic_limit": clinic_limit(org.plan, org.extra_clinics),
             "created_at": org.created_at,
         })
     return results
@@ -106,6 +113,7 @@ async def list_organizations(
 class UpdatePlanBody(BaseModel):
     plan: str
     notes: str | None = None
+    extra_clinics: int = 0
 
 
 @router.patch("/organizations/{org_id}/plan")
@@ -117,6 +125,8 @@ async def update_organization_plan(
 ) -> dict:
     if body.plan not in VALID_PLANS:
         raise HTTPException(status_code=400, detail=f"Plan must be one of: {', '.join(VALID_PLANS)}")
+    if body.extra_clinics < 0:
+        raise HTTPException(status_code=400, detail="Extra clinics can't be negative")
 
     org = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
     if not org:
@@ -125,9 +135,10 @@ async def update_organization_plan(
     org.plan = body.plan
     org.plan_updated_at = datetime.now(timezone.utc)
     org.plan_notes = body.notes
+    org.extra_clinics = body.extra_clinics
     db.add(org)
     await db.flush()
-    return {"id": str(org.id), "plan": org.plan, "plan_updated_at": org.plan_updated_at}
+    return {"id": str(org.id), "plan": org.plan, "plan_updated_at": org.plan_updated_at, "extra_clinics": org.extra_clinics}
 
 
 class SendEmailBody(BaseModel):

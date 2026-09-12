@@ -40,13 +40,14 @@ function GrowthChart({ data }) {
 function OrgRow({ org, onPlanChanged, selected, onToggleSelect }) {
   const [plan, setPlan] = useState(org.plan);
   const [notes, setNotes] = useState(org.plan_notes || '');
+  const [extraClinics, setExtraClinics] = useState(org.extra_clinics || 0);
   const [saving, setSaving] = useState(false);
-  const dirty = plan !== org.plan || notes !== (org.plan_notes || '');
+  const dirty = plan !== org.plan || notes !== (org.plan_notes || '') || extraClinics !== (org.extra_clinics || 0);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await client.patch(`/api/admin/organizations/${org.id}/plan`, { plan, notes: notes || null });
+      await client.patch(`/api/admin/organizations/${org.id}/plan`, { plan, notes: notes || null, extra_clinics: extraClinics });
       toast.success(`${org.name} set to ${plan}`);
       onPlanChanged();
     } catch (err) {
@@ -67,10 +68,26 @@ function OrgRow({ org, onPlanChanged, selected, onToggleSelect }) {
       </td>
       <td className="px-3 py-3 text-center text-sm">{org.patient_count}</td>
       <td className="px-3 py-3 text-center text-sm">{org.implant_count}</td>
+      <td className="px-3 py-3 text-center text-sm whitespace-nowrap">
+        {org.clinic_count} / {org.clinic_limit ?? '∞'}
+      </td>
       <td className="px-3 py-3">
         <select value={plan} onChange={e => setPlan(e.target.value)} className="px-2 py-1 border border-[#E5E5E2] rounded-md text-xs" data-testid={`admin-plan-select-${org.id}`}>
           {PLAN_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
+      </td>
+      <td className="px-3 py-3">
+        <input
+          type="number"
+          min="0"
+          step="5"
+          value={extraClinics}
+          onChange={e => setExtraClinics(Math.max(0, parseInt(e.target.value, 10) || 0))}
+          disabled={plan === 'enterprise'}
+          data-testid={`admin-extra-clinics-${org.id}`}
+          className="w-16 px-2 py-1 border border-[#E5E5E2] rounded-md text-xs disabled:opacity-50"
+          title="Extra clinics purchased on top of the plan's base limit"
+        />
       </td>
       <td className="px-3 py-3">
         <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. paid via UPI, valid till Dec" className="w-full px-2 py-1 border border-[#E5E5E2] rounded-md text-xs" />
@@ -285,7 +302,7 @@ export default function Admin() {
         )}
       </div>
       <div className="bg-white border border-[#E5E5E2] rounded-xl overflow-hidden mb-8 overflow-x-auto">
-        <table className="w-full text-sm min-w-[760px]">
+        <table className="w-full text-sm min-w-[880px]">
           <thead>
             <tr className="bg-[#F9F9F8] text-left text-[11px] text-[#9CA3AF] uppercase tracking-wide">
               <th className="px-3 py-2 font-medium">
@@ -294,7 +311,9 @@ export default function Admin() {
               <th className="px-3 py-2 font-medium">Organization</th>
               <th className="px-3 py-2 font-medium text-center">Patients</th>
               <th className="px-3 py-2 font-medium text-center">Implants</th>
+              <th className="px-3 py-2 font-medium text-center">Clinics</th>
               <th className="px-3 py-2 font-medium">Plan</th>
+              <th className="px-3 py-2 font-medium">+Clinics</th>
               <th className="px-3 py-2 font-medium">Notes</th>
               <th className="px-3 py-2 font-medium">Joined</th>
               <th className="px-3 py-2 font-medium"></th>

@@ -51,7 +51,7 @@ const PLANS = [
     priceUSD: '$0',
     priceINR: '₹0',
     period: '',
-    features: ['Up to 50 patients', '500 MB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
+    features: ['Up to 50 patients', '100 MB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup', '1 clinic'],
   },
   {
     key: 'basic',
@@ -63,7 +63,7 @@ const PLANS = [
     priceUSD: '$5',
     priceINR: '₹35',
     period: '/month',
-    features: ['Up to 250 patients', '1 GB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup'],
+    features: ['Up to 250 patients', '1 GB photo storage', 'FDI dental chart', 'Implant & FPD logs', 'PDF report export', 'Local backup', '1 clinic'],
   },
   {
     key: 'pro',
@@ -76,7 +76,7 @@ const PLANS = [
     priceINR: '₹112',
     period: '/month',
     badge: 'Most Popular',
-    features: ['Unlimited patients', '5 GB photo storage', 'Everything in Basic', 'Google Drive backup', 'Analytics dashboard', 'Priority email support'],
+    features: ['Unlimited patients', '5 GB photo storage', 'Everything in Basic', 'Google Drive backup', 'Analytics dashboard', 'Priority email support', '1 clinic'],
   },
   {
     key: 'clinic',
@@ -89,7 +89,7 @@ const PLANS = [
     priceINR: '₹499',
     period: '/month',
     badge: 'Best Value',
-    features: ['Unlimited patients', '20 GB photo storage', 'Everything in Pro', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
+    features: ['Unlimited patients', '20 GB photo storage', 'Everything in Pro', '5 clinics', 'Custom branding on reports', 'Priority phone & email support'],
   },
   {
     key: 'enterprise',
@@ -102,7 +102,7 @@ const PLANS = [
     priceINR: '₹1,999',
     period: '/month',
     badge: 'Highest Storage',
-    features: ['Unlimited patients', '100 GB photo storage', 'Everything in Clinic', 'Multi-clinic management', 'Custom branding on reports', 'Priority phone & email support'],
+    features: ['Unlimited patients', '100 GB photo storage', 'Everything in Clinic', 'Unlimited clinics', 'Custom branding on reports', 'Priority phone & email support'],
   },
 ];
 

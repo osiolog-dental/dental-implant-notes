@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.clinic import Clinic
@@ -20,6 +20,12 @@ class ClinicRepository:
             .order_by(Clinic.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def count(self, org_id: uuid.UUID) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(Clinic).where(Clinic.org_id == org_id)
+        )
+        return int(result.scalar_one())
 
     async def get(self, clinic_id: uuid.UUID, org_id: uuid.UUID) -> Clinic | None:
         result = await self.db.execute(

@@ -21,27 +21,28 @@ const PLANS = [
     name: 'Free',
     icon: User,
     iconColor: '#6B7280',
-    storage: '500 MB',
-    storageMB: 500,
+    storage: '100 MB',
+    storageMB: 100,
     priceMonthly: 0,
     priceMonthlyINR: 0,
     discountEligible: false,
     color: '#6B7280',
     bg: '#F9F9F8',
     border: '#E5E5E2',
+    baseClinics: 1,
     features: [
       'Up to 50 patients',
-      '500 MB photo storage',
+      '100 MB photo storage',
       'FDI dental chart',
       'Implant & FPD logs',
       'PDF report export',
       'Local backup',
+      '1 clinic',
     ],
     missing: [
       'Google Drive backup',
       'Priority support',
       'Analytics dashboard',
-      'Multi-clinic management',
     ],
     badge: null,
   },
@@ -58,6 +59,7 @@ const PLANS = [
     color: '#3B82F6',
     bg: '#EFF6FF',
     border: '#3B82F6',
+    baseClinics: 1,
     features: [
       'Up to 250 patients',
       '1 GB photo storage',
@@ -65,12 +67,12 @@ const PLANS = [
       'Implant & FPD logs',
       'PDF report export',
       'Local backup',
+      '1 clinic',
     ],
     missing: [
       'Google Drive backup',
       'Priority support',
       'Analytics dashboard',
-      'Multi-clinic management',
     ],
     badge: null,
   },
@@ -87,6 +89,7 @@ const PLANS = [
     color: '#82A098',
     bg: '#EEF4F3',
     border: '#82A098',
+    baseClinics: 1,
     features: [
       'Unlimited patients',
       '5 GB photo & radiograph storage',
@@ -96,8 +99,9 @@ const PLANS = [
       'Google Drive backup',
       'Analytics dashboard',
       'Priority email support',
+      '1 clinic',
     ],
-    missing: ['Multi-clinic management'],
+    missing: [],
     badge: 'Most Popular',
     badgeColor: '#82A098',
   },
@@ -114,6 +118,7 @@ const PLANS = [
     color: '#C27E70',
     bg: '#FDF6F4',
     border: '#C27E70',
+    baseClinics: 5,
     features: [
       'Unlimited patients',
       '20 GB photo & radiograph storage',
@@ -122,7 +127,7 @@ const PLANS = [
       'PDF report export',
       'Google Drive backup',
       'Advanced analytics',
-      'Multi-clinic management',
+      '5 clinics',
       'Priority phone & email support',
       'Custom branding on reports',
     ],
@@ -143,6 +148,7 @@ const PLANS = [
     color: '#7C3AED',
     bg: '#F5F3FF',
     border: '#7C3AED',
+    baseClinics: null,
     features: [
       'Unlimited patients',
       '100 GB photo & radiograph storage',
@@ -151,7 +157,7 @@ const PLANS = [
       'PDF report export',
       'Google Drive backup',
       'Advanced analytics',
-      'Multi-clinic management',
+      'Unlimited clinics',
       'Priority phone & email support',
       'Custom branding on reports',
     ],
@@ -160,6 +166,16 @@ const PLANS = [
     badgeColor: '#7C3AED',
   },
 ];
+
+/* Clinic add-on — lets basic/pro/clinic plans raise their base clinic limit
+   without changing plan. Keep in sync with CLINIC_ADDON_OPTIONS in
+   backend/app/core/plans.py. Enterprise is already unlimited so has no
+   add-on, and Free has no add-on path (upsell only applies to paid plans). */
+const CLINIC_ADDON_OPTIONS = [
+  { clinics: 5, priceInr: 5, priceUsd: 0.1 },
+  { clinics: 10, priceInr: 10, priceUsd: 0.2 },
+];
+const PLANS_WITH_CLINIC_ADDON = new Set(['basic', 'pro', 'clinic']);
 
 /* Extra storage, in 10 GB blocks, addable to any plan without changing it.
    Priced with a healthy margin over the underlying Cloudflare R2 cost
@@ -222,6 +238,17 @@ export default function Subscription() {
     setUpgradeRequest({
       subject: `${planKey === 'free' ? 'Downgrade' : 'Upgrade'} to ${planName} plan`,
       message: `I'd like to switch from my current ${currentPlan} plan to the ${planName} plan (${billingLabel} billing). Please let me know how to proceed with payment.`,
+    });
+  };
+
+  // Same interim pattern as plan upgrades — no self-serve checkout yet, so
+  // this opens the Contact form pre-filled and admin applies it manually
+  // via Organization.extra_clinics in the Admin panel.
+  const requestClinicAddon = (clinics, priceInr, priceUsd) => {
+    setUpgradeRequest({
+      subject: `Add ${clinics} more clinics to my ${currentPlan} plan`,
+      message: `I'd like to add ${clinics} extra clinic slots on top of my current ${currentPlan} plan `
+        + `(+${isIndia ? `₹${priceInr}` : `$${priceUsd}`}/month). Please let me know how to proceed with payment.`,
     });
   };
 
@@ -289,6 +316,23 @@ export default function Subscription() {
                     style={{
                       width: `${Math.min((status.patient_count / status.patient_limit) * 100, 100)}%`,
                       background: status.patient_count >= status.patient_limit ? '#EF4444' : currentPlanDef.color,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {status.clinic_limit != null && (
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="flex items-center gap-1.5 font-medium text-[#5C6773]"><Buildings size={14} className="text-[#82A098]" /> Clinics</span>
+                  <span className="text-[#5C6773]">{status.clinic_count} / {status.clinic_limit}</span>
+                </div>
+                <div className="h-2 bg-[#E5E5E2] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min((status.clinic_count / status.clinic_limit) * 100, 100)}%`,
+                      background: status.clinic_count >= status.clinic_limit ? '#EF4444' : currentPlanDef.color,
                     }}
                   />
                 </div>
@@ -497,6 +541,43 @@ export default function Subscription() {
         </p>
       </div>
 
+      {/* Extra clinics add-on — Basic/Pro/Clinic only; Enterprise is already unlimited */}
+      {PLANS_WITH_CLINIC_ADDON.has(currentPlan) && (
+        <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 mb-8">
+          <div className="flex items-center gap-2 mb-1">
+            <Buildings size={18} className="text-[#82A098]" />
+            <h3 className="font-semibold text-[#2A2F35]">Need More Clinics?</h3>
+          </div>
+          <p className="text-xs text-[#5C6773] mb-4">
+            Raise your clinic limit above your plan's base of {currentPlanDef.baseClinics} without upgrading plans.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CLINIC_ADDON_OPTIONS.map(opt => (
+              <div
+                key={opt.clinics}
+                data-testid={`clinic-addon-${opt.clinics}`}
+                className="border border-[#E5E5E2] rounded-xl p-4 flex flex-col items-center text-center hover:border-[#82A098] transition-colors"
+              >
+                <p className="text-2xl font-bold text-[#2A2F35]">+{opt.clinics} clinics</p>
+                <p className="text-xs text-[#5C6773] mb-3">
+                  {currencySymbol}{isIndia ? opt.priceInr : opt.priceUsd}/month
+                </p>
+                <button
+                  data-testid={`add-clinics-${opt.clinics}`}
+                  onClick={() => requestClinicAddon(opt.clinics, opt.priceInr, opt.priceUsd)}
+                  className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-[#82A098] text-[#82A098] hover:bg-[#82A098] hover:text-white transition-colors"
+                >
+                  <Plus size={13} weight="bold" /> Add {opt.clinics} Clinics
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-[#9CA3AF] mt-4">
+            No self-serve payment yet — this sends a request to admin who applies it to your account.
+          </p>
+        </div>
+      )}
+
       {/* Feature comparison table */}
       <div className="bg-white border border-[#E5E5E2] rounded-xl overflow-hidden mb-8">
         <div className="px-5 py-4 border-b border-[#E5E5E2]">
@@ -516,14 +597,14 @@ export default function Subscription() {
             <tbody className="divide-y divide-[#F0EDE8]">
               {[
                 ['Patients',            '50',        '250',       'Unlimited',  'Unlimited',  'Unlimited'],
-                ['Storage',             '500 MB',    '1 GB',      '5 GB',       '20 GB',      '100 GB'],
+                ['Storage',             '100 MB',    '1 GB',      '5 GB',       '20 GB',      '100 GB'],
+                ['Clinics',             '1',         '1',         '1',          '5',          'Unlimited'],
                 ['FDI Dental Chart',    true,        true,        true,         true,         true],
                 ['Implant & FPD Logs',  true,        true,        true,         true,         true],
                 ['PDF Report Export',   true,        true,        true,         true,         true],
                 ['Local Backup',        true,        true,        true,         true,         true],
                 ['Google Drive Backup', false,       false,       true,         true,         true],
                 ['Analytics',           false,       false,       true,         true,         true],
-                ['Multi-Clinic',        false,       false,       false,        true,         true],
                 ['Priority Support',    false,       false,       true,         true,         true],
                 ['Custom Report Brand', false,       false,       false,        true,         true],
               ].map(([label, ...vals]) => (
