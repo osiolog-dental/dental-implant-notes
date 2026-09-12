@@ -15,7 +15,7 @@ import re
 import uuid
 import zipfile
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,10 +32,12 @@ from app.models.organization import Organization
 from app.models.patient import Patient
 from app.models.user import User
 from app.repositories.fpd import FPDRepository
+from app.repositories.google_drive import GoogleDriveRepository
 from app.repositories.implant import ImplantRepository
 from app.schemas.fpd import FPDFlatCreate, FPDRead, FPDUpdate
 from pydantic import BaseModel
 from app.schemas.implant import ImplantFlatCreate, ImplantRead, ImplantUpdate
+from app.services import google_drive as drive_service
 from app.services import s3 as s3_service
 
 router = APIRouter(tags=["flat-routes"])
@@ -243,6 +245,7 @@ async def upload_warranty_image(
 @router.get("/patients/{patient_id}/photos")
 async def list_patient_photos(
     patient_id: uuid.UUID,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
@@ -270,10 +273,16 @@ async def list_patient_photos(
     )
     images = result.scalars().all()
 
+    base_url = str(request.base_url)
     photos = []
     for img in images:
         try:
-            url = s3_service.generate_download_url(img.s3_key)
+            if img.storage_backend == "google_drive":
+                if not img.drive_file_id:
+                    continue
+                url = drive_service.content_url(base_url, img.id, thumb=False)
+            else:
+                url = s3_service.generate_download_url(img.s3_key)
             photos.append({
                 "url": url,
                 "content_type": img.content_type,
@@ -839,6 +848,11 @@ async def export_photos_backup(
     )
     rows = result.all()
 
+    # Fetched lazily, at most once — only needed if this org has any
+    # Drive-backed photos to include in the ZIP.
+    drive_token: tuple[str, str] | None = None
+    drive_token_fetched = False
+
     def _safe(name: str) -> str:
         return re.sub(r"[^\w\- ]", "", name or "").strip()[:60] or "unnamed"
 
@@ -848,7 +862,16 @@ async def export_photos_backup(
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for image, case, patient in rows:
             try:
-                data = await asyncio.to_thread(s3_service.download_object, image.s3_key)
+                if image.storage_backend == "google_drive":
+                    if not drive_token_fetched:
+                        drive_token = await GoogleDriveRepository(db).get_valid_access_token(current_user.org_id)
+                        drive_token_fetched = True
+                    if not drive_token or not image.drive_file_id:
+                        continue
+                    access_token, _ = drive_token
+                    data = await asyncio.to_thread(drive_service.download_file, access_token, image.drive_file_id)
+                else:
+                    data = await asyncio.to_thread(s3_service.download_object, image.s3_key)
             except Exception:
                 continue
             ext = (image.content_type or "image/jpeg").split("/")[-1].replace("jpeg", "jpg")
@@ -956,6 +979,8 @@ async def restore_photos_backup(
         image_row = CaseImage(
             id=image_id,
             case_id=case_id,
+            org_id=current_user.org_id,
+            storage_backend="platform",
             s3_key=s3_key,
             content_type=content_type,
             category=entry.get("category") or "general",

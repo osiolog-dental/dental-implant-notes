@@ -117,6 +117,24 @@ function _uploadToS3(uploadUrl, file, onProgress) {
   });
 }
 
+// ── Upload via our own backend for Drive-backed orgs ───────────────────────────
+// Drive uploads must go through our server (it holds the OAuth token), so
+// this posts the file to our API instead of PUTting straight to storage.
+async function _uploadToDrive(uploadUrl, file, onProgress) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await client.post(uploadUrl, formData, {
+    // Let the browser set Content-Type with the correct multipart boundary —
+    // the client's default 'application/json' header would otherwise win
+    // and the backend couldn't parse the file part.
+    headers: { 'Content-Type': undefined },
+    onUploadProgress: onProgress
+      ? (e) => { if (e.total) onProgress(Math.round((e.loaded / e.total) * 100)); }
+      : undefined,
+  });
+  return data; // already the final CaseImageRead — no separate /complete call needed
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -140,19 +158,24 @@ export async function uploadImage(caseId, file, { category = 'general', onProgre
     ? compressed
     : new File([compressed], compressed.name, { type: contentType });
 
-  // Step 1: get presigned URL
-  const { data: { upload_url, image_id } } = await client.post(
+  // Step 1: get an upload URL — its meaning depends on the org's storage backend
+  const { data: { upload_url, image_id, backend } } = await client.post(
     `/api/cases/${caseId}/images/upload-url`,
     { content_type: contentType, category },
   );
 
-  // Step 2: upload directly to S3
-  await _uploadToS3(upload_url, uploadFile, onProgress);
-
-  // Step 3: tell backend to generate thumbnail and mark as uploaded
-  const { data: image } = await client.post(
-    `/api/cases/${caseId}/images/${image_id}/complete`,
-  );
+  let image;
+  if (backend === 'google_drive') {
+    // Step 2+3 combined: our backend relays the file to Drive and returns
+    // the finished record — no separate /complete call for this backend.
+    image = await _uploadToDrive(upload_url, uploadFile, onProgress);
+  } else {
+    // Step 2: upload directly to S3/R2
+    await _uploadToS3(upload_url, uploadFile, onProgress);
+    // Step 3: tell backend to generate thumbnail and mark as uploaded
+    const res = await client.post(`/api/cases/${caseId}/images/${image_id}/complete`);
+    image = res.data;
+  }
 
   clearImageCache(caseId);
   return image;

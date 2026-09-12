@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import client from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +8,7 @@ import ContactModal from '../components/ContactModal';
 import {
   CheckCircle, X, Crown, Buildings, User,
   HardDrive, ArrowRight, Star, Rocket, Plus, Users,
+  GoogleLogo, CloudCheck, LinkBreak,
 } from '@phosphor-icons/react';
 
 
@@ -215,16 +217,79 @@ export default function Subscription() {
   const { country } = useLocale();
   const isIndia = country.currency === 'INR';
   const currencySymbol = isIndia ? '₹' : '$';
+  const [searchParams, setSearchParams] = useSearchParams();
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'sixmonth' | 'yearly'
   const [status, setStatus] = useState(null);
+  const [storageStatus, setStorageStatus] = useState(null);
+  const [connectingDrive, setConnectingDrive] = useState(false);
+  const [switchingBackend, setSwitchingBackend] = useState(false);
   const [addingStorage, setAddingStorage] = useState(null); // blocks count currently submitting
   const [upgradeRequest, setUpgradeRequest] = useState(null); // { subject, message } or null
+
+  const fetchStorageStatus = () => {
+    client.get('/api/storage/status').then(r => setStorageStatus(r.data)).catch(() => {});
+  };
 
   useEffect(() => {
     client.get('/api/subscription/status')
       .then(r => setStatus(r.data))
       .catch(() => {});
+    fetchStorageStatus();
   }, []);
+
+  // Land back here after the Google OAuth redirect — surface the result once, then clean the URL.
+  useEffect(() => {
+    if (searchParams.get('drive_connected')) {
+      toast.success('Google Drive connected');
+      fetchStorageStatus();
+      setSearchParams({}, { replace: true });
+    } else if (searchParams.get('drive_error')) {
+      const messages = {
+        access_denied: 'Google Drive connection was cancelled',
+        invalid_state: 'That connection link expired — please try again',
+        no_refresh_token: 'Google needs a fresh consent — revoke Osiolog access in your Google Account and try connecting again',
+        connect_failed: 'Could not connect Google Drive — please try again',
+      };
+      toast.error(messages[searchParams.get('drive_error')] || 'Could not connect Google Drive');
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const connectGoogleDrive = async () => {
+    setConnectingDrive(true);
+    try {
+      const { data } = await client.get('/api/storage/google-drive/connect-url');
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not start Google Drive connection');
+      setConnectingDrive(false);
+    }
+  };
+
+  const disconnectGoogleDrive = async () => {
+    if (!window.confirm('Disconnect Google Drive? New photos will go back to our storage.')) return;
+    try {
+      await client.delete('/api/storage/google-drive');
+      toast.success('Google Drive disconnected');
+      fetchStorageStatus();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not disconnect');
+    }
+  };
+
+  const setStorageBackend = async (backend) => {
+    setSwitchingBackend(true);
+    try {
+      await client.post('/api/storage/backend', { backend });
+      toast.success(backend === 'google_drive' ? 'New photos will now save to your Google Drive' : 'New photos will now save to our storage');
+      fetchStorageStatus();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Could not switch storage');
+    } finally {
+      setSwitchingBackend(false);
+    }
+  };
 
   const currentPlan = status?.plan || 'free';
 
@@ -347,6 +412,100 @@ export default function Subscription() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Photo storage backend choice */}
+      {storageStatus && (
+        <div className="bg-white border border-[#E5E5E2] rounded-xl p-6 mb-8">
+          <h3 className="font-semibold text-[#2A2F35] mb-1">Where should your photos be stored?</h3>
+          <p className="text-xs text-[#5C6773] mb-4">
+            New case photos go to whichever you pick below. Switching doesn't move photos already uploaded.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Our storage */}
+            <div
+              className="border-2 rounded-xl p-4"
+              style={{ borderColor: storageStatus.backend === 'platform' ? '#82A098' : '#E5E5E2' }}
+              data-testid="storage-option-platform"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <HardDrive size={18} className="text-[#82A098]" />
+                <p className="font-semibold text-[#2A2F35] text-sm">Our Storage (Cloudflare)</p>
+                {storageStatus.backend === 'platform' && (
+                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-[#82A098]">Active</span>
+                )}
+              </div>
+              <p className="text-xs text-[#5C6773] mb-3">
+                Included in your plan — {currentPlanDef.storage} on {currentPlanDef.name}. No setup needed.
+              </p>
+              {storageStatus.backend !== 'platform' && (
+                <button
+                  onClick={() => setStorageBackend('platform')}
+                  disabled={switchingBackend}
+                  data-testid="use-platform-storage"
+                  className="w-full py-2 rounded-lg text-xs font-semibold border border-[#82A098] text-[#82A098] hover:bg-[#82A098] hover:text-white transition-colors disabled:opacity-60"
+                >
+                  Use Our Storage
+                </button>
+              )}
+            </div>
+
+            {/* Google Drive */}
+            <div
+              className="border-2 rounded-xl p-4"
+              style={{ borderColor: storageStatus.backend === 'google_drive' ? '#82A098' : '#E5E5E2' }}
+              data-testid="storage-option-google-drive"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <GoogleLogo size={18} className="text-[#4285F4]" weight="bold" />
+                <p className="font-semibold text-[#2A2F35] text-sm">Your Google Drive</p>
+                {storageStatus.backend === 'google_drive' && (
+                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-[#82A098]">Active</span>
+                )}
+              </div>
+              <p className="text-xs text-[#5C6773] mb-3">
+                Uses your own Drive quota — 15 GB free from Google, or their Google One plans
+                (e.g. ~{currencySymbol}{isIndia ? '130' : '1.99'}/month for 100 GB) billed directly by Google, not us.
+              </p>
+
+              {!storageStatus.google_drive_configured ? (
+                <p className="text-[11px] text-[#9CA3AF]">Not available yet.</p>
+              ) : !storageStatus.google_drive_connected ? (
+                <button
+                  onClick={connectGoogleDrive}
+                  disabled={connectingDrive}
+                  data-testid="connect-google-drive"
+                  className="w-full py-2 rounded-lg text-xs font-semibold border border-[#4285F4] text-[#4285F4] hover:bg-[#4285F4] hover:text-white transition-colors disabled:opacity-60"
+                >
+                  {connectingDrive ? 'Redirecting…' : 'Connect Google Drive'}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-[#5C6773] flex items-center gap-1">
+                    <CloudCheck size={13} className="text-emerald-600" /> Connected as {storageStatus.google_drive_email}
+                  </p>
+                  {storageStatus.backend !== 'google_drive' ? (
+                    <button
+                      onClick={() => setStorageBackend('google_drive')}
+                      disabled={switchingBackend}
+                      data-testid="use-google-drive-storage"
+                      className="w-full py-2 rounded-lg text-xs font-semibold border border-[#4285F4] text-[#4285F4] hover:bg-[#4285F4] hover:text-white transition-colors disabled:opacity-60"
+                    >
+                      Use Google Drive
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={disconnectGoogleDrive}
+                    data-testid="disconnect-google-drive"
+                    className="w-full py-1.5 rounded-lg text-[11px] font-medium text-[#9CA3AF] hover:text-red-600 flex items-center justify-center gap-1"
+                  >
+                    <LinkBreak size={12} /> Disconnect
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

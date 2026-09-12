@@ -179,6 +179,19 @@ class Settings(BaseSettings):
     # match, not a stored role, since there's only ever one admin.
     ADMIN_EMAIL: str = "admin@osiolog.com"
 
+    # Google Drive as an alternate photo-storage backend — lets a doctor
+    # store case photos in their own Google Drive instead of our Cloudflare
+    # R2 bucket, so their photo storage is billed by Google directly instead
+    # of counting against our storage-tier pricing. Needs an OAuth 2.0
+    # Client (Google Cloud Console > APIs & Services > Credentials) with
+    # this exact redirect URI registered, and the Drive API enabled.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = ""  # e.g. https://api.osiolog.com/api/storage/google-drive/callback
+    # Used only to sign the short-lived OAuth "state" param (CSRF protection
+    # for the Drive connect flow) — any long random string is fine.
+    SECRET_KEY: str = "insecure-dev-secret-change-me"
+
     def model_post_init(self, __context: object) -> None:  # noqa: ANN001
         if not self.DATABASE_URL:
             print(

@@ -18,6 +18,7 @@ from app.models.stock_purchase import StockPurchase
 from app.models.stock_transaction import StockTransaction
 from app.models.catalogue_reference import CatalogueReference
 from app.models.audit import AuditEvent, DeviceToken, Invite
+from app.models.google_drive_connection import GoogleDriveConnection
 
 __all__ = [
     "Organization", "User", "Clinic", "Patient",
@@ -25,5 +26,5 @@ __all__ = [
     "Abutment", "Overdenture", "FullMouthRehab", "ToothExtraction", "ImplantFollowUp",
     "FinancialLineItem", "PatientPayment", "ContactMessage", "SentEmail",
     "InventoryItem", "StockPurchase", "StockTransaction", "CatalogueReference",
-    "AuditEvent", "DeviceToken", "Invite",
+    "AuditEvent", "DeviceToken", "Invite", "GoogleDriveConnection",
 ]

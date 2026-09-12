@@ -26,6 +26,11 @@ class Organization(Base):
     # Extra clinic slots purchased on top of the plan's base clinic limit
     # (see app.core.plans.CLINIC_ADDON_OPTIONS) — also admin-set by hand.
     extra_clinics: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Where new case photos get uploaded — 'platform' (our Cloudflare R2
+    # bucket, billed via storage tiers) or 'google_drive' (the org's own
+    # connected Drive account, billed by Google directly). Switching only
+    # affects new uploads; existing CaseImage rows keep their own backend.
+    storage_backend: Mapped[str] = mapped_column(String(20), nullable=False, default="platform")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

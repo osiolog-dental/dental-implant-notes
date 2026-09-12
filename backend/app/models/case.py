@@ -56,8 +56,20 @@ class CaseImage(Base):
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False
     )
-    s3_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # Denormalized from the case's patient for the unauthenticated Drive
+    # content proxy (see routes/cases.py drive_image_content) to look up the
+    # right org's Drive connection without joining through Case → Patient.
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # Exactly one of (s3_key) / (drive_file_id) is set, per storage_backend —
+    # snapshotted at upload time so switching an org's backend later doesn't
+    # orphan images already stored under the old one.
+    storage_backend: Mapped[str] = mapped_column(String(20), nullable=False, default="platform")
+    s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    thumbnail_drive_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     category: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
