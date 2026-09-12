@@ -25,6 +25,10 @@ APP_FOLDER_NAME = "Osiolog Photos"
 _STATE_TTL_SECONDS = 600  # 10 minutes to complete the OAuth round trip
 
 
+class DriveStorageFullError(Exception):
+    """Raised when Google rejects an upload because the user's Drive is out of space."""
+
+
 def is_configured() -> bool:
     return bool(settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET and settings.GOOGLE_OAUTH_REDIRECT_URI)
 
@@ -147,8 +151,18 @@ def upload_file(access_token: str, folder_id: str, filename: str, data: bytes, c
         data=body,
         timeout=60,
     )
+    if resp.status_code == 403 and _is_storage_full_error(resp):
+        raise DriveStorageFullError("Google Drive storage quota exceeded")
     resp.raise_for_status()
     return resp.json()["id"]
+
+
+def _is_storage_full_error(resp: requests.Response) -> bool:
+    try:
+        errors = resp.json().get("error", {}).get("errors", [])
+    except ValueError:
+        return False
+    return any(e.get("reason") in ("storageQuotaExceeded", "storageQuotaExceededUnverifiedApp") for e in errors)
 
 
 def download_file(access_token: str, file_id: str) -> bytes:

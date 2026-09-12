@@ -253,7 +253,17 @@ async def drive_upload(
                 drive_service.upload_file, access_token, folder_id, f"{image_id}_thumb.jpg", thumb_bytes, "image/jpeg",
             )
             image_row.thumbnail_drive_file_id = thumb_file_id
+    except drive_service.DriveStorageFullError:
+        await db.delete(image_row)
+        await db.flush()
+        raise HTTPException(
+            status_code=507,
+            detail="Your Google Drive is full. Free up space or upgrade storage at drive.google.com, "
+                   "or switch back to Our Storage from the Subscription page.",
+        )
     except Exception:
+        await db.delete(image_row)
+        await db.flush()
         raise HTTPException(status_code=502, detail="Upload to Google Drive failed. Please try again.")
 
     image_row.status = "uploaded"

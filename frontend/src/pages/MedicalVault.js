@@ -157,8 +157,8 @@ const MedicalVault = () => {
       try {
         await uploadImage(cid, cropped, { category: 'extra' });
         uploaded++;
-      } catch {
-        toast.error(`Failed to upload ${file.name}`);
+      } catch (err) {
+        toast.error(err?.response?.data?.detail || `Failed to upload ${file.name}`);
       }
     }
     if (uploaded > 0) toast.success(`${uploaded} photo${uploaded > 1 ? 's' : ''} added`);
