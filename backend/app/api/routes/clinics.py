@@ -32,6 +32,22 @@ def _extract_place_name(url: str) -> str | None:
     return urllib.parse.unquote(match.group(1)).replace("+", " ").strip() or None
 
 
+def _extract_name_from_search_query(url: str) -> str | None:
+    """
+    Newer share.google links redirect to a plain google.com/search results
+    page (no /place/ segment at all) with the business name in the ?q=
+    parameter, e.g. "MOHAN DENTAL CLINIC (మోహన్ ...)" —
+    take the part before any parenthetical translation/alt-name.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if "google." not in parsed.netloc or parsed.path not in ("/search", "/maps"):
+        return None
+    q = urllib.parse.parse_qs(parsed.query).get("q", [None])[0]
+    if not q:
+        return None
+    return q.split("(")[0].strip() or None
+
+
 @router.post("/resolve-maps-link", response_model=ResolveMapsLinkResponse)
 async def resolve_maps_link(
     body: ResolveMapsLinkRequest,
@@ -58,7 +74,7 @@ async def resolve_maps_link(
         logger.warning("Could not resolve maps link %s: %s", url, exc)
         raise HTTPException(status_code=422, detail="Could not open that link — check it's a valid Google Maps link")
 
-    name = _extract_place_name(resolved_url)
+    name = _extract_place_name(resolved_url) or _extract_name_from_search_query(resolved_url)
     latlng_match = _LATLNG_RE.search(resolved_url)
     latitude = float(latlng_match.group(1)) if latlng_match else None
     longitude = float(latlng_match.group(2)) if latlng_match else None
@@ -76,6 +92,28 @@ async def resolve_maps_link(
                 address = geo_resp.json().get("display_name")
         except Exception as exc:
             logger.warning("Reverse geocoding failed for %s,%s: %s", latitude, longitude, exc)
+    elif name:
+        # Newer share.google links carry no coordinates at all, only the
+        # business name — forward-geocode it to fill in address/lat/lng.
+        # Bias the free-text search with the doctor's own registered country
+        # (most clinics they add are in the same country) since a bare
+        # clinic name alone is often ambiguous worldwide.
+        query = f"{name}, {current_user.country}" if current_user.country else name
+        try:
+            geo_resp = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": query, "format": "jsonv2", "limit": 1},
+                headers={"User-Agent": "Osiolog/1.0 (dental clinic management app)"},
+                timeout=10,
+            )
+            if geo_resp.status_code == 200:
+                results = geo_resp.json()
+                if results:
+                    address = results[0].get("display_name")
+                    latitude = float(results[0]["lat"])
+                    longitude = float(results[0]["lon"])
+        except Exception as exc:
+            logger.warning("Forward geocoding failed for %r: %s", query, exc)
 
     if not name and address is None and latitude is None:
         raise HTTPException(
