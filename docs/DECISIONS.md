@@ -772,19 +772,29 @@ This was not cosmetic. `FRONTEND_URL` has two consumers:
   Google redirects a doctor's browser to after they approve Drive access, and the target
   of every `?drive_error=` failure redirect.
 
-So **connecting a Google Drive was broken in production**: approve at Google, land on a
-dead host. The same dead host swallowed the error redirects, so a denied or invalid
-attempt produced no message either.
+The reasoning above concluded that **connecting a Google Drive was broken in production**.
+
+**That conclusion was wrong, and is retracted.** It was drawn from the config file without
+asking the running server. The live redirect target was, and remains:
+
+    https://www.osiolog.com/subscription?drive_error=access_denied
+
+A working host. `FRONTEND_URL` is set in the Render dashboard to `https://www.osiolog.com`,
+and that value — not `render.yaml`'s — is what the process runs with. Drive connect was
+never broken by this. No user-facing defect existed.
 
 ### How it surfaced
-Incidentally, while verifying an unrelated deploy (D-012) — not through a bug report.
-Unknown how long it had been broken; the Drive feature shipped in `0d83455` / `cc4f314`.
-No attempt was made to reconstruct the timeline from logs.
+Incidentally, while verifying an unrelated deploy (D-012) — not through a bug report, and
+not from any observed failure. That absence of a symptom should have prompted a check
+against the running server before a production bug was asserted.
 
 ### Decision
-`FRONTEND_URL` → `https://osiolog.com` (user's choice of canonical host, from two working
-candidates). `app.osiolog.com` stays in the CORS allow list, with a comment explaining why
-a dead host is listed.
+`render.yaml`'s `FRONTEND_URL` → `https://osiolog.com` (user's choice of canonical host).
+`app.osiolog.com` stays in the CORS allow list, with a comment explaining why a dead host
+is listed.
+
+This is tidying, not a fix. It removes a dead hostname from a config file that a future
+reader would otherwise trust. It changed nothing at runtime.
 
 ### Why keep a dead host permitted
 Asymmetric cost. Leaving the string costs nothing — CORS entries are matched, not dialled,
@@ -798,14 +808,31 @@ The 522 itself is untouched — that is DNS/origin configuration outside this re
 change routes around it. If `app.osiolog.com` is meant to be the product's address, the
 origin still needs fixing and `FRONTEND_URL` moving back.
 
-### Verification status
-- Verified: the four references were located by repo-wide search and three changed
-  (`render.yaml`, `CLAUDE.md`, and this file); `main.py` gained only a comment.
-- **Not verified:** the Google Drive connect flow has not been re-run end to end. Doing so
-  needs a real Google account consenting to Drive access, which is the user's to give.
-  The reasoning that the redirect now lands on a live host follows from the code path
-  above, but it is inference, not an observed successful connection.
+### Verification status — and what it disproved
+Probing the error branch of the callback is a read-only way to read `FRONTEND_URL` off the
+running server: `GET /api/storage/google-drive/callback?error=access_denied` returns a
+redirect whose target is `f"{FRONTEND_URL}/subscription"`. No Google account or consent
+needed.
+
+- Observed before the change: `https://www.osiolog.com/subscription?drive_error=access_denied`.
+- Observed 15 minutes after the push, polled every 20s, and again afterwards: **identical**.
+  `api.osiolog.com/api/health` reported `ok` throughout.
+
+So `render.yaml`'s value does not reach the process — the dashboard value wins, or the
+blueprint does not re-sync env vars on autoDeploy. Not distinguished from outside, and not
+worth distinguishing: either way the file is not the source of truth for this variable.
+
+**Consequence:** `render.yaml` now says `osiolog.com` while production runs
+`www.osiolog.com`. Less wrong than a dead host, still not the truth. Only a Render
+dashboard edit can align them, which is the user's to make.
+
+### Lesson
+Two false claims in this session came from the same habit: reading the repo and reporting
+it as production. The config file said `app.osiolog.com`; the server ran
+`www.osiolog.com`. Earlier, a string absent from a JS bundle was read as proof of a
+deploy when the minifier had merely split it. Where a claim is about what production does,
+the evidence has to come from production.
 
 ### Revisit if
 `app.osiolog.com` is revived (move `FRONTEND_URL` back) or formally decommissioned (drop
-it from the CORS list).
+it from the CORS list), or the dashboard value is changed to match the file.
