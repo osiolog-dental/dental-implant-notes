@@ -8,6 +8,7 @@ import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
 import AIChatBox from './AIChatBox';
 import ContactModal from './ContactModal';
+import NotificationBell from './NotificationBell';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -190,6 +191,9 @@ const Layout = () => {
           </div>
           <div className="hidden md:block" />
 
+          <div className="flex items-center gap-1">
+          <NotificationBell />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[#F0F0EE] transition-colors duration-150 outline-none" data-testid="profile-menu-trigger">
@@ -249,6 +253,7 @@ const Layout = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
 
         {/* Ad Banner */}
