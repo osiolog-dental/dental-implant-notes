@@ -709,14 +709,30 @@ balance is only `charged - paid`, computed in the frontend (`FinancialsSection.j
 to leave payments out until the rule is decided. Not experimentally evaluated.
 
 ### Verification status
-- Verified: frontend compiles (`craco build`, +1.79 kB); the new route is registered and
-  auth-gated (401 without a token, matching `due-for-second-stage`); Rule 13 and Rule 14
-  greps clean.
-- **Not verified:** the endpoint's query has never been executed against a database. This
-  machine has neither a local PostgreSQL service nor Docker, so `/api/health` reports
-  `db: error` and no row can be returned. The SQL mirrors the shape of the existing
-  `implants_due_for_second_stage()` and of `send_followup_reminders()`, but that is
-  engineering judgement, not evidence.
+Verified in production after deploy (commit `21c25b7`):
+- `GET /api/implants/due-for-follow-up` with a real Firebase token returns HTTP 200 and a
+  JSON array — the query executes against the production database without error.
+  A deliberately bogus path under `/api/implants/` returns 422 (it falls through to
+  `/api/implants/{implant_id}` and fails UUID validation), so the 200 is specific to the
+  new handler rather than a catch-all.
+- The live frontend bundle at `osiolog.com` contains `notification-bell-trigger` and
+  `due-for-follow-up`, so the UI shipped alongside the backend.
+- `craco build` clean (+1.79 kB); Rule 13 and Rule 14 greps clean.
+
+**Still not verified:** the panel has never been seen rendering actual rows. All three
+feeds return `[]` for the demo account (`doctor@dentalapp.com`), which has nothing due,
+and Rule 8 forbids testing against a real doctor's records. Empty state and error state
+are therefore the only UI states exercised end to end.
+
+**Correction worth recording:** an unauthenticated 401 was briefly taken as proof the
+route had deployed. It is not — this API returns 401 before routing, so a nonexistent
+path returns 401 too. Only the authenticated call distinguishes deployed from missing.
+
+### Unrelated observation at deploy time
+`app.osiolog.com` — the URL named in `render.yaml` as `FRONTEND_URL` and in CLAUDE.md as
+the live app — returns Cloudflare 522 (origin unreachable). `osiolog.com` and
+`www.osiolog.com` serve the app normally. Observed fact, not diagnosed; predates this
+change and is untouched by it.
 
 ### Revisit if
 The user wants dismissals to persist (then alternative 1 returns, with a migration), or
