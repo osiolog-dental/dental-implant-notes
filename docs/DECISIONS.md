@@ -719,10 +719,24 @@ Verified in production after deploy (commit `21c25b7`):
   `due-for-follow-up`, so the UI shipped alongside the backend.
 - `craco build` clean (+1.79 kB); Rule 13 and Rule 14 greps clean.
 
-**Still not verified:** the panel has never been seen rendering actual rows. All three
-feeds return `[]` for the demo account (`doctor@dentalapp.com`), which has nothing due,
-and Rule 8 forbids testing against a real doctor's records. Empty state and error state
-are therefore the only UI states exercised end to end.
+End-to-end data check against production, with the user's approval, using throwaway
+records in the demo account (`doctor@dentalapp.com`), all deleted afterwards — every feed
+returned to `[]` and the temporary patient was removed:
+
+| Seeded record | Expected | Result |
+|---|---|---|
+| Follow-up dated 5 days ago, no outcome | Listed, `days_until: -5`, sorted first | Pass |
+| Follow-up dated 3 days ahead | Listed, `days_until: 3`, sorted second | Pass |
+| Follow-up dated 40 days ahead | Excluded by the 7-day window | Pass — absent |
+| Surgery 200 days ago, stage 1, 90-day healing | Listed, `days_elapsed: 200` | Pass |
+| Extraction 100 days ago, 60-day reminder, no implant | Listed, `days_elapsed: 100` | Pass |
+
+Field names in each payload match what `NotificationBell.js` reads, and the overdue-first
+sort is confirmed.
+
+**Still not verified:** nobody has looked at the rendered panel with rows in it. The data
+contract is proven and the bundle is deployed, but the visual result is inference from a
+clean build, not observation.
 
 **Correction worth recording:** an unauthenticated 401 was briefly taken as proof the
 route had deployed. It is not — this API returns 401 before routing, so a nonexistent
