@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { getAnalyticsOverview, getDueForSecondStage, getAllImplants, getDueForImplant } from '../api/dashboard';
+import { groupRemindersByPatient, toothList, byDaysElapsed } from '../lib/reminderGroups';
 import { getPatients } from '../api/patients';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -243,6 +244,17 @@ const Dashboard = () => {
     failed: groupIntoCases(buckets.failed),
   };
 
+  // Reminders collapse to one row per patient, matching the header bell — a
+  // patient with eleven implants due is one visit to plan, not eleven alerts.
+  // The section count follows the rows, so the badge never disagrees with the
+  // list beneath it. Shared with NotificationBell.js via lib/reminderGroups.
+  const dueSecondStageGroups = groupRemindersByPatient(
+    dueImplants, (i) => [i.tooth_number], byDaysElapsed,
+  );
+  const dueExtractionGroups = groupRemindersByPatient(
+    dueExtractions, (i) => i.tooth_numbers || [], byDaysElapsed,
+  );
+
   const handleStatClick = (key) => {
     setActiveTab(prev => (prev === key ? null : key));
   };
@@ -384,7 +396,7 @@ const Dashboard = () => {
         )}
 
         {/* ── Second Stage Reminders ── */}
-        {dueImplants.length > 0 && (
+        {dueSecondStageGroups.length > 0 && (
           <div data-testid="second-stage-reminders">
             <div className="flex items-center gap-2 mb-3">
               <Bell size={18} className="text-[#C27E70]" weight="fill" />
@@ -392,32 +404,29 @@ const Dashboard = () => {
                 Ready for Second Stage
               </h3>
               <span className="ml-auto bg-[#C27E70] text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                {dueImplants.length}
+                {dueSecondStageGroups.length}
               </span>
             </div>
             <div className="space-y-2">
-              {dueImplants.map((item) => (
+              {dueSecondStageGroups.map((g) => (
                 <Link
-                  key={item.implant_id}
-                  to={`/patients/${item.patient_id}`}
-                  data-testid={`second-stage-alert-${item.implant_id}`}
+                  key={g.patient_id}
+                  to={`/patients/${g.patient_id}`}
+                  data-testid={`second-stage-alert-${g.patient_id}`}
                   className="flex items-center justify-between bg-[#FDF5F3] border border-[#C27E70]/30 rounded-xl px-4 py-3 hover:border-[#C27E70] hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-lg bg-[#C27E70] flex items-center justify-center text-white font-bold text-sm shrink-0">
-                      {item.tooth_number}
+                      {g.count}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-[#2A2F35]">{item.patient_name}</p>
-                      <p className="text-xs text-[#5C6773]">
-                        {item.brand} · Tooth #{item.tooth_number}
-                        {item.case_number ? ` · ${item.case_number}` : ''}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#2A2F35]">{g.patient_name}</p>
+                      <p className="text-xs text-[#5C6773] truncate">{toothList(g.teeth)}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <p className="text-xs font-semibold text-[#C27E70]">Day {item.days_elapsed}</p>
-                    <p className="text-[10px] text-[#5C6773]">of {item.osseointegration_days} days</p>
+                    <p className="text-xs font-semibold text-[#C27E70]">Day {-g.urgency}</p>
+                    <p className="text-[10px] text-[#5C6773]">of {g.lead.osseointegration_days} days</p>
                   </div>
                 </Link>
               ))}
@@ -426,7 +435,7 @@ const Dashboard = () => {
         )}
 
         {/* ── Ready-for-Implant Reminders (extraction sites healed & waiting) ── */}
-        {dueExtractions.length > 0 && (
+        {dueExtractionGroups.length > 0 && (
           <div data-testid="implant-placement-reminders">
             <div className="flex items-center gap-2 mb-3">
               <Bell size={18} className="text-[#2563EB]" weight="fill" />
@@ -434,31 +443,29 @@ const Dashboard = () => {
                 Ready for Implant Placement
               </h3>
               <span className="ml-auto bg-[#2563EB] text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                {dueExtractions.length}
+                {dueExtractionGroups.length}
               </span>
             </div>
             <div className="space-y-2">
-              {dueExtractions.map((item) => (
+              {dueExtractionGroups.map((g) => (
                 <Link
-                  key={item.extraction_id}
-                  to={`/patients/${item.patient_id}`}
-                  data-testid={`implant-placement-alert-${item.extraction_id}`}
+                  key={g.patient_id}
+                  to={`/patients/${g.patient_id}`}
+                  data-testid={`implant-placement-alert-${g.patient_id}`}
                   className="flex items-center justify-between bg-[#EFF6FF] border border-[#2563EB]/30 rounded-xl px-4 py-3 hover:border-[#2563EB] hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-[#2563EB] flex items-center justify-center text-white font-bold text-xs shrink-0">
-                      {item.tooth_numbers.join(',')}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#2563EB] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {g.count}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-[#2A2F35]">{item.patient_name}</p>
-                      <p className="text-xs text-[#5C6773]">
-                        Extracted {item.extraction_date} · Tooth {item.tooth_numbers.join(', ')}
-                      </p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#2A2F35]">{g.patient_name}</p>
+                      <p className="text-xs text-[#5C6773] truncate">{toothList(g.teeth)}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <p className="text-xs font-semibold text-[#2563EB]">Day {item.days_elapsed}</p>
-                    <p className="text-[10px] text-[#5C6773]">of {item.reminder_days} days</p>
+                    <p className="text-xs font-semibold text-[#2563EB]">Day {-g.urgency}</p>
+                    <p className="text-[10px] text-[#5C6773]">of {g.lead.reminder_days} days</p>
                   </div>
                 </Link>
               ))}

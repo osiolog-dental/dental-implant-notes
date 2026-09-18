@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ArrowsClockwise, WarningCircle } from '@phosphor-icons/react';
 import { getDueForFollowUp, getDueForSecondStage, getDueForImplant } from '../api/dashboard';
+import { groupRemindersByPatient, toothList, byDaysUntil, byDaysElapsed } from '../lib/reminderGroups';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -32,39 +33,6 @@ function followUpTiming(days) {
   }
   if (days === 0) return { text: 'Due today', color: OVERDUE, urgent: true };
   return { text: `Due in ${days} day${days > 1 ? 's' : ''}`, color: UPCOMING, urgent: false };
-}
-
-/*
- * One row per patient, not per implant. A patient with four implants due is one
- * reminder listing four teeth, not four reminders.
- *
- * `teethOf` pulls the tooth numbers out of a record (implant feeds carry one,
- * extraction records carry several). `rank` returns an urgency where lower is
- * more urgent, so a group is ranked by its most urgent member and the groups
- * sort most-urgent-first. Taking the most urgent — rather than the average or
- * the newest — is deliberate: it is the only choice that cannot hide an overdue
- * tooth behind a comfortable one.
- */
-function groupByPatient(items, teethOf, rank) {
-  const groups = new Map();
-  for (const item of items) {
-    let g = groups.get(item.patient_id);
-    if (!g) {
-      g = { patient_id: item.patient_id, patient_name: item.patient_name, teeth: [], count: 0, urgency: Infinity };
-      groups.set(item.patient_id, g);
-    }
-    const teeth = teethOf(item).filter((t) => t !== null && t !== undefined);
-    g.teeth.push(...teeth);
-    // Count what the doctor would actually treat: teeth where we know them,
-    // otherwise the record itself, so a missing tooth number never reads as zero.
-    g.count += teeth.length || 1;
-    g.urgency = Math.min(g.urgency, rank(item));
-  }
-  return [...groups.values()].sort((a, b) => a.urgency - b.urgency);
-}
-
-function toothList(teeth) {
-  return teeth.length ? teeth.join(', ') : 'Tooth not recorded';
 }
 
 function Row({ testId, badge, badgeColor, title, subtext, timing, timingColor, onClick }) {
@@ -123,9 +91,9 @@ export default function NotificationBell() {
   /* Grouped once and reused for both the badge and the list, so the number on
      the bell is always the number of rows sitting behind it. It counts patients
      needing attention, not implants: two implants on one patient is one visit. */
-  const followUpGroups = groupByPatient(followUps, (i) => [i.tooth_number], (i) => i.days_until);
-  const secondStageGroups = groupByPatient(secondStage, (i) => [i.tooth_number], (i) => -i.days_elapsed);
-  const extractionGroups = groupByPatient(extractions, (i) => i.tooth_numbers || [], (i) => -i.days_elapsed);
+  const followUpGroups = groupRemindersByPatient(followUps, (i) => [i.tooth_number], byDaysUntil);
+  const secondStageGroups = groupRemindersByPatient(secondStage, (i) => [i.tooth_number], byDaysElapsed);
+  const extractionGroups = groupRemindersByPatient(extractions, (i) => i.tooth_numbers || [], byDaysElapsed);
   const total = followUpGroups.length + secondStageGroups.length + extractionGroups.length;
 
   const goToPatient = (patientId) => {
