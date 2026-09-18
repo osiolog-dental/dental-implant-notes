@@ -20,6 +20,8 @@ from app.models.patient import Patient
 from app.models.sent_email import SentEmail
 from app.models.user import User
 from app.services import email as email_service
+from app.services import reminder_email as reminder_email_service
+from app.services import reminders as reminder_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -176,6 +178,50 @@ async def send_admin_email(
     await db.flush()
 
     return {"sent": sent, "failed": failed}
+
+
+@router.post("/test-reminder-email")
+async def test_reminder_email(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Send the daily reminder digest now, to the admin's own inbox, built from
+    their own real due data — so the email can be seen without waiting for the
+    08:05 IST job.
+
+    Goes only to the admin's own address. It never emails another doctor, and
+    it changes nothing: the scheduled job still runs as normal.
+    """
+    follow_ups = await reminder_service.follow_ups_due(db, admin.org_id)
+    second_stage = await reminder_service.second_stage_due(db, admin.org_id)
+    extractions = await reminder_service.extraction_sites_due(db, admin.org_id)
+
+    counts = {
+        "follow_ups": len(follow_ups),
+        "second_stage": len(second_stage),
+        "extraction_sites": len(extractions),
+    }
+
+    if not (follow_ups or second_stage or extractions):
+        # Not an error — the digest is deliberately never sent empty.
+        return {
+            "sent": False,
+            "reason": "nothing_due",
+            "detail": "Nothing is due right now, so no email was sent. That is the intended behaviour.",
+            "counts": counts,
+        }
+
+    ok = reminder_email_service.send_digest(
+        admin.email, admin.name, follow_ups, second_stage, extractions
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=502,
+            detail="The email service rejected the message or is not configured.",
+        )
+
+    return {"sent": True, "to": admin.email, "counts": counts}
 
 
 @router.get("/sent-emails")

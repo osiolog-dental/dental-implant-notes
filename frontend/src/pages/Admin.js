@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Buildings, Users, Tooth, Envelope, PaperPlaneTilt, ChartLine, GlobeHemisphereWest, Fingerprint } from '@phosphor-icons/react';
+import { Buildings, Users, Tooth, Envelope, PaperPlaneTilt, ChartLine, GlobeHemisphereWest, Fingerprint, Bell } from '@phosphor-icons/react';
 import client from '../api/client';
 import SendEmailModal from '../components/SendEmailModal';
 
@@ -116,6 +116,7 @@ export default function Admin() {
   const [selectedFirebaseUids, setSelectedFirebaseUids] = useState(new Set());
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailPrefill, setEmailPrefill] = useState([]);
+  const [testingReminder, setTestingReminder] = useState(false);
 
   const fetchAll = async () => {
     try {
@@ -217,15 +218,52 @@ export default function Admin() {
     return <div className="p-8 text-center text-[#5C6773]">Could not load admin data.</div>;
   }
 
+  /* Sends the daily reminder digest to the admin's own inbox, now, so the
+     email can be seen without waiting for the 08:05 IST job. */
+  const sendTestReminder = async () => {
+    setTestingReminder(true);
+    try {
+      const { data } = await client.post('/api/admin/test-reminder-email');
+      if (data.sent) {
+        const { follow_ups, second_stage, extraction_sites } = data.counts;
+        toast.success(
+          `Reminder email sent to ${data.to}`,
+          { description: `${follow_ups} follow-up, ${second_stage} second-stage, ${extraction_sites} extraction-site records.` },
+        );
+      } else {
+        toast.info('Nothing is due right now, so no email was sent', {
+          description: 'That is the intended behaviour — the digest is never sent empty.',
+        });
+      }
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail || 'Could not send the reminder email. Check your connection and try again.',
+      );
+    } finally {
+      setTestingReminder(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-8" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-4xl font-semibold text-[#2A2F35] tracking-tight" style={{ fontFamily: 'Work Sans, sans-serif' }}>
           Admin
         </h1>
-        <button onClick={() => { setEmailPrefill([]); setEmailModalOpen(true); }} data-testid="admin-compose-button" className="flex items-center gap-1.5 px-4 py-2 bg-[#82A098] hover:bg-[#6B8A82] text-white text-sm font-medium rounded-lg transition-colors">
-          <PaperPlaneTilt size={16} weight="bold" /> Compose Email
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={sendTestReminder}
+            disabled={testingReminder}
+            data-testid="admin-test-reminder-button"
+            title="Sends today's reminder digest to your own inbox"
+            className="flex items-center gap-1.5 px-4 py-2 border border-[#E5E5E2] bg-white hover:bg-[#F0F0EE] text-[#2A2F35] text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Bell size={16} weight="bold" /> {testingReminder ? 'Sending…' : 'Email me a reminder'}
+          </button>
+          <button onClick={() => { setEmailPrefill([]); setEmailModalOpen(true); }} data-testid="admin-compose-button" className="flex items-center gap-1.5 px-4 py-2 bg-[#82A098] hover:bg-[#6B8A82] text-white text-sm font-medium rounded-lg transition-colors">
+            <PaperPlaneTilt size={16} weight="bold" /> Compose Email
+          </button>
+        </div>
       </div>
       <p className="text-[#5C6773] mb-8">System health — no patient or clinical data is shown here.</p>
 
