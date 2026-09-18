@@ -90,11 +90,19 @@ def compose(name: str | None, follow_ups: list[dict], second_stage: list[dict],
     ss_groups = group_by_patient(second_stage, lambda i: [i["tooth_number"]], lambda i: -i["days_elapsed"])
     ex_groups = group_by_patient(extractions, lambda i: i["tooth_numbers"], lambda i: -i["days_elapsed"])
 
-    total = len(fu_groups) + len(ss_groups) + len(ex_groups)
+    # Distinct patients, not lines. One patient can appear in two sections — due
+    # for a follow-up and ready for second stage — and a subject claiming four
+    # patients when two are involved is simply false.
+    patients = {
+        item["patient_id"]
+        for feed in (follow_ups, second_stage, extractions)
+        for item in feed
+    }
+    count = len(patients)
     subject = (
         "Osiolog: 1 patient needs attention"
-        if total == 1
-        else f"Osiolog: {total} patients need attention"
+        if count == 1
+        else f"Osiolog: {count} patients need attention"
     )
 
     lines: list[str] = [f"Hi {who},", "", "Here is what is due today.", ""]
