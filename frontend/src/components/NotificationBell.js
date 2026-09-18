@@ -34,7 +34,40 @@ function followUpTiming(days) {
   return { text: `Due in ${days} day${days > 1 ? 's' : ''}`, color: UPCOMING, urgent: false };
 }
 
-function Row({ testId, badge, badgeColor, title, timing, timingColor, onClick }) {
+/*
+ * One row per patient, not per implant. A patient with four implants due is one
+ * reminder listing four teeth, not four reminders.
+ *
+ * `teethOf` pulls the tooth numbers out of a record (implant feeds carry one,
+ * extraction records carry several). `rank` returns an urgency where lower is
+ * more urgent, so a group is ranked by its most urgent member and the groups
+ * sort most-urgent-first. Taking the most urgent — rather than the average or
+ * the newest — is deliberate: it is the only choice that cannot hide an overdue
+ * tooth behind a comfortable one.
+ */
+function groupByPatient(items, teethOf, rank) {
+  const groups = new Map();
+  for (const item of items) {
+    let g = groups.get(item.patient_id);
+    if (!g) {
+      g = { patient_id: item.patient_id, patient_name: item.patient_name, teeth: [], count: 0, urgency: Infinity };
+      groups.set(item.patient_id, g);
+    }
+    const teeth = teethOf(item).filter((t) => t !== null && t !== undefined);
+    g.teeth.push(...teeth);
+    // Count what the doctor would actually treat: teeth where we know them,
+    // otherwise the record itself, so a missing tooth number never reads as zero.
+    g.count += teeth.length || 1;
+    g.urgency = Math.min(g.urgency, rank(item));
+  }
+  return [...groups.values()].sort((a, b) => a.urgency - b.urgency);
+}
+
+function toothList(teeth) {
+  return teeth.length ? teeth.join(', ') : 'Tooth not recorded';
+}
+
+function Row({ testId, badge, badgeColor, title, subtext, timing, timingColor, onClick }) {
   return (
     <DropdownMenuItem
       data-testid={testId}
@@ -47,7 +80,10 @@ function Row({ testId, badge, badgeColor, title, timing, timingColor, onClick })
       >
         {badge}
       </div>
-      <p className="min-w-0 flex-1 text-sm font-medium text-[#2A2F35] truncate">{title}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-[#2A2F35] truncate">{title}</p>
+        <p className="text-xs text-[#5C6773] truncate">{subtext}</p>
+      </div>
       <span className="text-[11px] font-semibold shrink-0" style={{ color: timingColor }}>
         {timing}
       </span>
@@ -84,7 +120,13 @@ export default function NotificationBell() {
 
   useEffect(() => { load(); }, [load]);
 
-  const total = followUps.length + secondStage.length + extractions.length;
+  /* Grouped once and reused for both the badge and the list, so the number on
+     the bell is always the number of rows sitting behind it. It counts patients
+     needing attention, not implants: two implants on one patient is one visit. */
+  const followUpGroups = groupByPatient(followUps, (i) => [i.tooth_number], (i) => i.days_until);
+  const secondStageGroups = groupByPatient(secondStage, (i) => [i.tooth_number], (i) => -i.days_elapsed);
+  const extractionGroups = groupByPatient(extractions, (i) => i.tooth_numbers || [], (i) => -i.days_elapsed);
+  const total = followUpGroups.length + secondStageGroups.length + extractionGroups.length;
 
   const goToPatient = (patientId) => {
     setOpen(false);
@@ -159,66 +201,69 @@ export default function NotificationBell() {
           </div>
         )}
 
-        {followUps.length > 0 && (
+        {followUpGroups.length > 0 && (
           <>
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-[#5C6773] font-semibold px-3 pt-3 pb-1">
               Implant follow-ups
             </DropdownMenuLabel>
-            {followUps.map((item) => {
-              const t = followUpTiming(item.days_until);
+            {followUpGroups.map((g) => {
+              const t = followUpTiming(g.urgency);
               return (
                 <Row
-                  key={item.implant_id}
-                  testId={`notification-followup-${item.implant_id}`}
-                  badge={item.tooth_number ?? '—'}
+                  key={g.patient_id}
+                  testId={`notification-followup-${g.patient_id}`}
+                  badge={g.count}
                   badgeColor={t.color}
-                  title={item.patient_name}
+                  title={g.patient_name}
+                  subtext={toothList(g.teeth)}
                   timing={t.text}
                   timingColor={t.color}
-                  onClick={() => goToPatient(item.patient_id)}
+                  onClick={() => goToPatient(g.patient_id)}
                 />
               );
             })}
           </>
         )}
 
-        {secondStage.length > 0 && (
+        {secondStageGroups.length > 0 && (
           <>
-            {followUps.length > 0 && <DropdownMenuSeparator />}
+            {followUpGroups.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-[#5C6773] font-semibold px-3 pt-3 pb-1">
               Ready for second stage
             </DropdownMenuLabel>
-            {secondStage.map((item) => (
+            {secondStageGroups.map((g) => (
               <Row
-                key={item.implant_id}
-                testId={`notification-second-stage-${item.implant_id}`}
-                badge={item.tooth_number ?? '—'}
+                key={g.patient_id}
+                testId={`notification-second-stage-${g.patient_id}`}
+                badge={g.count}
                 badgeColor={OVERDUE}
-                title={item.patient_name}
-                timing={`Day ${item.days_elapsed}`}
+                title={g.patient_name}
+                subtext={toothList(g.teeth)}
+                timing={`Day ${-g.urgency}`}
                 timingColor={OVERDUE}
-                onClick={() => goToPatient(item.patient_id)}
+                onClick={() => goToPatient(g.patient_id)}
               />
             ))}
           </>
         )}
 
-        {extractions.length > 0 && (
+        {extractionGroups.length > 0 && (
           <>
-            {(followUps.length > 0 || secondStage.length > 0) && <DropdownMenuSeparator />}
+            {(followUpGroups.length > 0 || secondStageGroups.length > 0) && <DropdownMenuSeparator />}
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-[#5C6773] font-semibold px-3 pt-3 pb-1">
               Ready for implant placement
             </DropdownMenuLabel>
-            {extractions.map((item) => (
+            {extractionGroups.map((g) => (
               <Row
-                key={item.extraction_id}
-                testId={`notification-extraction-${item.extraction_id}`}
-                badge={item.tooth_numbers?.length > 1 ? item.tooth_numbers.length : (item.tooth_numbers?.[0] ?? '—')}
+                key={g.patient_id}
+                testId={`notification-extraction-${g.patient_id}`}
+                badge={g.count}
                 badgeColor={INFO}
-                title={item.patient_name}
-                timing={`Day ${item.days_elapsed}`}
+                title={g.patient_name}
+                subtext={toothList(g.teeth)}
+                timing={`Day ${-g.urgency}`}
                 timingColor={INFO}
-                onClick={() => goToPatient(item.patient_id)}
+                onClick={() => goToPatient(g.patient_id)}
               />
             ))}
           </>
