@@ -14,8 +14,9 @@ from app.models.implant import Implant
 from app.models.case import Case
 from app.models.patient import Patient
 from app.models.user import User
+from app.services import reminder_email, reminders
 
-logger = logging.getLogger("dentalhub.notifications")
+logger = logging.getLogger("osiolog.notifications")
 
 _FCM_ENDPOINT = (
     "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
@@ -172,6 +173,61 @@ async def send_followup_reminders() -> None:
         logger.info("Follow-up reminders sent to %d doctors", len(doctor_followups))
 
 
+async def send_reminder_emails() -> None:
+    """
+    Daily job: email each doctor a digest of what is clinically due.
+
+    Two rules keep this from becoming noise a dentist learns to ignore:
+    only doctors who have not switched it off get one, and only when something
+    is actually due. An empty "nothing to do" email every morning is exactly
+    how the one that matters gets skipped.
+
+    One doctor's failure never stops the rest of the run.
+    """
+    import asyncio
+
+    attempted = 0
+    delivered = 0
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(User).where(User.reminder_emails_enabled.is_(True))
+        )
+        doctors = result.scalars().all()
+
+        for doctor in doctors:
+            if not doctor.email:
+                continue
+            try:
+                follow_ups = await reminders.follow_ups_due(db, doctor.org_id)
+                second_stage = await reminders.second_stage_due(db, doctor.org_id)
+                extractions = await reminders.extraction_sites_due(db, doctor.org_id)
+            except Exception as exc:
+                logger.error("Reminder digest query failed for %s: %s", doctor.email, exc)
+                continue
+
+            if not (follow_ups or second_stage or extractions):
+                continue
+
+            attempted += 1
+            try:
+                # Resend is a blocking HTTP call with a 10s timeout — run it off
+                # the event loop so one slow send cannot stall the whole run.
+                ok = await asyncio.to_thread(
+                    reminder_email.send_digest,
+                    doctor.email,
+                    doctor.name,
+                    follow_ups,
+                    second_stage,
+                    extractions,
+                )
+                delivered += 1 if ok else 0
+            except Exception as exc:
+                logger.error("Reminder digest send failed for %s: %s", doctor.email, exc)
+
+    logger.info("Reminder digests: %d attempted, %d delivered", attempted, delivered)
+
+
 def start_scheduler() -> None:
     """Start APScheduler with the daily 8 AM IST (02:30 UTC) follow-up reminder job."""
     try:
@@ -188,5 +244,16 @@ def start_scheduler() -> None:
         id="followup_reminders",
         replace_existing=True,
     )
+    # 02:35 UTC — five minutes behind the push, so the two do not contend for
+    # the same worker at the same instant.
+    scheduler.add_job(
+        send_reminder_emails,
+        CronTrigger(hour=2, minute=35, timezone="UTC"),
+        id="reminder_emails",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Follow-up reminder scheduler started (daily 08:00 IST / 02:30 UTC)")
+    logger.info(
+        "Reminder schedulers started: FCM push 02:30 UTC, email digest 02:35 UTC "
+        "(08:00 / 08:05 IST)"
+    )

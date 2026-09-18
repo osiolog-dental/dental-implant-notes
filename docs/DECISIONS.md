@@ -844,3 +844,82 @@ the evidence has to come from production.
 ### Revisit if
 `app.osiolog.com` is revived (move `FRONTEND_URL` back) or formally decommissioned (drop
 it from the CORS list), or the dashboard value is changed to match the file.
+
+---
+
+## D-014 — Daily reminder email: opt-out column, shared queries, 8:05 AM digest
+
+- **Date:** 2026-09-18
+- **Status:** Active
+- **Area:** backend (schema, scheduler, email) / frontend (Account settings)
+
+### Problem
+The doctor expected an email when an implant became ready for second stage. None
+existed. Before today, second stage and extraction sites had no alert at all outside the
+Dashboard, and implant follow-ups had only an FCM push. Email was wired up but used
+solely for Contact Us and manual admin sends (see D-012 for the in-app bell).
+
+### Decisions, and who made them
+User's choices, asked before any code:
+- **All three clinical feeds** in one digest — follow-ups, second stage, extraction sites.
+  Unpaid balances stay out; charges still carry no due date, so "overdue" remains
+  undefined in the data (same reasoning as D-012).
+- **Daily, 8 AM, only when something is due.** No "nothing due today" email. A daily
+  email that is usually empty is one the reader stops opening, and the day it matters is
+  the day it gets skipped.
+- **Per-doctor opt-out**, on by default, in Account settings.
+- **To the doctor only.** Patients are never emailed. Stated explicitly by the user.
+
+### Implementation choices not put to the user
+- **8:05 AM IST (02:35 UTC)**, five minutes behind the existing FCM job, so the two do not
+  contend for the same worker instant. Same morning slot, so push and email agree.
+- **Org-scoped, not doctor-scoped.** The three route handlers filter patients by `org_id`,
+  so the email reports exactly what that doctor sees in the app. The older FCM job filters
+  by `Patient.doctor_id` instead — an inconsistency that predates this and is untouched.
+  For solo doctors, which is every current account, the two are identical.
+- **Grouped one row per patient**, matching the bell and Dashboard (D-012).
+
+### The queries moved out of the route handlers
+`services/reminders.py` now holds all three "due" queries; `flat_routes.py` and
+`tooth_extraction.py` delegate to it. A scheduled job cannot call an HTTP route, and the
+alternative was a second copy of each query. Two copies would eventually disagree about
+what is due, and the symptom would be a recall the email mentions and the app does not —
+noticed, if at all, as a missed appointment. Route JSON is unchanged; the route sets were
+diffed against `HEAD` to confirm nothing was dropped in the move.
+
+The Python grouping in `reminder_email.py` does duplicate `lib/reminderGroups.js`. That
+one is unavoidable — different languages — and is flagged in both files.
+
+### Migration
+`e4a9c2b7f1d3` adds `users.reminder_emails_enabled BOOLEAN NOT NULL DEFAULT true`.
+Generated SQL was inspected offline before pushing:
+
+    ALTER TABLE users ADD COLUMN reminder_emails_enabled BOOLEAN DEFAULT true NOT NULL;
+
+On PostgreSQL 11+ a non-volatile default makes this metadata-only — no table rewrite, no
+row locks, no data touched, and existing doctors read as subscribed. `downgrade()` drops
+the column.
+
+### Verification status
+- Verified: the whole app imports; the alembic chain resolves to a single head across 31
+  revisions; the migration's SQL was generated offline and read; pytest collects 22 tests;
+  frontend compiles; the digest was rendered from realistic fixtures, including the
+  eleven-implant patient from the Dashboard screenshot, and groups correctly.
+- **Not verified, and none of it can be from this machine:** the migration has never been
+  executed against any database (no local PostgreSQL, no Docker — see D-012). The
+  scheduled job has never run. No reminder email has ever been sent or received. The
+  Account toggle has not been clicked.
+- **Unknown:** whether `RESEND_API_KEY` is even set in production. It is absent from
+  `render.yaml`, but D-013 established that the file is not the source of truth — the
+  Render dashboard is. If it is unset, `is_configured()` returns False and the job logs a
+  warning and sends nothing. Silent to the doctor.
+
+### Risk accepted
+The migration runs automatically via `start.sh` (`alembic upgrade head`) on deploy. A
+migration that fails takes the API down, because the process will not start. Judged
+acceptable because the statement is the simplest additive form there is and its SQL was
+read before pushing — but it is judgement, not a test.
+
+### Revisit if
+The FCM job's doctor-scoping vs this job's org-scoping ever diverges in practice, i.e.
+when an org first has more than one doctor.

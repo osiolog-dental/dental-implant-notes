@@ -3,9 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from sqlalchemy import true as sa_true
 
 from app.db.base import Base
 
@@ -45,6 +47,12 @@ class User(Base):
     clinical_focus: Mapped[str | None] = mapped_column(Text, nullable=True)
     education: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     publications: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
+    # Opt-out for the daily reminder email. On by default: the email only goes
+    # out when something is clinically due, so it is signal rather than noise.
+    reminder_emails_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_true()
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

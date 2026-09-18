@@ -48,6 +48,7 @@ class UserUpdate(BaseModel):
     clinical_focus: str | None = None
     education: list | None = None
     publications: list | None = None
+    reminder_emails_enabled: bool | None = None
 
 
 class UserRead(UserBase):
@@ -71,5 +72,6 @@ class UserRead(UserBase):
     clinical_focus: str | None = None
     education: list | None = None
     publications: list | None = None
+    reminder_emails_enabled: bool = True
 
     model_config = {"from_attributes": True}

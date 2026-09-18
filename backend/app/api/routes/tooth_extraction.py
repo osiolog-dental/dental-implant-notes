@@ -14,6 +14,7 @@ from app.models.patient import Patient
 from app.models.tooth_extraction import ToothExtraction
 from app.models.user import User
 from app.repositories.tooth_extraction import ToothExtractionRepository
+from app.services import reminders as reminder_service
 from app.schemas.tooth_extraction import ToothExtractionCreate, ToothExtractionRead, ToothExtractionUpdate
 
 router = APIRouter(tags=["tooth-extractions"])
@@ -89,46 +90,8 @@ async def extractions_due_for_implant(
     db: AsyncSession = Depends(get_db),
 ) -> list:
     """
-    Extraction sites planned for a future implant where the doctor's custom
-    countdown has elapsed and no implant has been logged at that tooth yet.
+    Extraction sites planned for a future implant whose countdown has elapsed
+    with no implant logged. Query lives in services/reminders.py, shared with
+    the daily reminder email.
     """
-    result = await db.execute(
-        select(ToothExtraction, Patient)
-        .join(Patient, ToothExtraction.patient_id == Patient.id)
-        .where(
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at.is_(None),
-            ToothExtraction.planned_future_implant.is_(True),
-            ToothExtraction.reminder_days.isnot(None),
-        )
-    )
-    rows = result.all()
-
-    # Implants already placed, keyed by (patient_id, tooth_number) — suppresses
-    # the reminder once the planned implant has actually been logged.
-    implant_result = await db.execute(
-        select(Implant.patient_id, Implant.tooth_number)
-        .join(Patient, Implant.patient_id == Patient.id)
-        .where(Patient.org_id == current_user.org_id, Patient.deleted_at.is_(None))
-    )
-    implanted_sites = {(pid, tn) for pid, tn in implant_result.all()}
-
-    today = _date.today()
-    due = []
-    for extraction, patient in rows:
-        pending_teeth = [tn for tn in extraction.tooth_numbers if (patient.id, tn) not in implanted_sites]
-        if not pending_teeth:
-            continue
-        days_elapsed = (today - extraction.extraction_date).days
-        if days_elapsed >= extraction.reminder_days:
-            due.append({
-                "extraction_id": str(extraction.id),
-                "patient_id": str(patient.id),
-                "patient_name": patient.name,
-                "tooth_numbers": pending_teeth,
-                "days_elapsed": days_elapsed,
-                "reminder_days": extraction.reminder_days,
-                "extraction_date": extraction.extraction_date.isoformat(),
-            })
-
-    return sorted(due, key=lambda x: x["days_elapsed"], reverse=True)
+    return await reminder_service.extraction_sites_due(db, current_user.org_id)

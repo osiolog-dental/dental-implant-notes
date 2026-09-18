@@ -38,6 +38,7 @@ from app.schemas.fpd import FPDFlatCreate, FPDRead, FPDUpdate
 from pydantic import BaseModel
 from app.schemas.implant import ImplantFlatCreate, ImplantRead, ImplantUpdate
 from app.services import google_drive as drive_service
+from app.services import reminders as reminder_service
 from app.services import s3 as s3_service
 
 router = APIRouter(tags=["flat-routes"])
@@ -654,38 +655,8 @@ async def implants_due_for_second_stage(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list:
-    from datetime import date as _date
-
-    result = await db.execute(
-        select(Implant, Patient)
-        .join(Patient, Implant.patient_id == Patient.id)
-        .where(
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at.is_(None),
-            Implant.surgery_date.isnot(None),
-            Implant.current_stage == 1,
-        )
-    )
-    rows = result.all()
-
-    today = _date.today()
-    due = []
-    for implant, patient in rows:
-        days_elapsed = (today - implant.surgery_date).days
-        if days_elapsed >= implant.osseointegration_days:
-            due.append({
-                "implant_id": str(implant.id),
-                "patient_id": str(patient.id),
-                "patient_name": patient.name,
-                "tooth_number": implant.tooth_number,
-                "brand": implant.brand,
-                "case_number": None,
-                "days_elapsed": days_elapsed,
-                "osseointegration_days": implant.osseointegration_days,
-                "surgery_date": implant.surgery_date.isoformat(),
-            })
-
-    return sorted(due, key=lambda x: x["days_elapsed"], reverse=True)
+    """Stage-1 implants past their osseointegration period. See services/reminders.py."""
+    return await reminder_service.second_stage_due(db, current_user.org_id)
 
 
 @router.get("/implants/due-for-follow-up")
@@ -694,47 +665,11 @@ async def implants_due_for_follow_up(
     db: AsyncSession = Depends(get_db),
 ) -> list:
     """
-    Implants whose follow-up is due within the next 7 days, due today, or
-    already past without an outcome recorded.
-
-    The 7-day window matches the daily push reminder in
-    app/services/notifications.py so the bell and the phone alert agree.
-    Unlike the push job, past-dated follow-ups are kept rather than filtered
-    out: a date that slipped by is exactly the one worth showing.
+    Implant follow-ups due within the next 7 days, due today, or already past
+    without an outcome recorded. Query lives in services/reminders.py, shared
+    with the daily reminder email so the two cannot disagree.
     """
-    from datetime import date as _date, timedelta as _timedelta
-
-    today = _date.today()
-    window_end = today + _timedelta(days=7)
-
-    result = await db.execute(
-        select(Implant, Patient)
-        .join(Patient, Implant.patient_id == Patient.id)
-        .where(
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at.is_(None),
-            Implant.follow_up_date.isnot(None),
-            Implant.follow_up_date <= window_end,
-            Implant.osseointegration_success.is_(None),
-        )
-    )
-
-    due = [
-        {
-            "implant_id": str(implant.id),
-            "patient_id": str(patient.id),
-            "patient_name": patient.name,
-            "tooth_number": implant.tooth_number,
-            "brand": implant.brand,
-            "follow_up_date": implant.follow_up_date.isoformat(),
-            # negative = overdue by that many days, 0 = due today
-            "days_until": (implant.follow_up_date - today).days,
-        }
-        for implant, patient in result.all()
-    ]
-
-    # Most overdue first, then today, then the coming week.
-    return sorted(due, key=lambda x: x["days_until"])
+    return await reminder_service.follow_ups_due(db, current_user.org_id)
 
 
 @router.get("/implants/all")

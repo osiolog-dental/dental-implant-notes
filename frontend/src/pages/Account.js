@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import client from '../api/client';
@@ -10,7 +10,7 @@ import {
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
   ShareNetwork, ArrowSquareOut, X, Warning, Camera, CurrencyDollar,
   Briefcase, Buildings, Clock, Plus, Trash, House, CalendarBlank,
-  GenderIntersex, Newspaper,
+  GenderIntersex, Newspaper, Bell,
 } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
@@ -57,6 +57,30 @@ export default function Account() {
   const [localPicUrl, setLocalPicUrl] = useState(null);
   const picInputRef = useRef(null);
   const [editImage, imageEditor] = useImageEditor();
+
+  /* Reminder emails — saved on toggle rather than behind the profile Save
+     button, since it is a setting rather than a field being edited. */
+  const [remindersOn, setRemindersOn] = useState(user?.reminder_emails_enabled !== false);
+  const [remindersSaving, setRemindersSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) setRemindersOn(user.reminder_emails_enabled !== false);
+  }, [user]);
+
+  const toggleReminders = async () => {
+    const next = !remindersOn;
+    setRemindersOn(next);            // optimistic, reverted below if it fails
+    setRemindersSaving(true);
+    try {
+      await client.patch('/api/users/me', { reminder_emails_enabled: next });
+      toast.success(next ? 'Reminder emails turned on' : 'Reminder emails turned off');
+    } catch {
+      setRemindersOn(!next);
+      toast.error('Could not save that setting. Check your connection and try again.');
+    } finally {
+      setRemindersSaving(false);
+    }
+  };
 
   const emptyEdu = () => ({ _id: String(Date.now() + Math.random()), degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
   const emptyPub = () => ({ _id: String(Date.now() + Math.random()), title: '', journal: '', year: '', doi: '' });
@@ -651,6 +675,42 @@ export default function Account() {
           </div>
         </div>
       )}
+
+      {/* Notifications */}
+      <div className="bg-white rounded-xl border border-[#E5E5E2] mt-5 overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E5E5E2] flex items-center gap-2">
+          <Bell size={18} className="text-[#82A098]" />
+          <h2 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Notifications</h2>
+        </div>
+        <div className="p-6 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[#2A2F35]">Daily reminder email</p>
+            <p className="text-xs text-[#5C6773] mt-1 max-w-md">
+              A morning email listing implant follow-ups, sites ready for second stage,
+              and extraction sites ready for implant. Sent only on days when something
+              is actually due — never an empty one.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={remindersOn}
+            aria-label="Daily reminder email"
+            disabled={remindersSaving}
+            onClick={toggleReminders}
+            data-testid="reminder-emails-toggle"
+            className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150 disabled:opacity-50 ${
+              remindersOn ? 'bg-[#82A098]' : 'bg-[#E5E5E2]'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-150 ${
+                remindersOn ? 'translate-x-[22px]' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
 
       {/* Add Patient & Implant Log */}
       <PatientImplantLogForm />
