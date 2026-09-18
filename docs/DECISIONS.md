@@ -681,7 +681,15 @@ FCM push for implant follow-ups, so a doctor on any other page saw nothing.
 
 ### Decision
 `NotificationBell.js` calls three endpoints and renders the union, grouped. No storage,
-no read/unread state. The badge is the live count of what is due; an item leaves the list
+no read/unread state.
+
+Rows are one per patient, not per implant — a patient with eleven implants due is one
+reminder listing eleven teeth. Each group is led by its most urgent member, which is the
+only choice that cannot hide an overdue tooth behind a comfortable one. The Dashboard's
+two reminder sections were later brought to the same shape, and the grouping moved to
+`lib/reminderGroups.js` so the two cannot drift: they show the same records to the same
+dentist, and disagreeing about how to count them would be its own bug. Counts on both the
+bell badge and the section headers follow the rows rather than the underlying records. The badge is the live count of what is due; an item leaves the list
 when the clinical record changes (outcome recorded, second stage logged, implant placed).
 
 ### Why this one
