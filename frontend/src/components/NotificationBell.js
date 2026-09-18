@@ -34,7 +34,7 @@ function followUpTiming(days) {
   return { text: `Due in ${days} day${days > 1 ? 's' : ''}`, color: UPCOMING, urgent: false };
 }
 
-function Row({ testId, badge, badgeColor, title, subtitle, timing, timingColor, onClick }) {
+function Row({ testId, badge, badgeColor, title, timing, timingColor, onClick }) {
   return (
     <DropdownMenuItem
       data-testid={testId}
@@ -47,10 +47,7 @@ function Row({ testId, badge, badgeColor, title, subtitle, timing, timingColor, 
       >
         {badge}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[#2A2F35] truncate">{title}</p>
-        <p className="text-xs text-[#5C6773] truncate">{subtitle}</p>
-      </div>
+      <p className="min-w-0 flex-1 text-sm font-medium text-[#2A2F35] truncate">{title}</p>
       <span className="text-[11px] font-semibold shrink-0" style={{ color: timingColor }}>
         {timing}
       </span>
@@ -176,7 +173,6 @@ export default function NotificationBell() {
                   badge={item.tooth_number ?? '—'}
                   badgeColor={t.color}
                   title={item.patient_name}
-                  subtitle={`${item.brand ? `${item.brand} · ` : ''}Tooth #${item.tooth_number ?? '—'}`}
                   timing={t.text}
                   timingColor={t.color}
                   onClick={() => goToPatient(item.patient_id)}
@@ -199,7 +195,6 @@ export default function NotificationBell() {
                 badge={item.tooth_number ?? '—'}
                 badgeColor={OVERDUE}
                 title={item.patient_name}
-                subtitle={`${item.brand ? `${item.brand} · ` : ''}Tooth #${item.tooth_number ?? '—'}`}
                 timing={`Day ${item.days_elapsed}`}
                 timingColor={OVERDUE}
                 onClick={() => goToPatient(item.patient_id)}
@@ -221,7 +216,6 @@ export default function NotificationBell() {
                 badge={item.tooth_numbers?.length > 1 ? item.tooth_numbers.length : (item.tooth_numbers?.[0] ?? '—')}
                 badgeColor={INFO}
                 title={item.patient_name}
-                subtitle={`Extracted · Tooth ${item.tooth_numbers?.join(', ') || '—'}`}
                 timing={`Day ${item.days_elapsed}`}
                 timingColor={INFO}
                 onClick={() => goToPatient(item.patient_id)}
