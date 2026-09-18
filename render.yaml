@@ -15,7 +15,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: FRONTEND_URL
-        value: https://app.osiolog.com
+        value: https://osiolog.com
       - key: AWS_REGION
         value: ap-south-1
       # Everything below holds a secret or environment-specific value —

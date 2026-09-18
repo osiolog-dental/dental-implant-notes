@@ -746,8 +746,66 @@ path returns 401 too. Only the authenticated call distinguishes deployed from mi
 `app.osiolog.com` — the URL named in `render.yaml` as `FRONTEND_URL` and in CLAUDE.md as
 the live app — returns Cloudflare 522 (origin unreachable). `osiolog.com` and
 `www.osiolog.com` serve the app normally. Observed fact, not diagnosed; predates this
-change and is untouched by it.
+change and is untouched by it. Followed up in [D-013](#d-013).
 
 ### Revisit if
 The user wants dismissals to persist (then alternative 1 returns, with a migration), or
 decides on an overdue-payment rule.
+
+
+---
+
+## D-013 — Point `FRONTEND_URL` at `osiolog.com`; keep `app.osiolog.com` permitted
+
+- **Date:** 2026-09-18
+- **Status:** Active
+- **Area:** backend config / deployment
+
+### Problem
+`render.yaml` set `FRONTEND_URL` to `https://app.osiolog.com`, which returns Cloudflare
+522 (origin unreachable), while `osiolog.com` and `www.osiolog.com` serve the app.
+
+This was not cosmetic. `FRONTEND_URL` has two consumers:
+- `main.py` — first entry of the CORS allow list. Harmless here, because `osiolog.com`
+  and `www.osiolog.com` are separately hard-coded, which is why the app kept working.
+- `storage.py:63` — `settings_url = f"{settings.FRONTEND_URL}/subscription"`, the address
+  Google redirects a doctor's browser to after they approve Drive access, and the target
+  of every `?drive_error=` failure redirect.
+
+So **connecting a Google Drive was broken in production**: approve at Google, land on a
+dead host. The same dead host swallowed the error redirects, so a denied or invalid
+attempt produced no message either.
+
+### How it surfaced
+Incidentally, while verifying an unrelated deploy (D-012) — not through a bug report.
+Unknown how long it had been broken; the Drive feature shipped in `0d83455` / `cc4f314`.
+No attempt was made to reconstruct the timeline from logs.
+
+### Decision
+`FRONTEND_URL` → `https://osiolog.com` (user's choice of canonical host, from two working
+candidates). `app.osiolog.com` stays in the CORS allow list, with a comment explaining why
+a dead host is listed.
+
+### Why keep a dead host permitted
+Asymmetric cost. Leaving the string costs nothing — CORS entries are matched, not dialled,
+so an unreachable origin is inert. Removing it means that reviving the subdomain later
+requires a backend change and redeploy to stop browsers being refused, and that failure
+would present as an opaque CORS error. Deliberately a decision to revisit rather than a
+permanent keep.
+
+### Not done
+The 522 itself is untouched — that is DNS/origin configuration outside this repo. This
+change routes around it. If `app.osiolog.com` is meant to be the product's address, the
+origin still needs fixing and `FRONTEND_URL` moving back.
+
+### Verification status
+- Verified: the four references were located by repo-wide search and three changed
+  (`render.yaml`, `CLAUDE.md`, and this file); `main.py` gained only a comment.
+- **Not verified:** the Google Drive connect flow has not been re-run end to end. Doing so
+  needs a real Google account consenting to Drive access, which is the user's to give.
+  The reasoning that the redirect now lands on a live host follows from the code path
+  above, but it is inference, not an observed successful connection.
+
+### Revisit if
+`app.osiolog.com` is revived (move `FRONTEND_URL` back) or formally decommissioned (drop
+it from the CORS list).
