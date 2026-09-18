@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead
+from app.services import email as email_service
 from app.services import s3 as s3_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -22,6 +23,7 @@ _bearer = HTTPBearer(auto_error=False)
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(
     body: UserCreate,
+    background_tasks: BackgroundTasks,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
@@ -88,6 +90,17 @@ async def register(
     )
     db.add(user)
     await db.flush()
+
+    # Welcome the doctor — only here, on the branch that actually creates an
+    # account. The idempotent early return above and the 409 both skip it, so a
+    # re-login never re-greets anyone.
+    #
+    # Queued rather than awaited: Resend is a blocking HTTP call with a 10s
+    # timeout, and a signup must not wait on it or fail with it. Background
+    # tasks run after the response, and get_db commits during dependency
+    # teardown which happens first — so this only fires for an account that
+    # really persisted.
+    background_tasks.add_task(email_service.send_welcome_email, token_email, body.name)
 
     return UserRead.model_validate(user)
 
