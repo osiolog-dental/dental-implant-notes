@@ -5,36 +5,198 @@
 
 ---
 
+## RULE 0 — ASK BEFORE YOU BUILD (OVERRIDES EVERYTHING BELOW)
+
+**Never assume. Never infer. Never guess what the user meant.**
+
+This rule outranks every other rule in this file. If any other instruction appears to permit proceeding on an assumption, this rule wins.
+
+### The gate
+
+| Request type | What to do |
+|---|---|
+| A question ("what does this do?", "why is login failing?", "where is X?") | **Answer it directly.** No gate. Reading, searching, and explaining are free. |
+| Anything that writes, edits, installs, deletes, migrates, deploys, or commits | **STOP. Ask first.** Do not touch a file until the answer comes back. |
+
+### Before any change, the following must be explicitly confirmed — not inferred
+
+1. **Scope** — which screens, files, endpoints, and platforms (web / Android / iOS) are in play?
+2. **Behaviour** — what exactly should happen, in the dentist's own words?
+3. **Data** — which DB fields are read or written? Is anything new being stored?
+4. **Edge cases** — what should happen when the value is empty, zero, missing, or wrong?
+5. **Blast radius** — does this touch `PatientDetails.js`, auth, patient records, or production?
+
+If any of the five is unclear, **ask before writing a single line**. Use `AskUserQuestion` with concrete options — never a vague "what would you like?".
+
+### How to ask well
+
+- Ask **specific, answerable** questions with real options and their trade-offs spelled out.
+- Present the clinical/practical consequence of each option, not the technical one.
+- Batch related questions into one round. Do not interrogate one question at a time.
+- If you have a recommendation, say so and say why — the user is a clinician, not an engineer.
+
+### Absolutely forbidden without an explicit answer
+
+- Inventing a field name, DB column, endpoint, or default value.
+- Choosing a number (a threshold, a limit, a day count, a price) the user did not state.
+- Deciding "the user probably meant X" and building X.
+- Filling a gap in a spec with a plausible guess.
+- Expanding scope beyond what was literally asked.
+
+### The one exception
+
+If the user has **already answered** the relevant question earlier in the same conversation, do not ask it again. Re-asking settled questions is its own failure. Carry the answer forward.
+
+> **Why this rule exists:** the user is a practising implantologist, not a software engineer. A wrong assumption does not surface as a compiler error — it surfaces as wrong clinical data in a real patient record, sometimes months later. A thirty-second question is always cheaper than a silent wrong guess.
+
+---
+
+## Agent & Skill Routing — Who Works On What
+
+Three skill libraries are installed globally at `C:\Users\midhi\.claude\skills\`:
+
+| Library | What it is | Naming |
+|---|---|---|
+| **gstack** (Garry Tan) | 54 skills modelling a full engineering team — CEO, designer, engineer, QA lead, shipper | `gstack-*` |
+| **karpathy-guidelines** | Behavioural rules that cut common LLM coding mistakes | `karpathy-guidelines` |
+| **Anthropic Cybersecurity Skills** | 813 practitioner security workflows across 34 domains | long descriptive names |
+
+### Always active, every single task
+
+- **`karpathy-guidelines`** — think before coding, simplest thing that works, surgical diffs, verifiable success criteria. This pairs directly with Rule 0.
+
+### Route by what is being touched
+
+| Area of work | Dispatch a subagent with | Why |
+|---|---|---|
+| **React pages, UI, layout, styling** | `gstack-design-review`, `gstack-design-consultation`, plus `design_guidelines.json` | Design-system compliance is Rule 3 and is easy to violate by eye |
+| **`PatientDetails.js` (any edit at all)** | `gstack-careful` + a dedicated subagent | Rule 7 — this file is large and fragile; it gets its own isolated context |
+| **FastAPI routes, Pydantic models, SQLAlchemy** | `gstack-plan-eng-review`, then `gstack-review` | Backend changes ripple into migrations and the mobile clients |
+| **Auth, Firebase, JWT, `AuthContext.js`** | Security skills + `gstack-careful` | Rule 11 — auth breakage locks the dentist out of their own records |
+| **Patient data, S3 uploads, Photo Vault** | Security skills for access control and data protection | This is real patient health data with real privacy obligations |
+| **Capacitor, Android, iOS builds** | `gstack-ios-qa`, `gstack-ios-fix`, `gstack-ios-sync` | The Capacitor rules below are non-obvious and fail silently |
+| **Debugging something broken** | `gstack-investigate` | Find the root cause before proposing a fix |
+| **Planning a feature** | `Plan` agent or `gstack-autoplan` / `gstack-spec` | Produces a reviewable plan before any code exists |
+| **Finding code across the repo** | `Explore` agent | Cheap, parallel, keeps the main context clean |
+| **Before shipping** | `/code-review`, `gstack-qa`, `gstack-ship` | Last gate before production |
+
+### How dispatch works
+
+- Route **automatically** — the user should not have to name a role.
+- **State which role is working** before dispatching, in one short line.
+- Dispatch subagents **in parallel** when the areas are independent (e.g. a frontend change and an unrelated backend change).
+- Subagents are briefed, not trusted blindly: **always verify their actual diffs** before reporting work as done.
+- A subagent inherits Rule 0. If it hits an ambiguity, it stops and reports back — it does not guess.
+
+### Security skill selection
+
+With 813 security skills available, pick by relevance, not by reflex. The ones that actually apply to Osiolog concern web application security, cloud and S3 access control, authentication and session handling, and health-data privacy. Ignore the malware-analysis, ICS/SCADA, and forensics domains — they have no bearing on this app.
+
+### Maintaining the libraries (Windows)
+
+On Windows these skills are installed as **file copies, not symlinks**. A `git pull` in the source repo therefore does **not** update what Claude Code loads.
+
+```bash
+# gstack — after any git pull, re-run setup or the skills stay stale
+cd ~/.claude/skills/gstack && git pull && ./setup --host claude --prefix
+
+# security skills — re-copy from the vendor clone
+cd ~/.claude/vendor/Anthropic-Cybersecurity-Skills && git pull
+cp -r skills/. ~/.claude/skills/
+
+# karpathy guidelines — single skill, re-copy the one folder
+cd ~/.claude/vendor/andrej-karpathy-skills && git pull
+cp -r skills/karpathy-guidelines ~/.claude/skills/
+
+# always verify the count afterwards — a partial copy fails silently
+find ~/.claude/skills -maxdepth 2 -name SKILL.md | wc -l   # expect 870
+```
+
+**Restart required.** Claude Code reads the skill registry once, at session start. Newly installed or updated skills do **not** appear in a session that was already running — verified by invoking one immediately after install and getting `Unknown skill`. After any install or refresh, restart Claude Code (in VS Code: reload the window).
+
+Five security skills are permanently absent (Windows Defender blocks them) — this is expected and documented in [`docs/FAILURES.md`](docs/FAILURES.md). gstack also registered a `Stop` hook in `~/.claude/settings.json`; it is tagged `_gstack_source` and removable via `gstack-settings-hook remove-source`.
+
+---
+
+## Decision & Implementation Documentation — MANDATORY
+
+This project follows [`UNIVERSAL PROJECT DECISION & IMPLEMENTATION DOCUMENTATION RULE.md`](UNIVERSAL%20PROJECT%20DECISION%20&%20IMPLEMENTATION%20DOCUMENTATION%20RULE.md). Read it before documenting anything substantial. The core of it:
+
+> Never document only the final answer. Document the **path that led to it** — what was tried, what failed, what was rejected and why.
+
+### Two living logs
+
+| File | Holds |
+|---|---|
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Every meaningful decision: the problem, the alternatives, why one won, what was traded away |
+| [`docs/FAILURES.md`](docs/FAILURES.md) | Every meaningful failure: what was expected, what happened, root cause, fix, lesson |
+
+### When an entry is required
+
+Write one for: architecture changes, new dependencies, schema changes, auth or security decisions, anything touching patient data, a changed approach mid-task, and any bug that cost real time to diagnose.
+
+Do **not** write one for: typo fixes, copy tweaks, formatting, or a one-line change with no alternatives worth weighing. Rule 24 of the standard is explicit that documentation must be proportional — bloat is its own failure.
+
+### Non-negotiable honesty requirements
+
+- **Never invent reasoning after the fact.** If the original rationale cannot be recovered, write exactly that, then label any reconstruction as such.
+- **Never claim an alternative was tested if it was not.** Write "not experimentally evaluated; rejected because …".
+- **Separate observed fact from interpretation from assumption.** Never blur the three.
+- **State uncertainty plainly** — verified / supported by evidence / engineering judgement / assumed / unknown.
+- **Supersede, don't delete.** When a decision is reversed, mark the old entry superseded and keep it. The history is the point.
+
+---
+
 ## Architecture
 
 ```
 dental-implant-notes/
 ├── backend/
-│   ├── server.py          ← All FastAPI routes, Pydantic models, MongoDB logic
-│   └── requirements.txt   ← Python dependencies
+│   ├── app/
+│   │   ├── main.py             ← FastAPI app factory, CORS, router registration
+│   │   ├── core/               ← config.py, firebase.py (token verify), plans.py, exceptions.py
+│   │   ├── api/
+│   │   │   ├── deps.py         ← Auth dependency — resolves Firebase token → User row
+│   │   │   └── routes/         ← One module per domain (patients, implants, fpd,
+│   │   │                          cases, clinics, financial, inventory, storage, …)
+│   │   ├── models/             ← SQLAlchemy ORM tables
+│   │   ├── schemas/            ← Pydantic request/response models
+│   │   ├── repositories/       ← DB query layer (keeps routes thin)
+│   │   └── services/           ← s3.py, google_drive.py, email.py, chat.py,
+│   │                              notifications.py, thumbnail.py, audit.py
+│   ├── alembic/versions/       ← Schema migrations — never edit an applied one
+│   ├── tests/                  ← pytest suite (conftest.py builds isolated doctors)
+│   ├── start.sh                ← Prod entrypoint: alembic upgrade head → uvicorn
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── App.js                    ← Router config (React Router v7)
-│   │   ├── contexts/AuthContext.js   ← JWT auth state (login, logout, me)
-│   │   ├── components/
-│   │   │   ├── Layout.js             ← Sidebar + top header + bottom nav
-│   │   │   └── ProtectedRoute.js     ← Auth guard wrapper
-│   │   └── pages/
-│   │       ├── Dashboard.js          ← Clinical cases, stats overview
-│   │       ├── Patients.js           ← Patient list + CRUD
-│   │       ├── PatientDetails.js     ← FDI chart, implant modal, FPD modal, Photo Vault ⚠️ LARGE FILE
-│   │       ├── MedicalVault.js       ← Photo/radiograph gallery per patient
-│   │       ├── Analytics.js          ← Charts with Recharts
-│   │       ├── Clinics.js            ← Clinic management
-│   │       ├── Account.js            ← Doctor profile (editable college/place)
-│   │       ├── Login.js
-│   │       └── Register.js
-│   ├── package.json        ← React 19, Shadcn (Radix), Tailwind, CRACO
+│   │   ├── api/client.js             ← ⚠️ THE ONLY place axios is allowed (Rule 13)
+│   │   ├── contexts/
+│   │   │   ├── AuthContext.js        ← Firebase auth state (login, logout, me)
+│   │   │   ├── LocaleContext.js      ← Country + currency formatting
+│   │   │   └── PricingContext.js     ← Material cost/price list
+│   │   ├── components/               ← Layout, ProtectedRoute, DentalChart,
+│   │   │                                and one *FormModal / *RecordsSection pair
+│   │   │                                per clinical record type
+│   │   │   └── ui/                   ← Only the 6 Shadcn primitives actually used
+│   │   │                                (button, dialog, input, label, avatar,
+│   │   │                                 dropdown-menu). Toasts use `sonner`.
+│   │   └── pages/                    ← Dashboard, Patients, PatientDetails ⚠️ LARGE FILE,
+│   │                                    MedicalVault, Analytics, Clinics, Account,
+│   │                                    Stock, Subscription, Admin, Backup, Landing, …
+│   ├── android/ · ios/     ← Capacitor native projects (the real ones — no copies at repo root)
+│   ├── package.json        ← React 19, Shadcn (Radix), Tailwind, CRACO — yarn is the package manager
 │   └── craco.config.js     ← Custom webpack via CRACO (not Vite/Next.js)
 ├── design_guidelines.json  ← Design tokens: colors, fonts, spacing, component specs
+├── render.yaml             ← Render deploy config (autoDeploy on push to main)
 ├── memory/PRD.md           ← Product Requirements Document
 └── test_result.md          ← Testing protocol log (read before running tests)
 ```
+
+> **Backend layering:** a request flows `routes → repositories → models`, with
+> `schemas` validating in and out and `services` wrapping external systems (S3,
+> Drive, Resend, Anthropic, FCM). Put new DB queries in a repository, not a route.
 
 ---
 
@@ -45,13 +207,33 @@ dental-implant-notes/
 | Frontend | React 19, React Router v7, Tailwind CSS v3, Shadcn UI (Radix), CRACO |
 | Icons | `@phosphor-icons/react` |
 | Charts | `recharts` |
-| Forms | `react-hook-form` + `zod` |
+| Forms | Plain controlled React state — `react-hook-form`/`zod` are in `package.json` but unused |
+| Toasts | `sonner` (**not** the Shadcn/Radix toast — that stack was removed as dead) |
 | Backend | FastAPI, Python, SQLAlchemy async, Alembic |
-| Database | PostgreSQL (`osioloc_dev` locally) |
+| Database | PostgreSQL (`osioloc_dev` locally — legacy name, see below) |
 | Auth | Firebase Authentication (email/password + Google) |
 | Storage | AWS S3 (ap-south-1) — presigned URLs, Pillow thumbnails |
 | Mobile | Capacitor 8 → iOS + Android |
 | Testing | `pytest` for backend |
+
+### Brand name — "Osiolog" everywhere, with four deliberate exceptions
+
+The product went DentalHub → Osioloc → **Osiolog**. All docs, code, logger names,
+UI strings and the native app IDs now say **Osiolog** (`com.osiolog.app`, matching
+the `osiolog-prod` Firebase registration).
+
+Four `osioloc` names are **kept on purpose** because they name live resources that
+cannot be renamed in place. Do not "fix" these — doing so points config at things
+that do not exist:
+
+| Name | What it is |
+|---|---|
+| `osioloc-cases-prod` | S3 bucket holding every patient image. Bucket names are immutable; renaming means creating a new bucket and copying all clinical data. |
+| `osioloc-db.…rds.amazonaws.com` | RDS instance hostname |
+| `osioloc-backend` | IAM user used by the backend |
+| `osioloc_dev` | Your local dev Postgres database |
+
+If you ever migrate those resources, update this table in the same change.
 
 ---
 
@@ -117,8 +299,14 @@ DELETE /api/notifications/device-token ← Unregister FCM token
 ## Database Schema (PostgreSQL)
 
 ```
-users:     { email, hashed_password, name, phone, country, registration_number,
-             college, specialization, profile_picture, clinics[], place }
+users:     { org_id, firebase_uid, email, name, phone, country, registration_number,
+             college, college_place, place, specialization, profile_picture_key,
+             bio, gender, date_of_birth, designation, organization, years_of_experience,
+             address_street, address_city, address_state, address_zip,
+             primary_clinic, consulting_clinics, clinical_focus,
+             education[jsonb], publications[jsonb] }
+           ↑ No password column — auth is Firebase-only; `firebase_uid` is the link.
+             Clinics are their own table (FK to user), not an array on this row.
 
 patients:  { doctor_id, name, age, gender, phone, email, address, medical_history }
 
@@ -152,8 +340,8 @@ photo_vault: { patient_id, doctor_id, filename, content_type, path,
 - [x] Clinics management
 - [x] Profile header — top-right with doctor name, avatar, Account/Logout dropdown
 - [x] Account page — displays all doctor details
-- [x] FPD log sheet backend endpoints (`POST /api/fpd`)
-- [x] Profile update endpoint (`PATCH /api/profile`)
+- [x] FPD log sheet backend endpoints (`POST /api/fpd-records`)
+- [x] Profile update endpoint (`PATCH /api/users/me`)
 - [x] Unified single-form implant modal (no tabs) — **code written, UI testing pending**
 - [x] FPD modal UI in PatientDetails.js — **code written, UI testing pending**
 - [x] Account page editable college/place — **code written, UI testing pending**
@@ -222,7 +410,7 @@ node_modules/.bin/cap sync android
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cd android && ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.osioloc.app/.MainActivity
+adb shell am start -n com.osiolog.app/.MainActivity
 
 # iOS (simulator)
 node_modules/.bin/cap sync ios
@@ -246,6 +434,13 @@ open ios/App/App.xcodeproj   # Run from Xcode
 ### Testing protocol
 - All interactive elements need `data-testid` for automated testing
 - Backend tests: `pytest backend/tests/`
+  - Test tooling lives in `backend/requirements-dev.txt` (kept out of `requirements.txt`
+    so Render does not install it in production):
+    `.venv/Scripts/python.exe -m pip install -r backend/requirements-dev.txt`
+  - **The suite needs a running local PostgreSQL.** `conftest.py` connects to
+    `settings.DATABASE_URL` (`osioloc_dev` by default). With Postgres down, every
+    DB-backed test fails with `ConnectionRefusedError` — that is an environment
+    problem, not a code regression. Only the 3 non-DB tests pass in that state.
 - Demo account: `doctor@dentalapp.com` / `doctor123`
 
 ---
@@ -258,6 +453,10 @@ open ios/App/App.xcodeproj   # Run from Xcode
 ## Engineering Standards — Non-Negotiable Rules
 
 These rules exist because the primary user is non-technical. Every task must meet these standards without being asked. Think of them as the quality bar that separates "it runs" from "it's production-ready."
+
+**Rule 0 at the top of this file outranks all eighteen rules below.** Where any rule here could be read as permission to proceed on an assumption, it is not — ask first.
+
+Two of the eighteen govern how you talk to the user rather than how you write code, and they are not optional: **Rule 10** (report finished work in plain language) and **Rule 18** (when the user has to perform a technical step themselves, write it so they can actually follow it).
 
 ---
 
@@ -370,7 +569,7 @@ The only file that should appear is `frontend/src/api/client.js` itself. If any 
 
 ### 14. Production Environment Checklist — Run Before Every Commit
 
-Before marking any task done, verify these against the **live production app** (`https://app.osiolog.com` / `https://api.osiolog.com`):
+Before marking any task done, verify these against the **live production app** (`https://osiolog.com` / `https://api.osiolog.com`):
 
 **Backend changes:**
 - [ ] `curl https://api.osiolog.com/api/health` returns `{"status":"ok","db":"ok"}`
@@ -388,7 +587,51 @@ Before marking any task done, verify these against the **live production app** (
 - [ ] Use that token to hit the new endpoint — confirm 200, not 401/403/500
 
 **CI/CD:**
-- [ ] `gh run list --repo osiolog-dental/dental-implant-notes --limit 3` — latest deploy succeeded
+- [ ] Deploys are **Render**, not GitHub Actions — there is no `.github/workflows/`,
+      so `gh run list` will show nothing. `render.yaml` sets `autoDeploy: true`, so
+      pushing to `main` triggers the backend deploy automatically.
+- [ ] Confirm the deploy went out by re-running the health check above and checking
+      the Render dashboard's Events tab.
+
+### 15. Clarify Before Building — See Rule 0
+
+No code, no config, no install, no migration until scope, behaviour, data, edge cases, and blast radius are confirmed by the user. Questions get answered directly; changes get gated. Full rule at the top of this file.
+
+### 16. Route Work To The Right Role — See Agent & Skill Routing
+
+Frontend work goes to the design roles, backend to the engineering roles, anything touching auth or patient data additionally to the security skills, and `PatientDetails.js` always gets its own isolated subagent. Announce the role, dispatch automatically, verify the diff yourself before reporting done.
+
+### 17. Document The Reasoning, Not Just The Result
+
+Meaningful decisions go in `docs/DECISIONS.md`; meaningful failures go in `docs/FAILURES.md`. Record the alternatives and why they lost, not just what was built. Never retrofit a tidy rationale onto a decision whose real reasoning is unknown — say it is unknown. Proportional: skip it for typos and copy tweaks.
+
+### 18. Write So The User Can Actually Do It — HARD RULE
+
+The user is a practising implantologist, not a software engineer. They can do any technical task — **if** it is explained in a way that assumes no prior knowledge. Rule 10 governs how you *report* finished work. This rule governs every moment you ask them to *do* something.
+
+**First: don't hand over work you can do yourself.** If a tool available to you can complete the step, complete it. Only give the user a task when it genuinely requires them — a browser login, a password, a payment, a phone or a physical device, an account setting behind a dashboard, or a decision only they can make.
+
+**When they must do it, the instructions must be followable by someone who has never opened a terminal.**
+
+- **Numbered steps, in order, nothing skipped.** No step may quietly contain three steps.
+- **Say where they are.** Name the window or app first — VS Code, Chrome, Command Prompt, the phone. Never assume they know where a command is typed.
+- **One command per line, ready to copy.** Never chain commands with `&&` and leave them to untangle it. Never wrap a command in prose they have to extract.
+- **Say what success looks like.** What should appear on screen when it worked? Give the actual expected text.
+- **Say what to do if it fails.** A step with no failure path is a dead end.
+- **Warn before, not after.** If a step is irreversible, destructive, or costs money, say so in the step *before* it.
+- **Explain each unavoidable technical word the first time it appears**, in the same sentence — not in a glossary they have to go find.
+
+**Banned words and phrases**, because each one hides the part that is actually hard: *just*, *simply*, *obviously*, *of course*, *as you know*, *straightforward*, *trivial*, *should be easy*.
+
+**Never leave an instruction abstract.** Compare:
+
+| ❌ Not an instruction | ✅ An instruction |
+|---|---|
+| "Revoke the token." | "1. Open `github.com/settings/tokens` in your browser. 2. Find the row named … 3. Click **Delete**. 4. Confirm. The row disappears — that means it worked." |
+| "Reload the window." | "In VS Code, press `Ctrl+Shift+P`, type `Reload Window`, press Enter. The screen blanks for a second, then comes back." |
+| "Review the changes before committing." | "Run this one command: `git status`. It lists every changed file. Read the list and tell me if anything looks unfamiliar — I'll explain each one." |
+
+**When the user asks what something means, answer the question they asked**, at the level they asked it — no lecture, no assumed background. The question "commit means push to github?" was asked because those two words had never been separated for them. That is the level to pitch at, and it is never something to apologise for or talk down about.
 
 ---
 
@@ -487,3 +730,13 @@ For physical Android/iOS device testing:
 2. Set `REACT_APP_BACKEND_URL=http://<LAN-ip>:8002` in `frontend/.env.local`
 3. Ensure device and Mac are on same Wi-Fi
 4. Backend must be on `--host 0.0.0.0`
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

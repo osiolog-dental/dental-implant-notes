@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.api.routes import health, auth, users, clinics, patients, cases, implants, fpd, dashboard, notifications, audit, abutment, overdenture, full_mouth_rehab, tooth_extraction, implant_follow_up, financial, contact, flat_routes, chat, implant_log_import, implant_log_scan, inventory, admin, storage
 
-logger = logging.getLogger("dentalhub")
+logger = logging.getLogger("osiolog")
 
 
 @asynccontextmanager
@@ -25,9 +25,9 @@ async def _lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=_lifespan,
-        title="DentalHub API",
+        title="Osiolog API",
         version="2.0.0",
-        description="Production backend for DentalHub dental implant case management.",
+        description="Production backend for Osiolog dental implant case management.",
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
@@ -36,6 +36,10 @@ def create_app() -> FastAPI:
     # ── CORS ──────────────────────────────────────────────────────────────────
     allowed_origins = [
         settings.FRONTEND_URL,
+        # Kept permitted although it currently resolves to nothing (Cloudflare
+        # 522). It was the canonical host until FRONTEND_URL moved to
+        # osiolog.com; leaving it here means reviving the subdomain needs no
+        # backend change. Remove it only once it is decommissioned for good.
         "https://app.osiolog.com",
         "https://osiolog.com",
         "https://www.osiolog.com",
