@@ -13,6 +13,7 @@ class AbutmentBase(BaseModel):
     brand: str | None = None
     size_label: str | None = None
     article_no: str | None = None
+    inventory_item_id: uuid.UUID | None = None
     connected_implant_ids: list[uuid.UUID] = []
     placement_date: date | None = None
     clinical_notes: str | None = None
@@ -24,7 +25,7 @@ class AbutmentBase(BaseModel):
     def _empty_date(cls, v):
         return None if v == '' else v
 
-    @field_validator('clinic_id', mode='before')
+    @field_validator('clinic_id', 'inventory_item_id', mode='before')
     @classmethod
     def _empty_uuid(cls, v):
         return None if v == '' else v
@@ -42,6 +43,8 @@ class AbutmentRead(AbutmentBase):
     id: uuid.UUID
     patient_id: uuid.UUID
     created_at: datetime
+    # Set only by a route, after the fact — see ImplantRead.stock_warning.
+    stock_warning: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -35,6 +35,7 @@ const INITIAL_IMPLANT = {
   brand: '',
   article_no: '',
   surgical_kit_id: '',
+  inventory_item_id: '',
   implant_system: '',
   diameter_mm: '',
   length_mm: '',
@@ -86,6 +87,7 @@ const INITIAL_ABUTMENT = {
   brand: '',
   size_label: '',
   article_no: '',
+  inventory_item_id: '',
   connected_implant_ids: [],
   placement_date: '',
   clinical_notes: '',
@@ -193,6 +195,8 @@ const PatientDetails = () => {
   const [clinics, setClinics] = useState([]);
   const [catalogueRefs, setCatalogueRefs] = useState([]);
   const [surgicalKits, setSurgicalKits] = useState([]);
+  const [implantStock, setImplantStock] = useState([]);
+  const [abutmentStock, setAbutmentStock] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
   const [editPatientData, setEditPatientData] = useState({});
@@ -267,6 +271,8 @@ const PatientDetails = () => {
       setPayments(paymentsRes.data);
       setCatalogueRefs(catalogueRes.data);
       setSurgicalKits((inventoryRes.data || []).filter(i => i.category === 'kit'));
+      setImplantStock((inventoryRes.data || []).filter(i => i.category === 'implant'));
+      setAbutmentStock((inventoryRes.data || []).filter(i => i.category === 'abutment'));
       if (patientRes.data.tooth_conditions) {
         setToothConditions(patientRes.data.tooth_conditions);
       }
@@ -502,13 +508,17 @@ const PatientDetails = () => {
     e.preventDefault();
     try {
       const payload = { ...abutmentData, patient_id: id, tooth_number: parseInt(abutmentData.tooth_number) };
+      let res;
       if (editingAbutmentId) {
-        await client.put(`/api/abutment-records/${editingAbutmentId}`, payload);
+        res = await client.put(`/api/abutment-records/${editingAbutmentId}`, payload);
         toast.success('Abutment record updated');
       } else {
-        await client.post(`/api/abutment-records`, payload);
+        res = await client.post(`/api/abutment-records`, payload);
         toast.success('Abutment record added');
       }
+      // Stock was auto-deducted; this is only set when it ran out or went
+      // negative — the record itself always saves regardless.
+      if (res.data?.stock_warning) toast.warning(res.data.stock_warning);
       setIsAbutmentOpen(false);
       setAbutmentData({ ...INITIAL_ABUTMENT });
       setEditingAbutmentId(null);
@@ -525,6 +535,7 @@ const PatientDetails = () => {
       brand: rec.brand || '',
       size_label: rec.size_label || '',
       article_no: rec.article_no || '',
+      inventory_item_id: rec.inventory_item_id || '',
       connected_implant_ids: rec.connected_implant_ids || [],
       placement_date: rec.placement_date || '',
       clinical_notes: rec.clinical_notes || '',
@@ -829,16 +840,21 @@ const PatientDetails = () => {
         implant_system: formData.implant_system || null,
         article_no: formData.article_no || null,
         surgical_kit_id: formData.surgical_kit_id || null,
+        inventory_item_id: formData.inventory_item_id || null,
         surgeon_name: formData.surgeon_name || null,
         follow_up_date: formData.follow_up_date || null,
       };
+      let res;
       if (editingImplantId) {
-        await client.patch(`/api/implants/${editingImplantId}`, payload);
+        res = await client.patch(`/api/implants/${editingImplantId}`, payload);
         toast.success('Implant record updated');
       } else {
-        await client.post(`/api/implants`, payload);
+        res = await client.post(`/api/implants`, payload);
         toast.success('Implant record added');
       }
+      // Stock was auto-deducted from the picked item; this is only set when
+      // it ran out or went negative — the implant record always saves regardless.
+      if (res.data?.stock_warning) toast.warning(res.data.stock_warning);
       setIsImplantOpen(false);
       setFormData({ ...INITIAL_IMPLANT });
       setSelectedTooth(null);
@@ -855,6 +871,7 @@ const PatientDetails = () => {
       brand: implant.brand || '',
       article_no: implant.article_no || '',
       surgical_kit_id: implant.surgical_kit_id || '',
+      inventory_item_id: implant.inventory_item_id || '',
       implant_system: implant.implant_system || '',
       diameter_mm: implant.diameter_mm?.toString() || '',
       length_mm: implant.length_mm?.toString() || '',
@@ -1132,6 +1149,7 @@ const PatientDetails = () => {
             clinics={clinics}
             catalogueRefs={catalogueRefs}
             surgicalKits={surgicalKits}
+            implantStock={implantStock}
           />
 
           {/* FPD Log Sheet Dialog (opened via chart tooth click) */}
@@ -1161,6 +1179,7 @@ const PatientDetails = () => {
           editingAbutmentId={editingAbutmentId}
           implants={implants}
           catalogueRefs={catalogueRefs}
+          abutmentStock={abutmentStock}
         />
 
         {/* Overdenture Log Dialog */}

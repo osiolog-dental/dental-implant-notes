@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.abutment import AbutmentRepository
 from app.schemas.abutment import AbutmentCreate, AbutmentRead, AbutmentUpdate
+from app.services import stock_linking
 
 router = APIRouter(tags=["abutments"])
 
@@ -33,7 +34,17 @@ async def create_abutment(
 ) -> AbutmentRead:
     repo = AbutmentRepository(db)
     record = await repo.create(body)
-    return AbutmentRead.model_validate(record)
+
+    stock_warning = None
+    if record.inventory_item_id:
+        stock_warning = await stock_linking.deduct_for_source(
+            db, inventory_item_id=record.inventory_item_id, patient_id=record.patient_id,
+            source_type="abutment", source_id=record.id, transaction_date=record.placement_date,
+        )
+
+    resp = AbutmentRead.model_validate(record)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 @router.get("/abutment-records/{abutment_id}", response_model=AbutmentRead)
@@ -60,8 +71,21 @@ async def update_abutment(
     record = await repo.get(abutment_id, current_user.org_id)
     if not record:
         raise HTTPException(status_code=404, detail="Abutment record not found")
+
+    before_item_id = record.inventory_item_id
     record = await repo.update(record, body)
-    return AbutmentRead.model_validate(record)
+
+    stock_warning = None
+    if "inventory_item_id" in body.model_fields_set and record.inventory_item_id != before_item_id:
+        stock_warning = await stock_linking.sync_link(
+            db, before_item_id=before_item_id, after_item_id=record.inventory_item_id,
+            patient_id=record.patient_id, source_type="abutment", source_id=record.id,
+            transaction_date=record.placement_date,
+        )
+
+    resp = AbutmentRead.model_validate(record)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 @router.delete("/abutment-records/{abutment_id}")
@@ -74,5 +98,6 @@ async def delete_abutment(
     record = await repo.get(abutment_id, current_user.org_id)
     if not record:
         raise HTTPException(status_code=404, detail="Abutment record not found")
+    await stock_linking.reverse_link(db, "abutment", record.id)
     await repo.delete(record)
     return {"deleted": True}

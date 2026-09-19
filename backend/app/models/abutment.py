@@ -15,6 +15,7 @@ class Abutment(Base):
     __tablename__ = "abutments"
     __table_args__ = (
         sa.Index("ix_abutments_patient_id", "patient_id"),
+        sa.Index("ix_abutments_inventory_item_id", "inventory_item_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -28,6 +29,11 @@ class Abutment(Base):
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
     size_label: Mapped[str | None] = mapped_column(String(255), nullable=True)  # e.g. gingival height "GH 2.5mm"
     article_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # dealer/manufacturer SKU
+    # The exact InventoryItem (category='abutment') this row came from —
+    # same pattern as Implant.inventory_item_id. See services/stock_linking.py.
+    inventory_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="SET NULL"), nullable=True
+    )
     connected_implant_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False, default=list
     )

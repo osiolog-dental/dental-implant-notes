@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.implant import ImplantRepository
 from app.schemas.implant import ImplantCreate, ImplantRead, ImplantUpdate
+from app.services import stock_linking
 from app.services.audit import log_event
 
 router = APIRouter(tags=["implants"])
@@ -40,9 +41,19 @@ async def create_implant(
         raise HTTPException(status_code=400, detail="case_id in URL and body must match")
     repo = ImplantRepository(db)
     implant = await repo.create(body)
+
+    stock_warning = None
+    if implant.inventory_item_id:
+        stock_warning = await stock_linking.deduct_for_source(
+            db, inventory_item_id=implant.inventory_item_id, patient_id=implant.patient_id,
+            source_type="implant", source_id=implant.id, transaction_date=implant.surgery_date,
+        )
+
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="create", entity_type="implant", entity_id=str(implant.id))
-    return ImplantRead.model_validate(implant)
+    resp = ImplantRead.model_validate(implant)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 # ── By patient (all cases) ─────────────────────────────────────────────────────
@@ -84,10 +95,23 @@ async def update_implant(
     implant = await repo.get(implant_id, current_user.org_id)
     if not implant:
         raise HTTPException(status_code=404, detail="Implant not found")
+
+    before_item_id = implant.inventory_item_id
     implant = await repo.update(implant, body)
+
+    stock_warning = None
+    if "inventory_item_id" in body.model_fields_set and implant.inventory_item_id != before_item_id:
+        stock_warning = await stock_linking.sync_link(
+            db, before_item_id=before_item_id, after_item_id=implant.inventory_item_id,
+            patient_id=implant.patient_id, source_type="implant", source_id=implant.id,
+            transaction_date=implant.surgery_date,
+        )
+
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="update", entity_type="implant", entity_id=str(implant_id))
-    return ImplantRead.model_validate(implant)
+    resp = ImplantRead.model_validate(implant)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 @router.delete("/implants/{implant_id}")
@@ -100,6 +124,7 @@ async def delete_implant(
     implant = await repo.get(implant_id, current_user.org_id)
     if not implant:
         raise HTTPException(status_code=404, detail="Implant not found")
+    await stock_linking.reverse_link(db, "implant", implant.id)
     await repo.delete(implant)
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="delete", entity_type="implant", entity_id=str(implant_id))

@@ -37,6 +37,12 @@ class StockTransaction(Base):
         UUID(as_uuid=True), ForeignKey("stock_purchases.id", ondelete="CASCADE"), nullable=True
     )
     line_net_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)  # this line's net cost, from the invoice
+    # Links a stock-out back to the implant/abutment row that created it, so
+    # editing or deleting that row can find and reconcile this transaction.
+    # No FK — source_id can point at either table — mirrors
+    # financial_line_items.source_type/source_id exactly.
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     patient_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="SET NULL"), nullable=True
     )

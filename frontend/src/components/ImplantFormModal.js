@@ -26,6 +26,7 @@ export default function ImplantFormModal({
   clinics,
   catalogueRefs = [],
   surgicalKits = [],
+  implantStock = [],
 }) {
   // Article number uniquely identifies one exact component in a brand's
   // catalogue — typing one you've scanned before fills in the rest.
@@ -37,6 +38,20 @@ export default function ImplantFormModal({
     if (match.implant_system) updateField('implant_system', match.implant_system);
     if (match.diameter_mm != null) updateField('diameter_mm', String(match.diameter_mm));
     if (match.length_mm != null) updateField('length_mm', String(match.length_mm));
+  };
+
+  // Picking a physical stock item (rather than typing brand/size freely) is
+  // what makes automatic stock deduction possible: brand/diameter/length as
+  // typed can't be trusted to match stock spelling exactly, but an id can.
+  const handleInventoryItemChange = (itemId) => {
+    updateField('inventory_item_id', itemId);
+    const item = itemId ? implantStock.find(i => i.id === itemId) : null;
+    if (!item) return;
+    if (item.brand) updateField('brand', item.brand);
+    if (item.implant_system) updateField('implant_system', item.implant_system);
+    if (item.diameter_mm != null) updateField('diameter_mm', String(item.diameter_mm));
+    if (item.length_mm != null) updateField('length_mm', String(item.length_mm));
+    if (item.article_no) updateField('article_no', item.article_no);
   };
 
   return (
@@ -76,6 +91,30 @@ export default function ImplantFormModal({
               <Input value={formData.brand} onChange={(e) => updateField('brand', e.target.value)} required data-testid="brand-input" placeholder="e.g., Alpha, Straumann" className="mt-1" />
             </div>
           </div>
+
+          {implantStock.length > 0 && (
+            <div>
+              <Label className="text-xs">Stock Item Used</Label>
+              <select
+                value={formData.inventory_item_id || ''}
+                onChange={(e) => handleInventoryItemChange(e.target.value)}
+                data-testid="implant-stock-item-select"
+                className={`mt-1 ${selectClass}`}
+              >
+                <option value="">Not linked to stock — enter brand/size by hand</option>
+                {implantStock.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {[item.brand, item.implant_system].filter(Boolean).join(' ')}
+                    {item.diameter_mm && item.length_mm ? ` ${item.diameter_mm}×${item.length_mm}mm` : ''}
+                    {' — '}{item.available_quantity} in stock
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">
+                Picking one fills in Brand/System/Diameter/Length below and deducts one unit from stock automatically.
+              </p>
+            </div>
+          )}
 
           {/* Row 2: Diameter, Length */}
           <div className="grid grid-cols-2 gap-3">

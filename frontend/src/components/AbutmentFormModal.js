@@ -45,6 +45,7 @@ export default function AbutmentFormModal({
   editingAbutmentId,
   implants,
   catalogueRefs = [],
+  abutmentStock = [],
 }) {
   // Article number uniquely identifies one exact component in a brand's
   // catalogue — typing one you've scanned before fills in the rest.
@@ -58,6 +59,20 @@ export default function AbutmentFormModal({
       brand: match.brand || p.brand,
       abutment_type: ABUTMENT_TYPES.includes(match.abutment_type) ? match.abutment_type : p.abutment_type,
       size_label: match.size_label || p.size_label,
+    }));
+  };
+
+  // Picking a physical stock item (rather than typing brand/size freely) is
+  // what makes automatic stock deduction possible — see ImplantFormModal.js.
+  const handleInventoryItemChange = (itemId) => {
+    const item = itemId ? abutmentStock.find(i => i.id === itemId) : null;
+    setAbutmentData(p => ({
+      ...p,
+      inventory_item_id: itemId,
+      brand: item?.brand || p.brand,
+      abutment_type: item?.abutment_type && ABUTMENT_TYPES.includes(item.abutment_type) ? item.abutment_type : p.abutment_type,
+      size_label: item?.size_label || p.size_label,
+      article_no: item?.article_no || p.article_no,
     }));
   };
 
@@ -110,6 +125,29 @@ export default function AbutmentFormModal({
             <Label className="text-xs">Size / Height (GH)</Label>
             <Input value={abutmentData.size_label || ''} onChange={e => setAbutmentData(p => ({ ...p, size_label: e.target.value }))} data-testid="abutment-size-label" className="mt-1" placeholder="e.g. H2.5mm" />
           </div>
+
+          {abutmentStock.length > 0 && (
+            <div>
+              <Label className="text-xs">Stock Item Used</Label>
+              <select
+                value={abutmentData.inventory_item_id || ''}
+                onChange={e => handleInventoryItemChange(e.target.value)}
+                data-testid="abutment-stock-item-select"
+                className={`mt-1 ${selectClass}`}
+              >
+                <option value="">Not linked to stock — enter brand/size by hand</option>
+                {abutmentStock.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {[item.brand, item.abutment_type, item.size_label].filter(Boolean).join(' — ')}
+                    {' ('}{item.available_quantity} in stock{')'}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#9CA3AF] mt-1">
+                Picking one fills in Brand/Type/Size above and deducts one unit from stock automatically.
+              </p>
+            </div>
+          )}
 
           {/* Connected implants */}
           {implants.length > 0 && (

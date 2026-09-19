@@ -40,6 +40,7 @@ from app.schemas.implant import ImplantFlatCreate, ImplantRead, ImplantUpdate
 from app.services import google_drive as drive_service
 from app.services import reminders as reminder_service
 from app.services import s3 as s3_service
+from app.services import stock_linking
 
 router = APIRouter(tags=["flat-routes"])
 
@@ -66,9 +67,20 @@ async def create_implant_flat(
     data = body.model_dump()
     implant = Implant(id=uuid.uuid4(), case_id=None, **data)
     db.add(implant)
+    await db.flush()
+
+    stock_warning = None
+    if implant.inventory_item_id:
+        stock_warning = await stock_linking.deduct_for_source(
+            db, inventory_item_id=implant.inventory_item_id, patient_id=implant.patient_id,
+            source_type="implant", source_id=implant.id, transaction_date=implant.surgery_date,
+        )
+
     await db.commit()
     await db.refresh(implant)
-    return ImplantRead.model_validate(implant)
+    resp = ImplantRead.model_validate(implant)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 @router.put("/implants/{implant_id}", response_model=ImplantRead)
@@ -82,8 +94,21 @@ async def update_implant_flat(
     implant = await repo.get(implant_id, current_user.org_id)
     if not implant:
         raise HTTPException(status_code=404, detail="Implant not found")
+
+    before_item_id = implant.inventory_item_id
     implant = await repo.update(implant, body)
-    return ImplantRead.model_validate(implant)
+
+    stock_warning = None
+    if "inventory_item_id" in body.model_fields_set and implant.inventory_item_id != before_item_id:
+        stock_warning = await stock_linking.sync_link(
+            db, before_item_id=before_item_id, after_item_id=implant.inventory_item_id,
+            patient_id=implant.patient_id, source_type="implant", source_id=implant.id,
+            transaction_date=implant.surgery_date,
+        )
+
+    resp = ImplantRead.model_validate(implant)
+    resp.stock_warning = stock_warning
+    return resp
 
 
 class StageUpdate(BaseModel):

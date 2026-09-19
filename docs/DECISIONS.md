@@ -923,3 +923,81 @@ read before pushing — but it is judgement, not a test.
 ### Revisit if
 The FCM job's doctor-scoping vs this job's org-scoping ever diverges in practice, i.e.
 when an org first has more than one doctor.
+
+---
+
+## D-015 — Auto-deduct stock when an implant/abutment is logged, via an explicit picker
+
+- **Date:** 2026-09-19
+- **Status:** Active
+- **Area:** backend (schema, models, routes) / frontend (implant + abutment forms)
+
+### Problem
+Logging an implant never touched stock. The doctor had to separately open the Stock page
+and use "Log Usage" to record what was actually consumed — an easy step to forget, and one
+that duplicates data already entered once on the patient record.
+
+### Why matching wasn't done automatically from typed brand/size
+Brand, diameter and length on the implant/abutment forms are free-text, typed fresh each
+time — there is nothing forcing "Straumann" logged today to match "Straumann" spelled the
+same way on a stock item created months ago. Auto-matching on that text would silently
+deduct the wrong item, or nothing, on any spelling drift — a real risk to a real stock
+count, not a cosmetic bug. Put to the user directly; they chose the explicit-picker route.
+
+### Decision
+Added `inventory_item_id` to `Implant` and `Abutment` (nullable FK → `inventory_items.id`,
+`ON DELETE SET NULL`), mirroring the existing `Implant.surgical_kit_id` field exactly — same
+type, same nullability, same delete behaviour. A new dropdown in each form ("Stock Item
+Used") lists real stock items with live counts; picking one auto-fills brand/system/
+diameter/length (or abutment_type/size_label) and is what the backend now uses to move
+stock — never the typed text.
+
+Scope, per the user's explicit choices:
+- **Implants and abutments both** — abutments have the identical gap and were folded in.
+- **Never blocks the save.** Insufficient or zero stock returns a warning string
+  (`stock_warning` on the response), shown as a toast; the clinical record always
+  persists regardless. Chosen over blocking because gatekeeping "I placed this on a
+  patient" behind a stock-room mismatch is worse than a stock count being briefly wrong.
+- **Edits and deletes stay in sync automatically.** Changing which item is linked reverses
+  the old deduction and applies a new one; deleting the record reverses it. Without this,
+  the ledger would quietly drift from reality every time a record is corrected — exactly
+  the failure mode the manual workflow already had.
+
+### What was deliberately left out of scope
+- **Bulk-import paths** (`BulkImplantModal.js`, the scan-based quick-add in
+  `PatientImplantLogForm.js`, `implant-log-import.py`) do not get a stock picker and do not
+  deduct stock. These import historical rows against *current* stock, which is not a
+  sensible operation, and none of them collect an `inventory_item_id` today. Records made
+  through them still save exactly as before — `inventory_item_id` is optional everywhere.
+- The now-unused `PUT /api/implants/{id}` route in `flat_routes.py` and the nested
+  `POST /api/cases/{case_id}/implants` route were still wired for consistency (so behaviour
+  doesn't silently depend on which endpoint happens to be called), even though the current
+  frontend only calls `POST /api/implants` and `PATCH /api/implants/{id}`.
+
+### Shared code
+The stock-reversal/deduction logic lives in one new module,
+`backend/app/services/stock_linking.py`, called from all eight touched routes (implant
+create ×2, update ×2, delete ×1; abutment create/update/delete ×1 each) rather than copied
+into each. `stock_transactions.source_type` / `source_id` were added to find "the
+transaction this implant created" for reversal — copied field-for-field from
+`financial_line_items.source_type`/`source_id`, which already solves the identical
+"trace a ledger row back to the clinical record that caused it" problem.
+
+`ImplantRead.stock_warning` / `AbutmentRead.stock_warning` are response-only fields, set
+after `model_validate()` rather than stored — the same pattern `auth.py`'s
+`_user_read_with_pic` already uses for a presigned URL that isn't a real column either.
+
+### Verification status
+- Verified: full app import; migration chain resolves to a single head (32 revisions);
+  generated SQL for the new migration read offline — three additive columns, two indexes,
+  two foreign keys, no table rewrite, no existing row touched; `pytest --collect-only`
+  unchanged at 22 tests; frontend compiles; every touched file's diff checked against `HEAD`
+  to confirm no unrelated change was swept in.
+- **Not yet verified as of writing this entry:** none of this has been deployed. A dry run
+  against the live API (demo account, throwaway patient and stock items) correctly showed
+  *no* effect — proving the old code is still what's running, not that the new code works.
+  Re-run scheduled immediately after this push lands.
+
+### Revisit if
+`BulkImplantModal.js` or the scan-based quick-add path are asked to support stock linking
+too — the picker and payload field already exist, so wiring is additive.

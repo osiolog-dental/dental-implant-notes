@@ -31,6 +31,7 @@ class ImplantBase(BaseModel):
     brand: str | None = None
     article_no: str | None = None
     surgical_kit_id: uuid.UUID | None = None
+    inventory_item_id: uuid.UUID | None = None
     size: str | None = None
     length: float | None = None
     diameter_mm: float | None = None
@@ -77,7 +78,7 @@ class ImplantBase(BaseModel):
     def coerce_date(cls, v: Any) -> Any:
         return _empty_to_none_date(v)
 
-    @field_validator("surgical_kit_id", mode="before")
+    @field_validator("surgical_kit_id", "inventory_item_id", mode="before")
     @classmethod
     def coerce_uuid(cls, v: Any) -> Any:
         return None if v == "" else v
@@ -107,6 +108,10 @@ class ImplantRead(ImplantBase):
     case_id: uuid.UUID | None = None
     patient_id: uuid.UUID
     created_at: datetime
+    # Set only by a route, after the fact, when the automatic stock deduction
+    # found insufficient or no stock — never stored, never read back. Absent
+    # (None) means either no stock item was picked, or stock was fine.
+    stock_warning: str | None = None
 
     model_config = {"from_attributes": True}
 
