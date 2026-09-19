@@ -1001,3 +1001,69 @@ after `model_validate()` rather than stored — the same pattern `auth.py`'s
 ### Revisit if
 `BulkImplantModal.js` or the scan-based quick-add path are asked to support stock linking
 too — the picker and payload field already exist, so wiring is additive.
+
+---
+
+## D-016 — Stock linking for scan-based and bulk implant entry: a post-save dialogue
+
+- **Date:** 2026-09-19
+- **Status:** Active
+- **Area:** frontend only — no backend or schema change
+
+### Problem
+D-015 added a stock-item picker to the single-implant form, but explicitly left
+`BulkImplantModal.js` (multi-tooth entry for one patient) and the scan-based tool in
+`PatientImplantLogForm.js` (photograph a written log sheet, AI reads it, review before
+saving) unlinked. The user asked for those covered too.
+
+### Why not just add a picker column to each row
+Both tools already show a wide, editable table/form before save — the scan tool's table is
+1300px wide with 14 columns per row. Adding a 15th (stock item) makes an already-dense
+review screen worse, and — for the scan tool specifically — a picked stock item can't
+really be verified against a row until the row's other fields are actually confirmed by the
+doctor, since OCR can misread a row entirely.
+
+### Decision (three choices, all put to the user)
+1. **Timing: after the batch saves, not before.** A separate dialogue opens once the
+   implants already exist, listing exactly what was created. Rejected: making the link a
+   precondition of the save itself — if that step is abandoned partway, the whole batch
+   would need re-entering from scratch, which is a much larger loss than an unlinked
+   implant.
+2. **Matching: every row starts blank.** No suggested match by typed brand/diameter/length,
+   consistent with D-015's core reasoning — free-typed text (doubly so here, since one path
+   is OCR output) cannot be trusted to identify a stock item, so it isn't given the chance
+   to guess wrong even as a "suggestion."
+3. **Required: no.** Closing the dialogue without linking anything is always safe — the
+   implants are already saved by the time it opens. Matches the single-implant form's own
+   rule that a clinical record is never gated on stock bookkeeping.
+
+### Shared code, not two new dialogues
+Built once as `LinkImplantStockModal.js` and used by both `BulkImplantModal.js`
+(`onImplantsCreated` callback, rendered in `PatientDetails.js`) and
+`PatientImplantLogForm.js` (rendered directly inside its own `PhotoMethod`, since that tool
+lives on the Account page with no shared parent to hoist state into). Fetches its own stock
+list on open rather than taking one as a prop, since the two callers have no natural place
+to share it from.
+
+Saving a link reuses the exact `PATCH /api/implants/{id}` endpoint and
+`stock_linking.sync_link()` deduction logic D-015 already built and deployed — nothing new
+on the backend. `stock_warning` responses surface as the same toast pattern used elsewhere.
+
+### Deliberately out of scope
+The Excel-upload path (`implant-log-import.py` / `ExcelMethod` in
+`PatientImplantLogForm.js`) is untouched. That import runs server-side in one shot and the
+frontend never sees individual created-implant records to build a follow-up dialogue from —
+and per D-015's existing reasoning, importing historical rows against *today's* stock isn't
+a sensible operation regardless.
+
+### Verification status
+- Verified: frontend compiles clean; every touched file's diff checked against `HEAD`
+  (7/16/11 lines changed respectively — small, exactly matching the intended edits).
+- **Not verified:** no backend change was needed, so no new deploy risk — but the dialogue
+  itself has not been opened in a browser. The underlying deduction path it calls
+  (`PATCH /api/implants/{id}` with `inventory_item_id`) was already proven end-to-end in
+  production for D-015; only the new UI wiring around it is unverified.
+
+### Revisit if
+The Excel-import path is ever asked to support this — would need that endpoint to start
+returning created implant IDs, which it doesn't today.

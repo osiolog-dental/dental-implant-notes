@@ -37,7 +37,7 @@ const INITIAL_SHARED = {
 
 const emptySize = () => ({ diameter_mm: '', length_mm: '', notes: '' });
 
-export default function BulkImplantModal({ open, onOpenChange, patientId, clinics, onSaved }) {
+export default function BulkImplantModal({ open, onOpenChange, patientId, clinics, onSaved, onImplantsCreated }) {
   const [shared, setShared] = useState({ ...INITIAL_SHARED });
   const [selectedTeeth, setSelectedTeeth] = useState([]);
   // per-tooth overrides: { [toothNumber]: { diameter_mm, length_mm, notes } }
@@ -123,7 +123,12 @@ export default function BulkImplantModal({ open, onOpenChange, patientId, clinic
       const failed = results.length - succeeded;
       if (succeeded > 0) toast.success(`${succeeded} implant${succeeded > 1 ? 's' : ''} added`);
       if (failed > 0) toast.error(`${failed} implant${failed > 1 ? 's' : ''} failed to save`);
-      if (succeeded > 0) { handleClose(false); onSaved?.(); }
+      if (succeeded > 0) {
+        const created = results.filter(r => r.status === 'fulfilled').map(r => r.value.data);
+        handleClose(false);
+        onSaved?.();
+        onImplantsCreated?.(created);
+      }
     } finally {
       setSaving(false);
     }

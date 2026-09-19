@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import client from '../api/client';
 import { getClinics, createClinic } from '../api/clinics';
 import { createPatient } from '../api/patients';
+import LinkImplantStockModal from './LinkImplantStockModal';
 
 const fieldInput = "mt-1 w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 const cellInput = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-md text-xs focus:ring-2 focus:ring-[#82A098] focus:outline-none";
@@ -232,6 +233,8 @@ function PhotoMethod() {
   const [scanning, setScanning] = useState(false);
   const [scans, setScans] = useState([]);
   const [clinics, setClinics] = useState([]);
+  const [linkStockOpen, setLinkStockOpen] = useState(false);
+  const [linkStockImplants, setLinkStockImplants] = useState([]);
 
   useEffect(() => {
     getClinics().then(setClinics).catch(() => {});
@@ -356,10 +359,11 @@ function PhotoMethod() {
       });
 
       let implantsCreated = 0;
+      const createdImplants = [];
       const saveErrors = [];
       for (const row of filledRows) {
         try {
-          await client.post('/api/implants', {
+          const res = await client.post('/api/implants', {
             patient_id: patient.id,
             tooth_number: parseInt(row.tooth_number, 10),
             implant_type: row.implant_type,
@@ -379,6 +383,7 @@ function PhotoMethod() {
             surgeon_name: scan.patient.surgeon_name || null,
           });
           implantsCreated += 1;
+          createdImplants.push(res.data);
         } catch (err) {
           saveErrors.push(err?.response?.data?.detail || 'Failed to save a row');
         }
@@ -389,6 +394,10 @@ function PhotoMethod() {
         toast.success(`Saved ${patient.name} — ${implantsCreated} implant${implantsCreated === 1 ? '' : 's'}`);
       } else {
         toast.error(`Saved ${patient.name} but ${saveErrors.length} row(s) failed`);
+      }
+      if (createdImplants.length > 0) {
+        setLinkStockImplants(createdImplants);
+        setLinkStockOpen(true);
       }
     } catch (err) {
       setScans(prev => prev.map((s, i) => i === idx ? { ...s, saving: false } : s));
@@ -613,6 +622,12 @@ function PhotoMethod() {
           )}
         </div>
       ))}
+
+      <LinkImplantStockModal
+        open={linkStockOpen}
+        onOpenChange={setLinkStockOpen}
+        implants={linkStockImplants}
+      />
     </div>
   );
 }

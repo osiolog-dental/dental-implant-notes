@@ -6,6 +6,7 @@ import { ArrowLeft, Camera, Stack } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
 import DentalChart from '../components/DentalChart';
 import BulkImplantModal from '../components/BulkImplantModal';
+import LinkImplantStockModal from '../components/LinkImplantStockModal';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 import PatientInfoHeader from '../components/PatientInfoHeader';
 import EditPatientModal from '../components/EditPatientModal';
@@ -197,6 +198,8 @@ const PatientDetails = () => {
   const [surgicalKits, setSurgicalKits] = useState([]);
   const [implantStock, setImplantStock] = useState([]);
   const [abutmentStock, setAbutmentStock] = useState([]);
+  const [isLinkStockOpen, setIsLinkStockOpen] = useState(false);
+  const [linkStockImplants, setLinkStockImplants] = useState([]);
   const [toothConditions, setToothConditions] = useState({});
   const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
   const [editPatientData, setEditPatientData] = useState({});
@@ -1111,6 +1114,14 @@ const PatientDetails = () => {
           patientId={id}
           clinics={clinics}
           onSaved={fetchAll}
+          onImplantsCreated={(created) => { setLinkStockImplants(created); setIsLinkStockOpen(true); }}
+        />
+
+        <LinkImplantStockModal
+          open={isLinkStockOpen}
+          onOpenChange={setIsLinkStockOpen}
+          implants={linkStockImplants}
+          onLinked={fetchAll}
         />
 
         <ConfirmDeleteDialog
