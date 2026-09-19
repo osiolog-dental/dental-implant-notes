@@ -275,3 +275,107 @@ Two compounding habits, both mine:
 Yes, for any scripted multi-line edit. The guard is the habit in Lesson 1, and checking
 the whole diff before committing — which is what caught it here, since the file was read
 in full before the commit rather than after.
+
+---
+
+## F-005 — Scheduled reminders never fired: backend runs on Render's free tier, which sleeps
+
+- **Date:** 2026-09-19
+- **Severity:** Both scheduled reminder jobs (the FCM push since April, the new email digest since
+  yesterday) can silently fail to fire on any day with no overnight traffic — a real gap in a
+  feature whose entire purpose is running unattended
+- **Status:** Root cause confirmed from direct evidence. Mitigation (external keep-alive ping)
+  chosen by the user; awaiting tomorrow's 8:05 AM run as the real-world confirmation.
+
+### What was expected
+The user did not receive the 8 AM reminder email added the day before (D-014). The digest
+feature itself needed to be ruled in or out first.
+
+### What happened
+The user clicked the admin-only "Email me a reminder" button (added specifically to make this
+diagnosis possible) and the email arrived immediately, with correct data — 2 second-stage
+records, matching the Dashboard. This proved the digest logic, the due-record queries, and
+Resend delivery all work correctly. The problem was isolated to the *automatic* trigger alone.
+
+The user then opened Render's own log viewer and shared a screenshot. It showed:
+
+    08:02:48 PM  Started server process [12]
+    08:02:49 PM  Application startup complete
+    08:03:06 PM  (last incoming request)
+    ...
+    08:17:58 PM  Shutting down
+    08:17:58 PM  Application shutdown complete
+
+— a ~15-minute gap between the last request and shutdown, with the banner directly above the
+log reading: *"Your free instance will spin down with inactivity, which can delay requests by
+50 seconds or more."*
+
+### Root cause
+**The Render service is running on the free tier, not the paid always-on "starter" tier
+`render.yaml` declares (`plan: starter`, line 5).** Free-tier Render web services stop the
+process entirely after roughly 15 minutes with no incoming HTTP request, and only start it
+again — cold, taking 50+ seconds — when a new request arrives.
+
+APScheduler's `AsyncIOScheduler` (see D-014, `services/notifications.py`) only fires a job if
+the process it lives in is actually running at that moment. If nobody happens to be using the
+app at exactly 02:30/02:35 UTC, the process is asleep, and the job cannot fire — not because of
+a bug in the job, but because the computer meant to run it does not exist at that moment. The
+admin button worked because clicking it *was* the incoming request that woke the process up.
+
+This is the same class of defect as D-013: `render.yaml` describes an intended configuration
+that does not match what is actually running on Render. There, `FRONTEND_URL` in the file
+disagreed with the dashboard's actual value. Here, the declared `plan: starter` disagrees with
+the actual (free) plan. Neither mismatch was caught by anything — `render.yaml` is aspirational
+documentation, not an enforced source of truth, and nothing in this project checks the two
+against each other.
+
+**This also means the FCM push notification job — in production since April 2026 — has almost
+certainly had this same silent failure mode the entire time,** unrelated to anything built in
+this session. It was never diagnosed before because nothing had previously prompted checking
+whether an expected reminder actually arrived.
+
+### Decision — mitigation, not the "textbook" fix
+Three options were put to the user:
+1. Upgrade to Render's paid always-on plan — the direct fix, matching what `render.yaml` already
+   claimed. Rejected for now: real ongoing cost, and the exact price was not stated to the user
+   (Claude does not have access to the account's billing page) so it could not be a fully
+   informed choice in the moment.
+2. **Add a free external keep-alive ping (UptimeRobot, 5-minute interval, hitting
+   `/api/health`) — chosen.** No cost, but it is a workaround: reliability now depends on a
+   third-party service's own uptime, not on Osiolog's infrastructure. If UptimeRobot ever has
+   its own outage, the silent-reminder failure mode returns without warning.
+3. Render's dedicated Cron Job product, which runs on schedule independent of the web
+   service's sleep state — not pursued; pricing and free-tier availability were not checked, so
+   it was not offered as a real option rather than a guess.
+
+### Deliberately not done
+`render.yaml`'s `plan: starter` line was left untouched. Editing it to say `free` (to match
+reality) risks nothing, but changing it in the other direction — or Render silently
+reconciling the blueprint to the file's stated value on a future sync — could apply a real paid
+upgrade the user did not ask for in this decision. The safer choice was to leave the file
+inaccurate rather than risk an unintended charge. Documented here instead.
+
+### Verification status
+- **Verified, from direct evidence:** the free-tier spin-down banner, the shutdown/restart
+  timestamps in the user's own log screenshot, and the admin-triggered email arriving correctly.
+- **Not yet verified:** whether the UptimeRobot ping actually keeps the process alive through a
+  full night, and whether tomorrow's 8:05 AM digest arrives without anyone clicking anything.
+  That is the real test; today's diagnosis only explains why it failed, not that it is fixed.
+
+### Lesson
+1. **A declared configuration (`render.yaml`) is not evidence of a running configuration.**
+   Second time this session (see D-013). The dashboard, or better, direct behavioral evidence —
+   a log, a timestamp, a real request — is the only thing that confirms what is actually
+   deployed.
+2. **A feature that "worked when tested" and a feature that "fires unattended on schedule" are
+   different claims requiring different proof.** The admin test button proved the former
+   instantly; only a full overnight cycle proves the latter, and no amount of code review
+   substitutes for it.
+3. **An old, unrelated feature can share a new feature's root cause.** The FCM push job's
+   likely unreliability was invisible until a new, unrelated feature's failure prompted checking
+   the infrastructure both depend on.
+
+### Could it recur?
+Yes, and by design, if the free tier is kept: the fix (UptimeRobot) is a mitigation for the
+current configuration, not a change to it. The failure mode returns immediately if the pinger
+lapses, or on the paid plan should the user later switch and then downgrade again.
