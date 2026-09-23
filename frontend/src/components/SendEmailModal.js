@@ -14,6 +14,12 @@ const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-m
 
 const TEMPLATES = [
   {
+    key: 'introduction',
+    label: 'Introduction Email',
+    subject: 'Welcome to Osiolog!',
+    message: "Welcome to Osiolog (https://www.osiolog.com)!\n\nWe are thrilled to have you join our community of dental surgeons and implantologists who are moving away from scattered notebooks, messy spreadsheets, and disjointed photo folders.\n\nOsiolog is built specifically to help you track, analyze, and manage your dental implant cases with absolute precision.\n\nHere is what you can do right now to get started:\n\n- Map your first case: Use our visual, tap-to-log FDI Dental Chart to log implants, abutments, crowns, overdentures, or full-mouth rehabs directly to the specific tooth.\n- Track osseointegration: Set up automatic healing-phase countdowns and reminders for second-stage surgeries and prosthetic loading so no follow-up gets missed.\n- Centralise your media: Upload radiographs and clinical photos into the Photo & Radiograph Vault, neatly organized date-wise per patient.\n- Manage multiple clinics: If you consult across multiple locations, you can track cases by clinic and view individual performance breakdowns in your analytics.\n\n💡 Quick Tip to Get Started:\nLog into your account and complete your profile. Adding your Dental Registration Number and clinic details will allow you to generate professional, single-click PDF Case Reports to share with patients or referring doctors.\n\nIf you ever have any questions, feel free to reach out to our support team at admin@osiolog.com.\n\nThank you for choosing Osiolog to streamline your implant practice!\n\nBest regards,\nThe Osiolog Team\nosiolog.com",
+  },
+  {
     key: 'maintenance',
     label: 'Maintenance Notice',
     subject: 'Scheduled maintenance — Osiolog',
