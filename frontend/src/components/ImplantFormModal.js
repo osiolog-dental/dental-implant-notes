@@ -178,6 +178,23 @@ export default function ImplantFormModal({
             </div>
           </div>
 
+          {(formData.implant_outcome || '').toLowerCase() === 'failed' && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3" data-testid="implant-removed-block">
+              <Label className="text-xs text-red-800">Removed on</Label>
+              <Input
+                type="date"
+                value={formData.removed_date || ''}
+                onChange={(e) => updateField('removed_date', e.target.value)}
+                data-testid="implant-removed-date"
+                className="mt-1 bg-white"
+              />
+              <p className="text-[11px] text-red-700 mt-1">
+                Leave empty while the failed implant is still in place. It shows in red on the chart as waiting to be removed.
+                Once you enter the removal date, the site shows empty, and you can record grafting and a planned new implant.
+              </p>
+            </div>
+          )}
+
           {surgicalKits.length > 0 && (
             <div>
               <Label className="text-xs">Surgical Kit Used</Label>

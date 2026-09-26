@@ -57,6 +57,7 @@ class ImplantBase(BaseModel):
     surgery_date: date | None = None
     prosthetic_loading_date: date | None = None
     implant_outcome: str | None = None
+    removed_date: date | None = None  # failed implant removed on this date (NULL = still in place)
     osseointegration_success: bool | None = None
     peri_implant_health: str | None = None
     notes: str | None = None
@@ -73,7 +74,7 @@ class ImplantBase(BaseModel):
     def coerce_float(cls, v: Any) -> Any:
         return _empty_to_none_float(v)
 
-    @field_validator("follow_up_date", "surgery_date", "prosthetic_loading_date", "stage_2_date", "stage_3_date", mode="before")
+    @field_validator("follow_up_date", "surgery_date", "prosthetic_loading_date", "stage_2_date", "stage_3_date", "removed_date", mode="before")
     @classmethod
     def coerce_date(cls, v: Any) -> Any:
         return _empty_to_none_date(v)

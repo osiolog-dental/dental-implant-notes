@@ -82,6 +82,9 @@ class Implant(Base):
     # Measurements & outcomes
     isq_value: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     implant_outcome: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Only for implant_outcome = 'Failed': NULL = failed, still waiting to be removed;
+    # a date = removed on that day (site is empty again).
+    removed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     osseointegration_success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     peri_implant_health: Mapped[str | None] = mapped_column(String(100), nullable=True)
 

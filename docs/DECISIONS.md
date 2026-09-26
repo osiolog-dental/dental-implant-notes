@@ -1304,3 +1304,55 @@ patient Financials were filtered to Consultant.
 `POST /api/financial-line-items` does not check that `patient_id` belongs to the caller's
 organization, so a line could be created against another practice's patient id. Pre-existing;
 fixed in the same change: both endpoints now return 404 unless the patient is in the caller's practice.
+
+---
+
+## D-020 — Failed implants: "waiting to be removed" vs "removed", shown on the chart and dropped from reminders
+
+- **Date:** 2026-09-26
+- **Status:** Active
+- **Area:** backend (schema, reminder queries) / frontend (implant form, panoramic chart, patient page)
+
+### Problem
+The user marked an implant Failed and saw no change on the chart, and the failed implant
+still appeared as "ready for second stage". Clinically a failed implant is first still in the
+bone (waiting to be removed), then removed — after which the site is empty, may be grafted,
+and waits for a new implant.
+
+### What was found
+- `implant_outcome` is free text ('Pending' / 'Success' / 'Failed' / 'Complications'); nothing
+  recorded removal.
+- `second_stage_due`, `follow_ups_due` (bell, dashboard, daily email) and the separate FCM
+  follow-up push query ignored the outcome. `extraction_sites_due` treated *any* implant on a
+  tooth as "the planned implant was placed", so a failed one silenced the re-implant reminder.
+- Adding a new implant on a site asks "did the previous one fail?" but changes nothing on the
+  old record.
+
+### Decisions (user's choices)
+1. A **"Removed on" date** (`implants.removed_date`), shown in the implant form when Outcome
+   is Failed. No date = waiting to be removed (red on the chart); a date = removed (site empty).
+   A "Record removal" button on the chart's side panel opens that form.
+2. After a removal date is first saved, the **Extracted Teeth form opens pre-filled** (tooth +
+   date) so graft, membrane, planned implant and reminder days are recorded the same way as
+   any extraction — reusing the chart's grafted-socket / planned-implant drawing and the
+   existing "due for implant" reminder.
+3. Failed implants leave **second-stage and follow-up** reminders (screen, email, push).
+4. **Existing failed implants** without a date count as removed when a newer implant is
+   already logged on that tooth; otherwise they show red until a date is entered.
+
+### Engineering judgement
+- Outcome compared case-insensitively (`lower(coalesce(...)) != 'failed'`) because older rows
+  were typed by hand; one `NOT_FAILED` expression in `services/reminders.py` is reused by the
+  push job so the bell, email and push agree.
+- "Newer implant" = later `created_at` (falls back to surgery date).
+- Analytics "healing" count also skips failed implants.
+- The classic chart was not changed; the panoramic chart is the default.
+
+### Verification status
+- Offline: backend imports; single migration head (`c9f3a5b7d2e4`); the reminder filter's
+  SQL checked; strict production build passes. Local app against the live API (demo account,
+  test patient): failed-in-place conventional and zygomatic implants draw red with FAIL tags
+  and a "Record removal" card; a failed implant with a newer implant on the tooth shows as
+  removed (replaced).
+- To verify after deploy: saving a removal date, the Extracted Teeth form opening, and the
+  failed implant disappearing from "ready for second stage".

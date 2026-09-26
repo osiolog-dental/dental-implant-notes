@@ -22,7 +22,7 @@ const C = {
   missing: '#2563EB', implant: '#0369A1', zyg: '#B04A33', ptg: '#9A6B12',
   abut: '#C2850A', crown: '#16A34A', od: '#7C3AED', fmr: '#4F46E5',
   natural: '#5F7F77', ink: '#2A2F35', ink2: '#5C6773', line: '#E5E5E2',
-  graft: '#A16207',
+  graft: '#A16207', failed: '#DC2626',
 };
 const OUTLINE = '#2E2A26';
 const TOOTH_LINE = '#535353';
@@ -86,6 +86,7 @@ const QUAD = { 1: 'Upper right', 2: 'Upper left', 3: 'Lower left', 4: 'Lower rig
 const COND_BADGE = { rootStump: 'RS', grosslyDecayed: 'GD', fractured: 'F' };
 const COND_LABEL = { rootStump: 'Root stump', grosslyDecayed: 'Grossly decayed', fractured: 'Fractured' };
 const isImp = b => b === 'implant' || b === 'zygomatic' || b === 'pterygoid';
+const isFailedImplant = i => (i.implant_outcome || '').toLowerCase() === 'failed';
 const isGone = b => b === 'missing' || b === 'extracted';
 const f1 = v => Number(v).toFixed(1);
 const pts = arr => arr.map(p => `${f1(p.x)},${f1(p.y)}`).join(' ');
@@ -98,11 +99,25 @@ const fmtDate = d => {
 /* ── turn the patient's saved records into what the chart draws ── */
 function useChartModel({ implants, fpdRecords, toothConditions, abutmentRecords, overdentureRecords, fullMouthRehabRecords, extractionRecords }) {
   return useMemo(() => {
-    const impBy = {};
-    implants.forEach(i => {
-      const cur = impBy[i.tooth_number];
-      // a failed implant replaced by a new one: show the one that isn't failed
-      if (!cur || cur.implant_outcome === 'Failed') impBy[i.tooth_number] = i;
+    // Implants per tooth, split three ways:
+    //   impBy     — the implant in the bone (not failed; newest if several)
+    //   failedBy  — failed and still in place, waiting to be removed (drawn red)
+    //   removedBy — failed and removed: dated, or (for older records with no date)
+    //               a newer implant has already been logged on that tooth
+    const impBy = {}, failedBy = {}, removedBy = {};
+    const stamp = i => i.created_at || i.surgery_date || '';
+    const byTooth = {};
+    implants.forEach(i => { (byTooth[i.tooth_number] = byTooth[i.tooth_number] || []).push(i); });
+    Object.entries(byTooth).forEach(([tn, list]) => {
+      const n = Number(tn);
+      const sorted = [...list].sort((a, b) => String(stamp(a)).localeCompare(String(stamp(b))));
+      const active = sorted.filter(i => !isFailedImplant(i));
+      if (active.length) impBy[n] = active[active.length - 1];
+      sorted.filter(isFailedImplant).forEach(f => {
+        const newerPlaced = active.some(o => String(stamp(o)) > String(stamp(f)));
+        if (f.removed_date || newerPlaced) (removedBy[n] = removedBy[n] || []).push(f);
+        else failedBy[n] = f;
+      });
     });
     const extractedBy = {};
     extractionRecords.forEach(r => (r.tooth_numbers || []).forEach(n => { extractedBy[n] = r; }));
@@ -110,11 +125,14 @@ function useChartModel({ implants, fpdRecords, toothConditions, abutmentRecords,
     abutmentRecords.forEach(a => { if (a.tooth_number) abutBy[a.tooth_number] = a; });
 
     const base = {};
+    const kindOf = imp => (imp.is_zygomatic ? 'zygomatic' : imp.is_pterygoid ? 'pterygoid' : 'implant');
+    const failedAs = {};
     TEETH.forEach(({ n }) => {
       const imp = impBy[n];
-      if (imp) base[n] = imp.is_zygomatic ? 'zygomatic' : imp.is_pterygoid ? 'pterygoid' : 'implant';
+      if (failedBy[n]) { base[n] = 'failed'; failedAs[n] = kindOf(failedBy[n]); }  // still in the bone — flag it first
+      else if (imp) base[n] = kindOf(imp);
       else if (extractedBy[n]) base[n] = 'extracted';
-      else if (toothConditions[n]?.condition === 'missing') base[n] = 'missing';
+      else if (removedBy[n] || toothConditions[n]?.condition === 'missing') base[n] = 'missing';  // removed = empty site
       else base[n] = 'present';
     });
 
@@ -196,7 +214,7 @@ function useChartModel({ implants, fpdRecords, toothConditions, abutmentRecords,
       };
     });
 
-    return { impBy, abutBy, fpdBy, extractedBy, site, base, pontic, crownOf, att, bridges, fmrSpans, fmrBy, odSpans, odBy, odBars };
+    return { impBy, failedBy, removedBy, failedAs, abutBy, fpdBy, extractedBy, site, base, pontic, crownOf, att, bridges, fmrSpans, fmrBy, odSpans, odBy, odBars };
   }, [implants, fpdRecords, toothConditions, abutmentRecords, overdentureRecords, fullMouthRehabRecords, extractionRecords]);
 }
 
@@ -330,6 +348,10 @@ function Plate({ model, toothConditions, selected, onSelect }) {
   const icons = [], teeth = [], specials = [], labels = [];
   TEETH.forEach(t => {
     const b = B[t.n], imp = impBy[t.n], pk = pontic.get(t.n), ck = crownOf.get(t.n);
+    // A failed implant still in place is drawn as its own kind, in red.
+    const failed = b === 'failed';
+    const kind = failed ? model.failedAs[t.n] : b;
+    const rec = failed ? model.failedBy[t.n] : imp;
     const iy = t.arch === 'U' ? -t.H : 0;
     const href = `${base}/opg-teeth/${t.n}.png`;
     const tf = `translate(${f1(t.x)},${f1(t.y)}) rotate(${t.a.toFixed(2)})`;
@@ -346,13 +368,14 @@ function Plate({ model, toothConditions, selected, onSelect }) {
     else if (pk) body = standalone(`p-${pk}`);
     else if (b === 'missing') body = standalone(null, 0.28);
     else if (b === 'extracted') body = img({ opacity: 0.16 });
+    else if (failed) body = standalone(null, 0.28, true);
     else if (att.has(t.n)) body = standalone('p-od', undefined, true);   // denture tooth over the attachment
     else if (ck) body = standalone(ck);
     icons.push(<g key={t.n} transform={tf}>{body}</g>);
 
     const flip = t.arch === 'L' ? ' scale(1,-1)' : '';
     const site = model.site[t.n];
-    const r = fixtureR(b, imp);
+    const r = fixtureR(kind, rec);
     // A ball/locator abutment record wins; otherwise the overdenture attachment; otherwise the abutment type.
     const aKind = abutBy[t.n] ? abutmentKind(abutBy[t.n].abutment_type) : null;
     const oKind = att.get(t.n) || null;
@@ -368,7 +391,11 @@ function Plate({ model, toothConditions, selected, onSelect }) {
         <rect x={f1(-t.W / 2 - 2)} y={f1(-t.H - 3)} width={f1(t.W + 4)} height={f1(t.H + 6)} rx={6}
           fill={sel ? 'rgba(95,127,119,0.08)' : 'transparent'}
           stroke={sel ? C.natural : 'none'} strokeWidth={1.6} strokeDasharray="4 3" />
-        {b === 'implant' && <g transform={`translate(0,${f1(-t.c)})`}><Fixture L={fixtureLen(imp)} r={r} mode="full" stroke={C.implant} /></g>}
+        {failed && (
+          <rect x={f1(-t.W / 2 - 1)} y={f1(-t.H - 2)} width={f1(t.W + 2)} height={f1(t.H + 4)} rx={6}
+            fill="rgba(220,38,38,0.07)" stroke={C.failed} strokeWidth={2} strokeDasharray="6 3" style={{ pointerEvents: 'none' }} />
+        )}
+        {kind === 'implant' && <g transform={`translate(0,${f1(-t.c)})`}><Fixture L={fixtureLen(rec)} r={r} mode="full" stroke={failed ? C.failed : C.implant} /></g>}
         {topKind && <Attachment kind={topKind} r={r} c={t.c}
           color={abutBy[t.n] ? C.abut : C.od} fill={abutBy[t.n] ? '#F2CF7E' : '#DCCBFA'} />}
         {b === 'extracted' && !pk && site?.graft && (
@@ -389,34 +416,34 @@ function Plate({ model, toothConditions, selected, onSelect }) {
         stroke={C.missing} strokeWidth={2.4} strokeLinecap="round" />);
     }
     const np = toGlobal(t, 0, 13);
-    const badge = model.site[t.n]?.immediate ? 'IMM' : COND_BADGE[toothConditions[t.n]?.condition];
+    const badge = failed ? 'FAIL' : model.site[t.n]?.immediate ? 'IMM' : COND_BADGE[toothConditions[t.n]?.condition];
     labels.push(
       <text key={`n${t.n}`} x={f1(np.x)} y={f1(np.y)} textAnchor="middle" dominantBaseline="middle"
         fontFamily="'IBM Plex Mono',monospace" fontSize={10} fontWeight={600}
-        fill={isGone(b) && !pk ? '#8B8178' : OUTLINE} stroke="#FBF8F3" strokeWidth={3} paintOrder="stroke"
+        fill={failed ? C.failed : isGone(b) && !pk ? '#8B8178' : OUTLINE} stroke="#FBF8F3" strokeWidth={3} paintOrder="stroke"
         style={{ pointerEvents: 'none' }}>{t.n}{badge ? ` ${badge}` : ''}</text>
     );
 
-    if (b === 'zygomatic' || b === 'pterygoid') {
-      const entry = toGlobal(t, 0, -t.c), apex = anchorFor(t, b);
+    if (kind === 'zygomatic' || kind === 'pterygoid') {
+      const entry = toGlobal(t, 0, -t.c), apex = anchorFor(t, kind);
       const vx = apex.x - entry.x, vy = apex.y - entry.y, L = Math.hypot(vx, vy), th = Math.atan2(vx, -vy) * 180 / Math.PI;
-      const col = b === 'zygomatic' ? C.zyg : C.ptg;
+      const col = failed ? C.failed : kind === 'zygomatic' ? C.zyg : C.ptg;
       specials.push(
         <g key={`s${t.n}`} transform={`translate(${f1(entry.x)},${f1(entry.y)}) rotate(${th.toFixed(2)})`} style={{ pointerEvents: 'none' }}>
-          <Fixture L={L} r={r} mode={b === 'zygomatic' ? 'apical' : 'full'} stroke={col} />
+          <Fixture L={L} r={r} mode={kind === 'zygomatic' ? 'apical' : 'full'} stroke={col} />
           <circle cx={0} cy={f1(-L)} r={9} fill="none" stroke={col} strokeWidth={1.6} strokeDasharray="3 2" />
         </g>
       );
-      const fr = b === 'pterygoid' ? 0.5 : (isAnteriorZyg(t) ? 0.38 : 0.74);
+      const fr = kind === 'pterygoid' ? 0.5 : (isAnteriorZyg(t) ? 0.38 : 0.74);
       const mx = entry.x + vx * fr, my = entry.y + vy * fr;
       let nx = vy / L, ny = -vx / L;
       if (Math.abs(mx + nx * 10 - MID) < Math.abs(mx - MID)) { nx = -nx; ny = -ny; }
-      const len = imp?.length_mm ? ` ${parseFloat(imp.length_mm)}` : '';
+      const len = rec?.length_mm ? ` ${parseFloat(rec.length_mm)}` : '';
       labels.push(
         <text key={`l${t.n}`} x={f1(mx + nx * 22)} y={f1(my + ny * 22)} textAnchor="middle" dominantBaseline="middle"
           fontFamily="'IBM Plex Mono',monospace" fontSize={11} fontWeight={600} letterSpacing="0.05em"
           fill={col} stroke="#FBF8F3" strokeWidth={4} paintOrder="stroke" style={{ pointerEvents: 'none' }}>
-          {(b === 'zygomatic' ? 'ZYG' : 'PTG') + len}
+          {(kind === 'zygomatic' ? 'ZYG' : 'PTG') + len + (failed ? ' FAILED' : '')}
         </text>
       );
     }
@@ -537,7 +564,7 @@ function Pill({ color, disabled, onClick, testid, title, children }) {
   );
 }
 
-function RecordCard({ color, title, rows }) {
+function RecordCard({ color, title, rows, action }) {
   const shown = rows.filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false);
   return (
     <div className="rounded-lg px-3 py-2 text-xs" style={{ borderLeft: `3px solid ${color}`, background: '#F9F9F8' }}>
@@ -548,6 +575,13 @@ function RecordCard({ color, title, rows }) {
             <div key={k} className="contents"><dt>{k}</dt><dd className="text-[#2A2F35]">{v === true ? 'Yes' : String(v)}</dd></div>
           ))}
         </dl>
+      )}
+      {action && (
+        <button type="button" onClick={action.onClick} data-testid={action.testid}
+          className="mt-2 w-full rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+          style={{ background: color }}>
+          {action.label}
+        </button>
       )}
     </div>
   );
@@ -570,6 +604,7 @@ function CaseSummary({ model, fpdRecords }) {
   const missing = count(n => model.base[n] === 'missing' && !model.pontic.has(n));
   const extracted = count(n => model.base[n] === 'extracted' && !model.pontic.has(n));
   const grafted = count(n => model.site[n]?.graft);
+  const failedWaiting = count(n => model.base[n] === 'failed');
   const waiting = count(n => model.site[n]?.planned);
 
   const archLine = arch => {
@@ -585,6 +620,7 @@ function CaseSummary({ model, fpdRecords }) {
     [C.abut, 'Abutments', Object.keys(model.abutBy).length, abutText],
     [C.crown, 'Single crowns', singleCrowns, ''],
     [C.crown, 'Bridges', bridges, model.pontic.size ? `${model.pontic.size} pontic${model.pontic.size > 1 ? 's' : ''} in all` : ''],
+    ...(failedWaiting ? [[C.failed, 'Failed, awaiting removal', failedWaiting, '']] : []),
     [C.missing, 'Missing, not restored', missing, ''],
     [C.missing, 'Extracted, not restored', extracted, [grafted && `${grafted} grafted`, waiting && `${waiting} waiting for implant`].filter(Boolean).join(', ')],
   ];
@@ -620,6 +656,7 @@ export default function OpgDentalChart({
   extractionRecords = [],
   onMarkMissing,
   onImplantLog,
+  onEditImplant,
   onCrownLog,
   onAbutmentLog,
   onOverdentureLog,
@@ -641,6 +678,7 @@ export default function OpgDentalChart({
   const odRec = model.odSpans[t.arch]?.includes(selected) ? model.odBy[t.arch] : null;
 
   const status = pk ? `Pontic on the ${pk === 'fpd' ? 'bridge' : pk === 'fmr' ? 'full mouth rehab' : 'overdenture'}`
+    : b === 'failed' ? 'Implant failed · waiting to be removed'
     : b === 'zygomatic' ? `Zygomatic implant · ${isAnteriorZyg(t) ? 'anterior' : 'posterior'} path`
     : b === 'pterygoid' ? 'Pterygoid implant'
     : b === 'implant' ? 'Implant'
@@ -650,6 +688,24 @@ export default function OpgDentalChart({
 
   const records = [];
   const site = model.site[selected];
+  const failedRec = model.failedBy[selected];
+  if (failedRec) records.push(
+    <RecordCard key="failed" color={C.failed} title="Failed implant — waiting to be removed"
+      rows={[
+        ['Brand', [failedRec.brand, failedRec.implant_system].filter(Boolean).join(' · ')],
+        ['Size', failedRec.diameter_mm || failedRec.length_mm ? `${failedRec.diameter_mm || '–'} × ${failedRec.length_mm || '–'} mm` : ''],
+        ['Placed', fmtDate(failedRec.surgery_date)],
+      ]}
+      action={onEditImplant ? { label: 'Record removal', testid: 'opg-record-removal', onClick: () => onEditImplant(failedRec) } : null} />
+  );
+  (model.removedBy[selected] || []).forEach(f => records.push(
+    <RecordCard key={`rm-${f.id}`} color="#9CA3AF" title={`Failed implant — removed${f.removed_date ? '' : ' (replaced)'}`}
+      rows={[
+        ['Brand', [f.brand, f.implant_system].filter(Boolean).join(' · ')],
+        ['Placed', fmtDate(f.surgery_date)],
+        ['Removed', f.removed_date ? fmtDate(f.removed_date) : 'not recorded'],
+      ]} />
+  ));
   if (imp) records.push(
     <RecordCard key="imp" color={b === 'zygomatic' ? C.zyg : b === 'pterygoid' ? C.ptg : C.implant}
       title={(b === 'zygomatic' ? 'Zygomatic implant' : b === 'pterygoid' ? 'Pterygoid implant' : 'Implant')
@@ -694,13 +750,14 @@ export default function OpgDentalChart({
         ['Implant due', !imp && site?.due ? `${fmtDate(site.due)} (${ext.reminder_days} days)` : ''],
       ]} />
   );
-  if (!ext && cond === 'missing' && b === 'missing') records.push(<RecordCard key="miss" color={C.missing} title="Marked missing" rows={[]} />);
+  if (!ext && cond === 'missing' && b === 'missing' && !model.removedBy[selected]) records.push(<RecordCard key="miss" color={C.missing} title="Marked missing" rows={[]} />);
 
   const zygOk = siteOk('zygomatic', selected), ptgOk = siteOk('pterygoid', selected);
 
   /* grid chip look */
   const chip = n => {
     const bb = model.base[n], p = model.pontic.get(n), ck = model.crownOf.get(n);
+    if (bb === 'failed') return { color: C.failed, tag: 'FAIL' };
     if (p) return { color: p === 'fmr' ? C.fmr : p === 'od' ? C.od : C.crown, tag: 'PON' };
     if (bb === 'zygomatic') return { color: C.zyg, tag: 'ZYG' };
     if (bb === 'pterygoid') return { color: C.ptg, tag: 'PTG' };
@@ -752,7 +809,7 @@ export default function OpgDentalChart({
             </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#5C6773]">
-            {[[C.missing, 'Missing / extracted'], [C.graft, 'Grafted socket'], [C.implant, 'Implant (dashed = planned)'], [C.zyg, 'Zygomatic'], [C.ptg, 'Pterygoid'], [C.crown, 'Crown / bridge'], [C.od, 'Overdenture'], [C.fmr, 'Full mouth rehab']].map(([c, l]) => (
+            {[[C.failed, 'Failed — awaiting removal'], [C.missing, 'Missing / extracted'], [C.graft, 'Grafted socket'], [C.implant, 'Implant (dashed = planned)'], [C.zyg, 'Zygomatic'], [C.ptg, 'Pterygoid'], [C.crown, 'Crown / bridge'], [C.od, 'Overdenture'], [C.fmr, 'Full mouth rehab']].map(([c, l]) => (
               <span key={l} className="inline-flex items-center gap-1.5"><i className="inline-block w-3.5 h-[3px] rounded" style={{ background: c }} />{l}</span>
             ))}
           </div>

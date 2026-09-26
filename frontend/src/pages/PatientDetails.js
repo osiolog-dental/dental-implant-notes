@@ -59,6 +59,7 @@ const INITIAL_IMPLANT = {
   consultant_surgeon: '',
   clinic_id: '',
   implant_outcome: 'Pending',
+  removed_date: '',
   clinical_notes: '',
   notes: '',
   site_specific_notes: '',
@@ -860,11 +861,26 @@ const PatientDetails = () => {
       // Stock was auto-deducted from the picked item; this is only set when
       // it ran out or went negative — the implant record always saves regardless.
       if (res.data?.stock_warning) toast.warning(res.data.stock_warning);
+      // A failed implant that has just been recorded as removed: open the
+      // Extracted Teeth form for that site so graft / planned re-implant can be logged.
+      const before = editingImplantId ? implants.find(i => i.id === editingImplantId) : null;
+      const justRemoved = (formData.implant_outcome || '').toLowerCase() === 'failed'
+        && !!formData.removed_date && !before?.removed_date;
       setIsImplantOpen(false);
       setFormData({ ...INITIAL_IMPLANT });
       setSelectedTooth(null);
       setEditingImplantId(null);
       fetchAll();
+      if (justRemoved) {
+        setExtractionData({
+          ...INITIAL_EXTRACTION,
+          tooth_numbers: [parseInt(formData.tooth_number)],
+          extraction_date: formData.removed_date,
+        });
+        setEditingExtractionId(null);
+        setIsExtractionOpen(true);
+        toast.info('Implant removed — record any graft and a planned new implant for this site');
+      }
     } catch (error) {
       toast.error(editingImplantId ? 'Failed to update implant' : 'Failed to add implant');
     }
@@ -899,6 +915,7 @@ const PatientDetails = () => {
       consultant_surgeon: implant.consultant_surgeon || '',
       clinic_id: implant.clinic_id || '',
       implant_outcome: implant.implant_outcome || 'Pending',
+      removed_date: implant.removed_date || '',
       clinical_notes: implant.clinical_notes || '',
       notes: implant.notes || '',
       site_specific_notes: '',
@@ -1275,6 +1292,7 @@ const PatientDetails = () => {
           extractionRecords={extractionRecords}
           onMarkMissing={handleMarkMissing}
           onImplantLog={openImplantLog}
+          onEditImplant={openEditImplant}
           onCrownLog={openCrownLog}
           onAbutmentLog={openAbutmentLog}
           onOverdentureLog={openOverdentureLog}

@@ -565,6 +565,7 @@ async def analytics_overview(
     pending_osseointegration = sum(
         1 for i in all_implants
         if i.current_stage == 1 and not i.osseointegration_success
+        and (i.implant_outcome or '').lower() != 'failed'  # a failed implant isn't healing
     )
 
     clinics_result = await db.execute(

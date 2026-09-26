@@ -124,6 +124,7 @@ async def send_followup_reminders() -> None:
                 Implant.follow_up_date >= today,
                 Implant.follow_up_date <= window_end,
                 Implant.osseointegration_success.is_(None),
+                reminders.NOT_FAILED,  # no follow-up push for a failed implant
             )
         )
         rows = result.all()

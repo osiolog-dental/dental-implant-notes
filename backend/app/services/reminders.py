@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import date as _date, timedelta as _timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.implant import Implant
@@ -27,6 +27,11 @@ from app.models.tooth_extraction import ToothExtraction
 
 # Matches the FCM follow-up job, so the bell, the push and the email agree.
 FOLLOW_UP_WINDOW_DAYS = 7
+
+# A failed implant is either still in the bone waiting to be removed, or gone —
+# either way it is not healing, not due a second stage, and not due a follow-up.
+# Case-insensitive because older rows were typed in by hand.
+NOT_FAILED = func.lower(func.coalesce(Implant.implant_outcome, '')) != 'failed'
 
 
 async def follow_ups_due(db: AsyncSession, org_id: uuid.UUID) -> list[dict]:
@@ -49,6 +54,7 @@ async def follow_ups_due(db: AsyncSession, org_id: uuid.UUID) -> list[dict]:
             Implant.follow_up_date.isnot(None),
             Implant.follow_up_date <= window_end,
             Implant.osseointegration_success.is_(None),
+            NOT_FAILED,
         )
     )
 
@@ -80,6 +86,7 @@ async def second_stage_due(db: AsyncSession, org_id: uuid.UUID) -> list[dict]:
             Patient.deleted_at.is_(None),
             Implant.surgery_date.isnot(None),
             Implant.current_stage == 1,
+            NOT_FAILED,
         )
     )
     rows = result.all()
@@ -126,7 +133,8 @@ async def extraction_sites_due(db: AsyncSession, org_id: uuid.UUID) -> list[dict
     implant_result = await db.execute(
         select(Implant.patient_id, Implant.tooth_number)
         .join(Patient, Implant.patient_id == Patient.id)
-        .where(Patient.org_id == org_id, Patient.deleted_at.is_(None))
+        # A failed implant doesn't fill the site — a re-implant is still due.
+        .where(Patient.org_id == org_id, Patient.deleted_at.is_(None), NOT_FAILED)
     )
     implanted_sites = {(pid, tn) for pid, tn in implant_result.all()}
 
