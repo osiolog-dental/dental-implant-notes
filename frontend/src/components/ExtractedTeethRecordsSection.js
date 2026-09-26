@@ -3,6 +3,8 @@ import { PencilSimple, Trash } from '@phosphor-icons/react';
 const EXTRACTION_COLOR = '#2563EB';
 
 const teethLabel = (list) => `${list.length === 1 ? 'Tooth' : 'Teeth'} ${list.join(', ')}`;
+// After an implant is removed there's no tooth, only the site it was placed in.
+const siteLabel = (list) => `${list.length === 1 ? 'Tooth site' : 'Tooth sites'} ${list.join(', ')}`;
 
 // A record logged when a failed implant was removed shares the implant's removal
 // date and tooth — label those teeth as an implant removal, not an extraction.
@@ -28,7 +30,7 @@ export default function ExtractedTeethRecordsSection({ extractionRecords, onEdit
         {extractionRecords.map((rec) => {
           const { removed, extracted } = splitTeeth(rec, implants);
           const title = [
-            removed.length ? `Failed implant removed — ${teethLabel(removed)}` : null,
+            removed.length ? `Failed implant removed — ${siteLabel(removed)}` : null,
             extracted.length ? `Extracted — ${teethLabel(extracted)}` : null,
           ].filter(Boolean).join(' · ') || `Extracted — ${teethLabel(rec.tooth_numbers || [])}`;
           return (
@@ -51,7 +53,7 @@ export default function ExtractedTeethRecordsSection({ extractionRecords, onEdit
                 </button>
                 <button
                   data-testid={`delete-extraction-${rec.id}`}
-                  onClick={() => onDelete({ type: 'tooth_extraction', id: rec.id, label: `${removed.length && !extracted.length ? 'Implant removal' : 'Extraction'} — ${teethLabel(rec.tooth_numbers || [])}` })}
+                  onClick={() => onDelete({ type: 'tooth_extraction', id: rec.id, label: removed.length && !extracted.length ? `Implant removal — ${siteLabel(rec.tooth_numbers || [])}` : `Extraction — ${teethLabel(rec.tooth_numbers || [])}` })}
                   className="p-1.5 rounded-md hover:bg-red-50 text-[#5C6773] hover:text-red-500 transition-colors"
                   title="Delete extraction record"
                 >
