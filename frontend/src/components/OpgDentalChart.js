@@ -677,12 +677,14 @@ export default function OpgDentalChart({
   const fmrRec = model.fmrSpans[t.arch]?.includes(selected) ? model.fmrBy[t.arch] : null;
   const odRec = model.odSpans[t.arch]?.includes(selected) ? model.odBy[t.arch] : null;
 
+  // An extraction record logged for a failed implant's removal (same tooth, same date).
+  const fromRemoval = !!ext && (model.removedBy[selected] || []).some(f => f.removed_date && f.removed_date === ext.extraction_date);
   const status = pk ? `Pontic on the ${pk === 'fpd' ? 'bridge' : pk === 'fmr' ? 'full mouth rehab' : 'overdenture'}`
     : b === 'failed' ? 'Implant failed · waiting to be removed'
     : b === 'zygomatic' ? `Zygomatic implant · ${isAnteriorZyg(t) ? 'anterior' : 'posterior'} path`
     : b === 'pterygoid' ? 'Pterygoid implant'
     : b === 'implant' ? 'Implant'
-    : b === 'extracted' ? 'Extracted'
+    : b === 'extracted' ? (fromRemoval ? 'Implant removed' : 'Extracted')
     : b === 'missing' ? 'Missing'
     : COND_LABEL[cond] || 'Natural tooth';
 
@@ -744,7 +746,9 @@ export default function OpgDentalChart({
   );
   if (ext) records.push(
     <RecordCard key="ext" color={site?.graft ? C.graft : C.missing}
-      title={imp ? 'Extracted, then implant placed' : site?.planned ? 'Extracted · waiting for implant' : 'Extracted'} rows={[
+      title={fromRemoval
+        ? (imp ? 'Implant removed, then new implant placed' : site?.planned ? 'Implant removed · waiting for new implant' : 'Implant removed')
+        : (imp ? 'Extracted, then implant placed' : site?.planned ? 'Extracted · waiting for implant' : 'Extracted')} rows={[
         ['Date', fmtDate(ext.extraction_date)], ['Bone graft', ext.bone_graft], ['Membrane', ext.membrane_used],
         ['Implant planned', !imp && ext.planned_future_implant],
         ['Implant due', !imp && site?.due ? `${fmtDate(site.due)} (${ext.reminder_days} days)` : ''],

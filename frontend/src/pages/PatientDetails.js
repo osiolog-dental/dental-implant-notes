@@ -1370,6 +1370,7 @@ const PatientDetails = () => {
       {/* Extraction Records */}
       <ExtractedTeethRecordsSection
         extractionRecords={extractionRecords}
+        implants={implants}
         onEdit={openEditExtraction}
         onDelete={setDeleteTarget}
       />
