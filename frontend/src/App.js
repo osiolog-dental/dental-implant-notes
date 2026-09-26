@@ -20,6 +20,7 @@ import Subscription from './pages/Subscription';
 import DoctorPublicProfile from './pages/DoctorPublicProfile';
 import CompleteProfile from './pages/CompleteProfile';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import HelpGuide from './pages/HelpGuide';
 import PrintImplantLogSheet from './pages/PrintImplantLogSheet';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomeGate from './components/HomeGate';
@@ -36,6 +37,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/help" element={<HelpGuide />} />
           <Route path="/profile/:doctorId" element={<DoctorPublicProfile />} />
           <Route path="/print/implant-log-sheet" element={<ProtectedRoute><PrintImplantLogSheet /></ProtectedRoute>} />
           <Route path="/" element={<HomeGate><Layout /></HomeGate>}>
