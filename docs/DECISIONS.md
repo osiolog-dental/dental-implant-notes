@@ -1357,6 +1357,15 @@ and waits for a new implant.
 - To verify after deploy: saving a removal date, the Extracted Teeth form opening, and the
   failed implant disappearing from "ready for second stage".
 
+### Follow-up (2026-09-26) — missed in the first pass
+The Implant Records list under the chart still showed the healing tracker, "Ready for Stage 2"
+and the "Mark: Second Stage" button for a failed implant — the user spotted it on tooth 15.
+`ImplantRecordsSection` now applies the same removed/waiting rule as the chart: failed implants
+get a red card and red status text ("Failed — removed on …" / "— removed (replaced by a new
+implant)" / "— waiting to be removed" with a Record removal button), and no stage tracker.
+Lesson: when a status changes meaning, search every place that renders that record, not only
+the one being redesigned.
+
 ---
 
 ## D-021 — A clinic on each patient decides that patient's finance side; free plan keeps the classic chart
