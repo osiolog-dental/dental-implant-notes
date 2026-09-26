@@ -4,7 +4,7 @@ import client from '../api/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Camera, Stack } from '@phosphor-icons/react';
 import { generatePatientPDF } from '../components/PatientReportPDF';
-import DentalChart from '../components/DentalChart';
+import PatientChart from '../components/PatientChart';
 import BulkImplantModal from '../components/BulkImplantModal';
 import LinkImplantStockModal from '../components/LinkImplantStockModal';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
@@ -458,22 +458,23 @@ const PatientDetails = () => {
     });
   };
 
-  const openImplantLog = (toothNumber) => {
+  const openImplantLog = (toothNumber, preset = {}) => {
     // If an implant already exists on this tooth, ask if the previous one failed
     const existing = implants.find(i => i.tooth_number === toothNumber);
     if (existing) {
-      setFailedImplantConfirm({ toothNumber });
+      setFailedImplantConfirm({ toothNumber, preset });
       return;
     }
-    doOpenImplantLog(toothNumber);
+    doOpenImplantLog(toothNumber, preset);
   };
 
-  const doOpenImplantLog = (toothNumber) => {
+  const doOpenImplantLog = (toothNumber, preset = {}) => {
     setSelectedTooth(toothNumber);
     const arch = toothNumber <= 28 ? 'Upper' : 'Lower';
     const tens = Math.floor(toothNumber / 10);
     const jaw_region = ([1, 2, 3, 4].includes(tens) && (toothNumber % 10) <= 3) ? 'Anterior' : 'Posterior';
-    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region });
+    // preset lets the panoramic chart pre-tick Zygomatic / Pterygoid
+    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region, ...preset });
     setIsImplantOpen(true);
   };
 
@@ -501,8 +502,9 @@ const PatientDetails = () => {
     setIsFullMouthRehabOpen(true);
   };
 
-  const openExtractedTeethLog = () => {
-    setExtractionData({ ...INITIAL_EXTRACTION });
+  const openExtractedTeethLog = (toothNumber) => {
+    // the panoramic chart passes the selected tooth; other callers pass nothing (or a click event)
+    setExtractionData({ ...INITIAL_EXTRACTION, tooth_numbers: typeof toothNumber === 'number' ? [toothNumber] : [] });
     setEditingExtractionId(null);
     setIsExtractionOpen(true);
   };
@@ -1140,8 +1142,9 @@ const PatientDetails = () => {
             onClose={() => setFailedImplantConfirm(null)}
             onConfirm={() => {
               const tn = failedImplantConfirm.toothNumber;
+              const preset = failedImplantConfirm.preset;
               setFailedImplantConfirm(null);
-              doOpenImplantLog(tn);
+              doOpenImplantLog(tn, preset);
             }}
           />
         )}
@@ -1261,23 +1264,23 @@ const PatientDetails = () => {
           editingPaymentId={editingPaymentId}
         />
 
-        {/* FDI Dental Chart — high-fidelity SVG */}
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: 560 }}>
-            <DentalChart
-              implants={implants}
-              fpdRecords={fpdRecords}
-              toothConditions={toothConditions}
-              onMarkMissing={handleMarkMissing}
-              onImplantLog={openImplantLog}
-              onCrownLog={openCrownLog}
-              onAbutmentLog={openAbutmentLog}
-              onOverdentureLog={openOverdentureLog}
-              onFullMouthRehabLog={openFullMouthRehabLog}
-              onExtractedTeethLog={openExtractedTeethLog}
-            />
-          </div>
-        </div>
+        {/* FDI Dental Chart — classic, or the panoramic test chart (switch inside PatientChart) */}
+        <PatientChart
+          implants={implants}
+          fpdRecords={fpdRecords}
+          toothConditions={toothConditions}
+          abutmentRecords={abutmentRecords}
+          overdentureRecords={overdentureRecords}
+          fullMouthRehabRecords={fullMouthRehabRecords}
+          extractionRecords={extractionRecords}
+          onMarkMissing={handleMarkMissing}
+          onImplantLog={openImplantLog}
+          onCrownLog={openCrownLog}
+          onAbutmentLog={openAbutmentLog}
+          onOverdentureLog={openOverdentureLog}
+          onFullMouthRehabLog={openFullMouthRehabLog}
+          onExtractedTeethLog={openExtractedTeethLog}
+        />
 
         {/* Photo Vault link - below chart */}
         <div className="mt-4 pt-4 border-t border-[#E5E5E2]">

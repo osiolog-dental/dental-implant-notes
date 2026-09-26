@@ -238,9 +238,15 @@ export async function generatePatientPDF({
     y = checkY(doc, y, 80, pages);
     y = sectionHeading(doc, 'FDI Dental Chart', y);
 
-    // Fit chart image across full content width, maintain aspect ratio (SVG ~1056×368 → 0.348)
+    // Fit chart image across full content width, keeping the picture's own proportions —
+    // the classic chart is wide and short (~0.348), the panoramic one is taller (~0.6).
+    let ratio = 0.348;
+    try {
+      const p = doc.getImageProperties(chartImage);
+      if (p?.width && p?.height) ratio = p.height / p.width;
+    } catch { /* keep the classic ratio */ }
     const chartW = contentW;
-    const chartH = Math.round(contentW * 0.348);
+    const chartH = Math.round(contentW * ratio);
     y = checkY(doc, y, chartH + 6, pages);
     try {
       doc.addImage(chartImage, 'PNG', margin, y, chartW, chartH);

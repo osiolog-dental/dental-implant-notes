@@ -1165,3 +1165,73 @@ fail because of a bad referral link**, only the reward is affected.
 Storage limits become enforced — at that point this reward starts doing something
 observable beyond a number on the Subscription page, and it's worth re-confirming the
 500MB/5GB figures still make sense once they carry real weight.
+
+---
+
+## D-018 — Panoramic (OPG-style) FDI chart becomes the default; classic chart kept behind a switch
+
+- **Date:** 2026-09-26
+- **Status:** Active
+- **Area:** frontend (patient page chart, PDF report)
+
+### Problem
+The classic FDI chart draws every tooth in an identical slot, so zygomatic and pterygoid
+implants could only be flagged with a coloured badge ("Z" / "P") — nothing showed where
+they actually anchor. Overdentures, full mouth rehab, grafted sockets waiting for an
+implant, and immediate implants were also not visible on the chart itself.
+
+### What was built, and how it got there
+1. **Prototype first, outside the app.** A standalone preview (a private Artifact, pinned
+   in the user's claude.ai sidebar) went through several rounds of the user's clinical
+   feedback before any app code was touched: the mandibular canal was removed as
+   inaccurate; tooth sizes were changed from "same scale as the drawings" to average
+   anatomical lengths, because the source drawings were not at a common scale; the arches
+   were opened out of occlusion; open crown margins on implants and pontics were closed.
+   The tooth pictures are the user's own drawings (`frontend/public/opg-teeth/`).
+2. **The chart opens the existing forms, never its own.** The user has detailed Implant,
+   Abutment, Crown/FPD, Overdenture, Full Mouth Rehab and Extracted Teeth forms; the new
+   chart calls exactly the same `PatientDetails` handlers as the classic chart. Two small
+   additions to those handlers (both backwards-compatible — the classic chart passes
+   nothing and behaves as before): `openImplantLog(tooth, preset)` so Zygomatic /
+   Pterygoid pre-tick the existing `is_zygomatic` / `is_pterygoid` boxes, and
+   `openExtractedTeethLog(tooth)` to pre-select the tooth.
+3. **No schema change.** Everything drawn is derived from records that already exist.
+   Choices the user made explicitly: zygomatic path (anterior vs posterior) is drawn from
+   the tooth number (12–13/22–23 anterior, 14–16/24–26 posterior) rather than adding a
+   field; tapping Zygomatic/Pterygoid opens the normal implant form pre-ticked.
+   Engineering judgement, not user-specified: "immediate" is shown only when an extraction
+   record **and** an implant with surgical_approach "Immediate Placement" share a tooth,
+   because the implant form defaults every implant to "Immediate Placement", so the field
+   alone is not trustworthy; ball / locator / MUA / stock shapes are read from the
+   abutment type text, and ball/locator on an abutment record win over the overdenture's
+   attachment type.
+4. **Tested in the real app before going live**, on this computer against the live API
+   with the demo account and three throwaway test patients (full arch zyg+ptg under an
+   upper FMR with a lower locator overdenture; single sites; ball + Dolder-bar
+   overdentures). Verified by driving headless Chrome: all 32 sites render, the side panel
+   shows each form's saved details, Zygomatic opens "Add Implant – Tooth #15" with
+   Zygomatic ticked, and the switch returns the classic chart.
+5. **Default and reversibility.** The user first asked for it as an opt-in test, then —
+   after trying it — for it to be the live default with the anatomy labels removed. The
+   classic `DentalChart.js` is unchanged and one click away ("Switch to classic chart",
+   remembered per device in localStorage). The FPD form still uses the classic mini-chart
+   for picking bridge teeth.
+6. **PDF report.** The chart image was placed at a fixed 0.348 height/width ratio (the
+   classic chart's shape), which would squash the taller panoramic chart; it now uses the
+   captured image's own proportions.
+
+### Known gap found, not fixed here
+The Crown/FPD form's per-tooth "abutment / pontic" toggle (`tooth_roles`) is sent by the
+frontend but the backend `FPDFlatCreate` schema has no such field, so it is silently
+dropped — reopening a bridge loses the roles. Both charts fall back to "a missing tooth
+inside a bridge is a pontic". Fixing it needs a schema + migration change; not done
+without the user's go-ahead.
+
+### Not verified
+- The native iOS / Android apps: they pick this up only at their next Capacitor build.
+- PDF export with the panoramic chart was reasoned through, not run end to end.
+
+### Revisit if
+A zygomatic implant's path needs to differ from what its tooth number implies (e.g. a
+quad-zygoma with an unusual entry point) — then an explicit anterior/posterior field is
+worth adding.
