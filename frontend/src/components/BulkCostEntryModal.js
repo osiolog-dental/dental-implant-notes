@@ -36,7 +36,7 @@ function rowSide(row, roles) {
   return row.provider_type === 'consultant' ? 'consultant' : 'owner';
 }
 
-function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles }) {
+function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles, patientClinicId }) {
   // Only a clinic id that belongs to this practice is kept (older implants can
   // hold free text in clinic_id) — anything else is treated as "no clinic".
   const known = (id) => (id && roles[String(id)] ? String(id) : '');
@@ -62,7 +62,8 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
 
   const fromRecord = (sourceType, category, sourceId, label, date, sourceClinicId) => {
     const existing = findExisting(sourceType, sourceId, category, label);
-    const clinicId = known(existing?.clinic_id) || known(sourceClinicId);
+    // its own saved clinic, else its implant/abutment's, else the patient's clinic
+    const clinicId = known(existing?.clinic_id) || known(sourceClinicId) || known(patientClinicId);
     return {
       clinic_id: clinicId,
       key: `${sourceType}_${sourceId}`,
@@ -284,6 +285,7 @@ export default function BulkCostEntryModal({
   lineItems,
   providerFilter,
   onSaved,
+  patientClinic,
 }) {
   const { formatCurrency } = useLocale();
   const { view } = useFinanceView();
@@ -291,8 +293,11 @@ export default function BulkCostEntryModal({
   const [saving, setSaving] = useState(false);
   const [clinics, setClinics] = useState([]);
 
-  // The account-wide view (beside the bell) wins; on 'Both' the per-patient filter applies.
-  const sideFilter = view === 'clinic' ? 'owner'
+  // Same rule as the Financials section: the patient's clinic decides first,
+  // then the account-wide view, then the per-patient filter.
+  const clinicSide = patientClinic ? (patientClinic.my_role === 'consultant' ? 'consultant' : 'owner') : null;
+  const sideFilter = clinicSide ? clinicSide
+    : view === 'clinic' ? 'owner'
     : view === 'consultant' ? 'consultant'
     : providerFilter === 'clinic' ? 'owner'
     : providerFilter === 'consultant' ? 'consultant'
@@ -309,7 +314,7 @@ export default function BulkCostEntryModal({
         if (cancelled) return;
         const r = Object.fromEntries(list.map(c => [String(c.id), c.my_role || 'owner']));
         setClinics(list);
-        setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles: r }));
+        setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles: r, patientClinicId: patientClinic ? String(patientClinic.id) : '' }));
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -332,7 +337,7 @@ export default function BulkCostEntryModal({
       category: 'lab',
       description: '',
       custom: true,
-      clinic_id: '',
+      clinic_id: patientClinic && roles[String(patientClinic.id)] ? String(patientClinic.id) : '',
       initialSide: sideFilter || 'owner',
       provider_type: sideFilter === 'consultant' ? 'consultant' : 'clinic',
       consultant_charge: '',

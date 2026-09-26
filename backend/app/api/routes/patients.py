@@ -14,6 +14,7 @@ from app.models.user import User
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate, PatientRead, PatientUpdate
 from app.services.audit import log_event
+from app.services.patient_clinic import clinic_in_org
 from pydantic import BaseModel
 
 
@@ -55,6 +56,8 @@ async def create_patient(
                        f"Contact admin@osiolog.com to upgrade.",
             )
 
+    if body.clinic_id and not await clinic_in_org(db, body.clinic_id, current_user.org_id):
+        raise HTTPException(status_code=400, detail="That clinic isn't one of your clinics")
     patient = await repo.create(current_user.org_id, current_user.id, body)
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="create", entity_type="patient", entity_id=str(patient.id))
@@ -85,6 +88,8 @@ async def update_patient(
     patient = await repo.get(patient_id, current_user.org_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if body.clinic_id and not await clinic_in_org(db, body.clinic_id, current_user.org_id):
+        raise HTTPException(status_code=400, detail="That clinic isn't one of your clinics")
     patient = await repo.update(patient, body)
     await log_event(db, org_id=current_user.org_id, user_id=current_user.id,
                     action="update", entity_type="patient", entity_id=str(patient_id))

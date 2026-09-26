@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 
 const selectClass = "w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none";
 
-export default function EditPatientModal({ open, onOpenChange, editPatientData, setEditPatientData, onSubmit }) {
+export default function EditPatientModal({ open, onOpenChange, editPatientData, setEditPatientData, onSubmit, clinics = [] }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -23,6 +23,18 @@ export default function EditPatientModal({ open, onOpenChange, editPatientData, 
               <Label className="text-xs">Full Name *</Label>
               <Input value={editPatientData.name || ''} onChange={e => setEditPatientData(p => ({ ...p, name: e.target.value }))} required data-testid="edit-patient-name" className="mt-1" />
             </div>
+            {clinics.length > 0 && (
+              <div className="col-span-2">
+                <Label className="text-xs">Clinic</Label>
+                <select value={editPatientData.clinic_id || ''} onChange={e => setEditPatientData(p => ({ ...p, clinic_id: e.target.value }))} data-testid="edit-patient-clinic" className={`mt-1 ${selectClass}`}>
+                <option value="">No clinic</option>
+                {clinics.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name}{c.my_role === 'consultant' ? ' — I consult here' : ' — my clinic'}</option>
+                ))}
+              </select>
+                <p className="text-[11px] text-[#9CA3AF] mt-1">Decides which finances show for this patient: your clinic's, or your consulting.</p>
+              </div>
+            )}
             <div>
               <Label className="text-xs">Age *</Label>
               <Input type="number" value={editPatientData.age || ''} onChange={e => setEditPatientData(p => ({ ...p, age: e.target.value }))} required data-testid="edit-patient-age" className="mt-1" />

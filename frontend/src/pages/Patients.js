@@ -29,13 +29,16 @@ const Patients = () => {
     phone: '',
     email: '',
     address: '',
-    medical_history: ''
+    medical_history: '',
+    clinic_id: ''
   });
+  const [clinics, setClinics] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchPatients();
+    client.get('/api/clinics').then(r => setClinics(r.data || [])).catch(() => setClinics([]));
   }, []);
 
   const fetchPatients = async () => {
@@ -62,7 +65,8 @@ const Patients = () => {
         phone: '',
         email: '',
         address: '',
-        medical_history: ''
+        medical_history: '',
+        clinic_id: ''
       });
       navigate(`/patients/${patient.id || patient._id}`);
     } catch (error) {
@@ -226,6 +230,23 @@ const Patients = () => {
                     <option>Other</option>
                   </select>
                 </div>
+                {clinics.length > 0 && (
+                  <div className="col-span-2">
+                    <Label htmlFor="clinic">Clinic</Label>
+                    <select
+                      id="clinic"
+                      value={formData.clinic_id}
+                      onChange={(e) => setFormData({ ...formData, clinic_id: e.target.value })}
+                      data-testid="patient-clinic-select"
+                      className="mt-1 w-full px-3 py-2 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#82A098] focus:outline-none"
+                    >
+                      <option value="">No clinic</option>
+                      {clinics.map(c => (
+                        <option key={c.id} value={String(c.id)}>{c.name}{c.my_role === 'consultant' ? ' — I consult here' : ' — my clinic'}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="phone">Phone <span className="text-[#9CA3AF] font-normal text-xs">(optional)</span></Label>
                   <Input

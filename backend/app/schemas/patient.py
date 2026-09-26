@@ -3,7 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+
+def _blank_to_none(v):
+    return None if v == '' else v
 
 
 class PatientBase(BaseModel):
@@ -18,6 +22,10 @@ class PatientBase(BaseModel):
     medical_history: str | None = None
     tooth_conditions: dict | None = None
     profile_picture: str | None = None
+    # The clinic this patient belongs to (its my_role decides the finance side shown).
+    clinic_id: uuid.UUID | None = None
+
+    _clinic_blank = field_validator('clinic_id', mode='before')(classmethod(lambda cls, v: _blank_to_none(v)))
 
 
 class PatientCreate(PatientBase):
@@ -35,6 +43,9 @@ class PatientUpdate(BaseModel):
     address: str | None = None
     medical_history: str | None = None
     tooth_conditions: dict | None = None
+    clinic_id: uuid.UUID | None = None
+
+    _clinic_blank = field_validator('clinic_id', mode='before')(classmethod(lambda cls, v: _blank_to_none(v)))
 
 
 class PatientRead(PatientBase):

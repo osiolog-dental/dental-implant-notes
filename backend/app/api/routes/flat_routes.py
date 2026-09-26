@@ -41,6 +41,7 @@ from app.services import google_drive as drive_service
 from app.services import reminders as reminder_service
 from app.services import s3 as s3_service
 from app.services import stock_linking
+from app.services.patient_clinic import adopt_clinic_if_empty, require_own_patient
 
 router = APIRouter(tags=["flat-routes"])
 
@@ -64,10 +65,12 @@ async def create_implant_flat(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ImplantRead:
+    await require_own_patient(db, body.patient_id, current_user.org_id)
     data = body.model_dump()
     implant = Implant(id=uuid.uuid4(), case_id=None, **data)
     db.add(implant)
     await db.flush()
+    await adopt_clinic_if_empty(db, implant.patient_id, current_user.org_id, implant.clinic_id)
 
     stock_warning = None
     if implant.inventory_item_id:
@@ -97,6 +100,7 @@ async def update_implant_flat(
 
     before_item_id = implant.inventory_item_id
     implant = await repo.update(implant, body)
+    await adopt_clinic_if_empty(db, implant.patient_id, current_user.org_id, implant.clinic_id)
 
     stock_warning = None
     if "inventory_item_id" in body.model_fields_set and implant.inventory_item_id != before_item_id:

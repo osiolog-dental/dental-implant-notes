@@ -11,7 +11,8 @@ businesses in one account. Every cost line is sorted into one side:
   'consultant' line still means a VISITING consultant they paid.
 
 The line's clinic is its own `clinic_id` if set, otherwise the clinic of the
-implant / abutment it's linked to. A line with no clinic at all (older
+implant / abutment it's linked to, otherwise the patient's clinic
+(patients.clinic_id, added in D-021). A line with no clinic at all (older
 entries, crowns, lab bills, other) falls back to its label: provider_type
 'consultant' → 'consultant' side, anything else → 'owner'. (User decision,
 2026-09-26 — see docs/DECISIONS.md D-019.)
@@ -75,6 +76,14 @@ async def resolve_sides(
         )
         abutment_clinic = {str(r[0]): _as_str(r[1]) for r in rows.all()}
 
+    patient_ids = list({i.patient_id for i in items})
+    patient_clinic: dict[str, str | None] = {}
+    if patient_ids:
+        rows = await db.execute(
+            select(Patient.id, Patient.clinic_id).where(Patient.id.in_(patient_ids), Patient.org_id == org_id)
+        )
+        patient_clinic = {str(r[0]): _as_str(r[1]) for r in rows.all()}
+
     out: dict[uuid.UUID, Resolved] = {}
     for it in items:
         clinic = _as_str(it.clinic_id)
@@ -83,6 +92,10 @@ async def resolve_sides(
                 clinic = implant_clinic.get(str(it.source_id))
             elif it.source_type == 'abutment':
                 clinic = abutment_clinic.get(str(it.source_id))
+        if clinic and clinic not in role_by_clinic:
+            clinic = None
+        if not clinic:
+            clinic = patient_clinic.get(str(it.patient_id))  # then the patient's own clinic
         if clinic and clinic not in role_by_clinic:
             clinic = None  # stale / foreign id — treat as "no clinic"
         if clinic:
@@ -131,6 +144,16 @@ async def finance_summary(db: AsyncSession, org_id: uuid.UUID, period: str, toda
     resolved = await resolve_sides(db, org_id, items)
     items = [i for i in items if _in_period(i.item_date, period, today)]
     payments = [p for p in payments if _in_period(p.payment_date, period, today)]
+
+    # A patient at a clinic where the doctor only consults pays that clinic, not
+    # the doctor — their payments aren't this practice's income.
+    consult_clinics = {str(c.id) for c in clinics if (c.my_role or 'owner') == 'consultant'}
+    if consult_clinics:
+        rows = await db.execute(
+            select(Patient.id, Patient.clinic_id).where(Patient.org_id == org_id, Patient.clinic_id.isnot(None))
+        )
+        consult_patients = {str(pid) for pid, cid in rows.all() if cid is not None and str(cid) in consult_clinics}
+        payments = [p for p in payments if str(p.patient_id) not in consult_patients]
 
     owner = {'charged': 0.0, 'clinic_cost': 0.0, 'paid_to_visiting': 0.0}
     mine = {'fees': 0.0, 'costs': 0.0}

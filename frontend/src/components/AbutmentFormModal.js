@@ -46,6 +46,7 @@ export default function AbutmentFormModal({
   implants,
   catalogueRefs = [],
   abutmentStock = [],
+  clinics = [],
 }) {
   // Article number uniquely identifies one exact component in a brand's
   // catalogue — typing one you've scanned before fills in the rest.
@@ -102,6 +103,18 @@ export default function AbutmentFormModal({
               <Input type="date" value={abutmentData.placement_date} onChange={e => setAbutmentData(p => ({ ...p, placement_date: e.target.value }))} data-testid="abutment-placement-date" className="mt-1" />
             </div>
           </div>
+
+          {clinics.length > 0 && (
+            <div>
+              <Label className="text-xs">Clinic</Label>
+              <select value={abutmentData.clinic_id || ''} onChange={e => setAbutmentData(p => ({ ...p, clinic_id: e.target.value }))} data-testid="abutment-clinic-select" className={`mt-1 ${selectClass}`}>
+                <option value="">No clinic</option>
+                {clinics.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name}{c.my_role === 'consultant' ? ' — I consult here' : ' — my clinic'}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

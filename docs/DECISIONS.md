@@ -1356,3 +1356,54 @@ and waits for a new implant.
   removed (replaced).
 - To verify after deploy: saving a removal date, the Extracted Teeth form opening, and the
   failed implant disappearing from "ready for second stage".
+
+---
+
+## D-021 — A clinic on each patient decides that patient's finance side; free plan keeps the classic chart
+
+- **Date:** 2026-09-26
+- **Status:** Active
+- **Area:** backend (schema, patients, implants, abutments, finance rule) / frontend (patient forms, header, Financials, Log Costs, chart switch)
+
+### Problem
+The user wanted the patient page to show which clinic a patient belongs to, and that clinic's
+role (D-019) to decide the patient's Financials: own clinic → clinic side, consulting clinic →
+consultant side only. They added: the clinic recorded on implants and abutments should carry to
+the patient. Separately: free-plan accounts should see only the classic chart; paid plans get the
+panoramic chart by default with a switch.
+
+### Decisions (user's choices)
+1. A **Clinic field on the patient** (`patients.clinic_id`, FK → clinics, ON DELETE SET NULL),
+   on Add Patient and Edit Patient, shown under the patient's name with a "My clinic" /
+   "I consult here" badge.
+2. **Backfill:** a patient whose implants were all logged at one of the practice's clinics gets
+   that clinic; otherwise blank. Implants with no clinic, or a clinic id that isn't one of the
+   practice's clinics (free-text column), are ignored.
+3. **The patient's clinic decides** the Financials side; a patient with no clinic follows the
+   bell selector and per-patient buttons as before.
+4. New cost lines start with the patient's clinic (an implant/abutment's own clinic still wins).
+5. **Implant/abutment → patient:** saving one with a clinic fills the patient's clinic only if
+   it is empty; the Implant and Abutment forms start with the patient's clinic. A different
+   clinic on one implant does not move the patient.
+6. **Charts by plan:** `plan == 'free'` → classic chart only, no switch; any other plan →
+   panoramic default with the switch (remembered per device). If the plan can't be read the
+   page falls back to the classic chart, which every plan has.
+
+### Engineering judgement
+- The one finance rule (`services/finance_sides.py`) now resolves a line's clinic as: its own →
+  its implant/abutment's → **the patient's** → label. Patient payments from a patient whose clinic
+  is a consulting clinic are excluded from clinic-side totals (the patient pays that clinic).
+- The Abutment form had no Clinic field although `abutments.clinic_id` existed; one was added,
+  since the user described both forms as recording the clinic.
+- A patient's clinic must belong to the caller's practice (400 otherwise); the "fill if empty"
+  step only ever touches the caller's own patients.
+
+### Security gap found and fixed (user approved)
+`POST /api/implants` and `POST /api/abutment-records` don't verify the patient belongs to the
+caller's practice — the same gap fixed for cost lines/payments in D-019. Fixed here: both now return 404 for a patient outside the practice.
+
+### Verification status
+- Offline: backend imports; single migration head `d1a4b6c8e0f2`; finance rule re-tested with
+  a fake DB including the patient-clinic fallback and payment exclusion; strict production build.
+- To verify after deploy: backfill result, patient clinic save/validation, fill-if-empty from an
+  implant, Financials side by patient clinic, and the free-plan chart (demo account is free).

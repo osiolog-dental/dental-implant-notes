@@ -28,6 +28,7 @@ export default function FinancialsSection({
   onAddPayment,
   onEditPayment,
   onDeletePayment,
+  patientClinic,
 }) {
   const { formatCurrency } = useLocale();
   const { view } = useFinanceView();
@@ -39,9 +40,12 @@ export default function FinancialsSection({
   // At your own clinic a 'Consultant' line is a VISITING consultant you paid,
   // so it stays on the owner side as a cost.
   const sideOf = (i) => i.finance_side || (i.provider_type === 'consultant' ? 'consultant' : 'owner');
-  // The account-wide view (beside the bell) wins; on 'Both' the per-patient
-  // Clinic / Consultant buttons still narrow it down.
-  const sideFilter = view === 'clinic' ? 'owner'
+  // The patient's clinic decides first: your own clinic → clinic side only; a
+  // clinic you consult at → consultant side only. A patient with no clinic
+  // follows the account-wide view (beside the bell), then the per-patient buttons.
+  const clinicSide = patientClinic ? (patientClinic.my_role === 'consultant' ? 'consultant' : 'owner') : null;
+  const sideFilter = clinicSide ? clinicSide
+    : view === 'clinic' ? 'owner'
     : view === 'consultant' ? 'consultant'
     : providerFilter === 'clinic' ? 'owner'
     : providerFilter === 'consultant' ? 'consultant'
@@ -111,12 +115,17 @@ export default function FinancialsSection({
           </div>
         </button>
 
-        {expanded && view !== 'both' && (
+        {expanded && clinicSide && (
+          <span className="mx-3 shrink-0 text-[11px] text-[#8A949D]" data-testid="financials-view-note">
+            {clinicSide === 'consultant' ? `You consult at ${patientClinic.name}` : `${patientClinic.name} · your clinic`}
+          </span>
+        )}
+        {expanded && !clinicSide && view !== 'both' && (
           <span className="mx-3 shrink-0 text-[11px] text-[#8A949D]" data-testid="financials-view-note">
             {view === 'consultant' ? 'Consultant view' : 'Clinic owner view'} · change beside the bell
           </span>
         )}
-        {expanded && view === 'both' && (
+        {expanded && !clinicSide && view === 'both' && (
           <div className="flex items-center gap-1.5 mx-3 shrink-0">
             {[['clinic', 'Clinic'], ['consultant', 'Consultant']].map(([v, label]) => (
               <button

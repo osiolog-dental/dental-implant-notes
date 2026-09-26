@@ -212,6 +212,8 @@ const PatientDetails = () => {
   const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'implant'|'fpd'|'abutment'|'overdenture'|'full_mouth_rehab', id, label }
   const [deleting, setDeleting] = useState(false);
   const [failedImplantConfirm, setFailedImplantConfirm] = useState(null); // { toothNumber }
+  // The clinic this patient belongs to — decides which finances show, and pre-fills new implants/abutments.
+  const patientClinic = clinics.find(c => String(c.id) === String(patient?.clinic_id)) || null;
 
   const DELETE_ENDPOINTS = {
     implant: (recId) => `/api/implants/${recId}`,
@@ -306,6 +308,7 @@ const PatientDetails = () => {
       emergency_phone: patient.emergency_phone || '',
       address: patient.address || '',
       medical_history: patient.medical_history || '',
+      clinic_id: patient.clinic_id ? String(patient.clinic_id) : '',
     });
     setIsEditPatientOpen(true);
   };
@@ -475,7 +478,7 @@ const PatientDetails = () => {
     const tens = Math.floor(toothNumber / 10);
     const jaw_region = ([1, 2, 3, 4].includes(tens) && (toothNumber % 10) <= 3) ? 'Anterior' : 'Posterior';
     // preset lets the panoramic chart pre-tick Zygomatic / Pterygoid
-    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region, ...preset });
+    setFormData({ ...INITIAL_IMPLANT, tooth_number: toothNumber, arch, jaw_region, clinic_id: patient?.clinic_id ? String(patient.clinic_id) : '', ...preset });
     setIsImplantOpen(true);
   };
 
@@ -486,7 +489,7 @@ const PatientDetails = () => {
   };
 
   const openAbutmentLog = (toothNumber) => {
-    setAbutmentData({ ...INITIAL_ABUTMENT, tooth_number: toothNumber || '' });
+    setAbutmentData({ ...INITIAL_ABUTMENT, tooth_number: toothNumber || '', clinic_id: patient?.clinic_id ? String(patient.clinic_id) : '' });
     setEditingAbutmentId(null);
     setIsAbutmentOpen(true);
   };
@@ -1081,6 +1084,7 @@ const PatientDetails = () => {
         generatingPdf={generatingPdf}
         pdfProgress={pdfProgress}
         onPhotoUploaded={(pic) => setPatient(prev => ({ ...prev, profile_picture: pic }))}
+        clinic={patientClinic}
       />
 
       {/* Financials — cost/charge per treatment, payments, balance, clinic profit */}
@@ -1095,6 +1099,7 @@ const PatientDetails = () => {
         onAddPayment={openAddPayment}
         onEditPayment={openEditPayment}
         onDeletePayment={setDeleteTarget}
+        patientClinic={patientClinic}
       />
 
       {/* Missing Tooth Confirmation Dialog — multi-select */}
@@ -1112,6 +1117,7 @@ const PatientDetails = () => {
         editPatientData={editPatientData}
         setEditPatientData={setEditPatientData}
         onSubmit={handleSavePatient}
+        clinics={clinics}
       />
 
       {/* FDI Dental Chart */}
@@ -1211,6 +1217,7 @@ const PatientDetails = () => {
           implants={implants}
           catalogueRefs={catalogueRefs}
           abutmentStock={abutmentStock}
+          clinics={clinics}
         />
 
         {/* Overdenture Log Dialog */}
@@ -1269,6 +1276,7 @@ const PatientDetails = () => {
           lineItems={lineItems}
           providerFilter={financialsFilter}
           onSaved={fetchAll}
+          patientClinic={patientClinic}
         />
 
         {/* Patient Payment Dialog */}

@@ -11,6 +11,7 @@ from app.models.user import User
 from app.repositories.abutment import AbutmentRepository
 from app.schemas.abutment import AbutmentCreate, AbutmentRead, AbutmentUpdate
 from app.services import stock_linking
+from app.services.patient_clinic import adopt_clinic_if_empty, require_own_patient
 
 router = APIRouter(tags=["abutments"])
 
@@ -32,8 +33,10 @@ async def create_abutment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AbutmentRead:
+    await require_own_patient(db, body.patient_id, current_user.org_id)
     repo = AbutmentRepository(db)
     record = await repo.create(body)
+    await adopt_clinic_if_empty(db, record.patient_id, current_user.org_id, record.clinic_id)
 
     stock_warning = None
     if record.inventory_item_id:
@@ -74,6 +77,7 @@ async def update_abutment(
 
     before_item_id = record.inventory_item_id
     record = await repo.update(record, body)
+    await adopt_clinic_if_empty(db, record.patient_id, current_user.org_id, record.clinic_id)
 
     stock_warning = None
     if "inventory_item_id" in body.model_fields_set and record.inventory_item_id != before_item_id:

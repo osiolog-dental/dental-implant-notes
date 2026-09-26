@@ -38,6 +38,11 @@ class Patient(Base):
     medical_history: Mapped[str | None] = mapped_column(Text, nullable=True)
     tooth_conditions: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
     profile_picture: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The clinic this patient belongs to. Its my_role decides which side of the
+    # patient's finances the doctor sees (own clinic vs consulting).
+    clinic_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clinics.id", ondelete="SET NULL"), nullable=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

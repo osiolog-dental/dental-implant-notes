@@ -16,6 +16,7 @@ export default function PatientInfoHeader({
   generatingPdf,
   pdfProgress,
   onPhotoUploaded,
+  clinic,
 }) {
   const [editImage, imageEditor] = useImageEditor();
 
@@ -85,6 +86,21 @@ export default function PatientInfoHeader({
               <span>{patient.age} years</span>
               <span>•</span>
               <span>{patient.gender}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm" data-testid="patient-clinic">
+              {clinic ? (
+                <>
+                  <span className="text-[#2A2F35] font-medium">{clinic.name}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                    clinic.my_role === 'consultant' ? 'bg-purple-100 text-purple-700' : 'bg-[#82A098]/15 text-[#5F7F77]'}`}>
+                    {clinic.my_role === 'consultant' ? 'I consult here' : 'My clinic'}
+                  </span>
+                </>
+              ) : (
+                <button type="button" onClick={onEditPatient} className="text-[#82A098] underline text-xs" data-testid="patient-set-clinic">
+                  No clinic set — choose one
+                </button>
+              )}
             </div>
             <div className="flex gap-2 flex-wrap mt-1">
               <button

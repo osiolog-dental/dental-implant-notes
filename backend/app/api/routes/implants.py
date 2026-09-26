@@ -12,6 +12,7 @@ from app.repositories.implant import ImplantRepository
 from app.schemas.implant import ImplantCreate, ImplantRead, ImplantUpdate
 from app.services import stock_linking
 from app.services.audit import log_event
+from app.services.patient_clinic import adopt_clinic_if_empty
 
 router = APIRouter(tags=["implants"])
 
@@ -98,6 +99,7 @@ async def update_implant(
 
     before_item_id = implant.inventory_item_id
     implant = await repo.update(implant, body)
+    await adopt_clinic_if_empty(db, implant.patient_id, current_user.org_id, implant.clinic_id)
 
     stock_warning = None
     if "inventory_item_id" in body.model_fields_set and implant.inventory_item_id != before_item_id:
