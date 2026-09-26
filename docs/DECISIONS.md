@@ -1142,15 +1142,24 @@ missing code is silently ignored inside `find_referrer()`: **registration itself
 fail because of a bad referral link**, only the reward is affected.
 
 ### Verification status
-- Verified: full app import; migration chain resolves to a single head (33 revisions);
-  generated SQL read offline — four additive columns/indexes/constraints on one table, no
-  rewrite; frontend compiles; every touched file's diff checked against `HEAD`.
-- **Pending, before push:** a full round-trip against production — register a throwaway
-  referred account through a throwaway referrer's real link, confirm the referrer sees
-  "1 referral awaiting review," approve it as admin, confirm the bonus lands — is planned
-  next and will be added to this entry once run. Admin approve/reject cannot be tested by
-  Claude directly (no admin credentials), only observed indirectly via the referrer's own
-  `pending_count`.
+- Verified offline: full app import; migration chain resolves to a single head (33
+  revisions); generated SQL read — four additive columns/indexes/constraints on one table,
+  no rewrite; frontend compiles; every touched file's diff checked against `HEAD`.
+- Verified against production, using two throwaway Firebase accounts created and fully
+  deleted for this purpose (never the demo or admin account):
+  1. Registered a throwaway "referrer" — got a real, unique referral code back.
+  2. Registered a second throwaway account *through that code* — succeeded (201).
+  3. The referrer's own `GET /users/me/referral` then reported `pending_count: 1` — proving
+     the code-to-signup link works end to end, and that a referrer can see it without any
+     admin involvement.
+  4. Registered a third account with a made-up, matches-nobody code — still succeeded
+     (201), confirming a bad referral link can never break signup.
+  5. All three throwaway accounts deleted afterward (Firebase + DB row + org, each via its
+     own `DELETE /me`) — nothing left behind.
+- **Still not verified:** the admin approve/reject endpoints themselves. Claude has no
+  admin credentials and cannot call them — only their effect, observed through the
+  referrer's own `pending_count`/`bonus_mb`, is confirmed reachable. Approving a real
+  pending referral from the Admin page, once one exists, is the remaining open loop.
 
 ### Revisit if
 Storage limits become enforced — at that point this reward starts doing something
