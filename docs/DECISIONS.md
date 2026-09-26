@@ -1235,3 +1235,72 @@ without the user's go-ahead.
 A zygomatic implant's path needs to differ from what its tooth number implies (e.g. a
 quad-zygoma with an unusual entry point) — then an explicit anterior/posterior field is
 worth adding.
+
+---
+
+## D-019 — Clinic owner vs consultant finances: an account-wide view, a role per clinic, and a clinic per cost line
+
+- **Date:** 2026-09-26
+- **Status:** Active
+- **Area:** backend (schema, finance endpoints) / frontend (header, Clinics, patient Financials, Log Costs, Analytics)
+
+### Problem
+A doctor can own a clinic and also visit other clinics as a consultant — two separate
+businesses in one account. The user asked for a selector beside the bell ("are you a
+consultant or clinic owner") that shows only the related finances, and for each clinic to be
+marked owner or consultant. They also asked why "Payments Received" still showed when the
+patient Financials were filtered to Consultant.
+
+### What was found before building
+- Cost lines already had `provider_type` ('clinic' | 'consultant'), but the form defined
+  'consultant' as **"a visiting consultant came to my clinic"** — the opposite of "I consulted
+  elsewhere". One label cannot mean both without mixing income and expense.
+- `financial_line_items.clinic_id` existed but the UI never set it; a line's clinic could only
+  be inferred via its implant/abutment. Crowns, lab bills and free-form lines had none.
+- The existing per-patient Clinic/Consultant filter filtered cost lines only — patient payments
+  always showed, which is what prompted the user's question.
+- The Analytics "Revenue" was implants × the price-list implant fee — an estimate, not the
+  logged costs; `/api/analytics/financial` used hard-coded rates and its result was unused.
+
+### Decisions (every one put to the user; none inferred)
+1. Selector choices Both / Clinic owner / Consultant, **stored on the account**
+   (`users.finance_view`) so it follows the doctor across devices.
+2. Consultant view shows **only the doctor's own consulting work** — fee received, own
+   costs, profit. Patient payments are hidden there (the patient pays the clinic).
+3. Each clinic gets `my_role` ('owner' | 'consultant'); **existing clinics start as owner**.
+   New cost lines at a consultant clinic pre-fill as consultant.
+4. **Meaning is decided by the clinic:** each cost line now carries a clinic (pre-filled from
+   its implant/abutment). At a consultant clinic the line is the doctor's own consulting; at
+   an owner clinic 'consultant' still means a visiting consultant who was paid (a clinic cost).
+5. Lines with no clinic go by their existing label (consultant → consultant side).
+6. Analytics: **real figures replace the price-list estimate**, with totals + a per-clinic
+   table, over a This month / This year / All time picker. Undated lines count only in All
+   time (stated in the option the user chose).
+
+### How it's built
+- One rule, one place: `backend/app/services/finance_sides.py` resolves each line's clinic and
+  side. The patient list endpoint attaches `finance_side` to every line and the new
+  `GET /api/analytics/finance-summary` uses the same function, so the two can't disagree.
+  Formulas are the patient page's existing ones, unchanged.
+- The selector's state lives in a new `FinanceViewContext` rather than `AuthContext` —
+  auth code (Rule 11) is not touched; it reads `user.finance_view` and PATCHes `/users/me`.
+- Migration `b8e2f4a6c1d3`: two additive NOT NULL columns with server defaults.
+
+### Engineering judgement (not user-specified)
+- Patient payments aren't linked to a clinic, so they count in owner totals but aren't split
+  per clinic; the page says so.
+- A clinic id on an implant that isn't one of the practice's clinics (implant `clinic_id` is a
+  free string column) is treated as "no clinic" rather than failing the save.
+
+### Verification status
+- Offline: backend imports; migration chain has a single head; schema validation rejects bad
+  values; `finance_sides` checked against a hand-computed case with a fake DB session (owner
+  and consultant sides, month/year/all periods, undated lines, implant- and abutment-linked
+  clinics); strict (`CI=true`) production build passes.
+- **Not yet verified:** against a real database (no local Postgres) — to be checked on
+  production with the demo account after deploy.
+
+### Security gap found and fixed (with the user's go-ahead)
+`POST /api/financial-line-items` does not check that `patient_id` belongs to the caller's
+organization, so a line could be created against another practice's patient id. Pre-existing;
+fixed in the same change: both endpoints now return 404 unless the patient is in the caller's practice.

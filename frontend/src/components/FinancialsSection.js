@@ -3,6 +3,7 @@ import {
   CurrencyDollar, CaretDown, CaretUp, Plus, PencilSimple, Trash, TrendUp,
 } from '@phosphor-icons/react';
 import { useLocale } from '../contexts/LocaleContext';
+import { useFinanceView } from '../contexts/FinanceViewContext';
 import { LINE_ITEM_CATEGORIES } from './FinancialLineItemModal';
 
 const categoryLabel = (cat) => LINE_ITEM_CATEGORIES.find(([v]) => v === cat)?.[1] || cat;
@@ -29,43 +30,57 @@ export default function FinancialsSection({
   onDeletePayment,
 }) {
   const { formatCurrency } = useLocale();
+  const { view } = useFinanceView();
   const [expanded, setExpanded] = useState(false);
 
-  const totalCharged = lineItems.reduce((sum, i) => sum + (Number(i.charged_amount) || 0), 0);
+  // Each line belongs to one side (worked out on the server — see
+  // backend services/finance_sides.py): 'owner' = your own clinic's business,
+  // 'consultant' = your own consulting work at a clinic you've marked Consultant.
+  // At your own clinic a 'Consultant' line is a VISITING consultant you paid,
+  // so it stays on the owner side as a cost.
+  const sideOf = (i) => i.finance_side || (i.provider_type === 'consultant' ? 'consultant' : 'owner');
+  // The account-wide view (beside the bell) wins; on 'Both' the per-patient
+  // Clinic / Consultant buttons still narrow it down.
+  const sideFilter = view === 'clinic' ? 'owner'
+    : view === 'consultant' ? 'consultant'
+    : providerFilter === 'clinic' ? 'owner'
+    : providerFilter === 'consultant' ? 'consultant'
+    : null;
+
+  const ownerItems = lineItems.filter(i => sideOf(i) === 'owner');
+  const myItems = lineItems.filter(i => sideOf(i) === 'consultant');
+
+  const totalCharged = ownerItems.reduce((sum, i) => sum + (Number(i.charged_amount) || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const balance = totalCharged - totalPaid;
 
-  // A consultant is paid one flat fee by the clinic and covers their own
-  // materials and expenses (kit wear, travel, etc.) out of that fee — none
-  // of that is a clinic expense. The clinic's only cost on a
-  // consultant-performed item is the fee itself. Clinic-performed items
-  // still carry their own material/other cost directly.
-  const clinicCost = lineItems.reduce((sum, i) => {
+  // A visiting consultant is paid one flat fee by the clinic and covers their
+  // own materials and expenses out of that fee — none of that is a clinic
+  // expense. The clinic's only cost on a consultant-performed item is the fee
+  // itself. Clinic-performed items still carry their own material/other cost.
+  const clinicCost = ownerItems.reduce((sum, i) => {
     if (i.provider_type === 'consultant') {
       return sum + (Number(i.consultant_charge) || 0);
     }
     return sum + (Number(i.cost_amount) || 0);
   }, 0);
-  // Based on money actually collected, not billed — a consultant-performed
-  // item has no per-line "charged to patient" figure (that's often not
-  // knowable per procedure), so profit off totalCharged would always look
-  // like a loss for those. Amount Paid is the one revenue figure that's
-  // always real, whoever performed the work.
+  // Based on money actually collected, not billed — Amount Paid is the one
+  // revenue figure that's always real, whoever performed the work.
   const profit = totalPaid - clinicCost;
+  const paidToVisiting = ownerItems
+    .filter(i => i.provider_type === 'consultant')
+    .reduce((sum, i) => sum + (Number(i.consultant_charge) || 0), 0);
 
-  const consultantItems = lineItems.filter(i => i.provider_type === 'consultant');
-  const paidToConsultants = consultantItems.reduce((sum, i) => sum + (Number(i.consultant_charge) || 0), 0);
-  const consultantProfit = consultantItems.reduce(
-    (sum, i) => sum + (Number(i.consultant_charge) || 0) - (Number(i.material_cost) || 0) - (Number(i.other_expenses) || 0),
-    0
-  );
+  // Your own consulting: the clinic pays you a fee; your materials/expenses come out of it.
+  const myFees = myItems.reduce((sum, i) => sum + (Number(i.consultant_charge) || 0), 0);
+  const myCosts = myItems.reduce((sum, i) => sum + (Number(i.material_cost) || 0) + (Number(i.other_expenses) || 0), 0);
+  const myProfit = myFees - myCosts;
 
-  // Clinic and consultant finances are two separate businesses sharing one
-  // patient record — this filter shows only one side's boxes and expense
-  // rows at a time, instead of blending both together.
-  const visibleItems = providerFilter ? lineItems.filter(i => i.provider_type === providerFilter) : lineItems;
-  const showClinicTiles = providerFilter !== 'consultant';
-  const showConsultantTiles = providerFilter !== 'clinic' && consultantItems.length > 0;
+  const visibleItems = sideFilter ? lineItems.filter(i => sideOf(i) === sideFilter) : lineItems;
+  const showClinicTiles = sideFilter !== 'consultant';
+  const showConsultantTiles = sideFilter === 'consultant' || (sideFilter !== 'owner' && myItems.length > 0);
+  // Patients pay the clinic, not the consultant — payments belong to the owner side only.
+  const showPayments = sideFilter !== 'consultant';
 
   return (
     <div className="bg-white border border-[#E5E5E2] rounded-xl shadow-sm mb-6 overflow-hidden">
@@ -80,16 +95,28 @@ export default function FinancialsSection({
           </div>
           <div className="text-left min-w-0">
             <h2 className="text-lg font-medium text-[#2A2F35]">Financials</h2>
-            <p className="text-xs text-[#5C6773]">
-              {formatCurrency(totalCharged)} billed · {formatCurrency(totalPaid)} paid ·{' '}
-              <span className={balance > 0 ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
-                {formatCurrency(Math.abs(balance))} {balance > 0 ? 'due' : balance < 0 ? 'credit' : 'settled'}
-              </span>
-            </p>
+            {sideFilter === 'consultant' ? (
+              <p className="text-xs text-[#5C6773]">
+                {formatCurrency(myFees)} your fees ·{' '}
+                <span className="text-purple-700 font-medium">{formatCurrency(myProfit)} your profit</span>
+              </p>
+            ) : (
+              <p className="text-xs text-[#5C6773]">
+                {formatCurrency(totalCharged)} billed · {formatCurrency(totalPaid)} paid ·{' '}
+                <span className={balance > 0 ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
+                  {formatCurrency(Math.abs(balance))} {balance > 0 ? 'due' : balance < 0 ? 'credit' : 'settled'}
+                </span>
+              </p>
+            )}
           </div>
         </button>
 
-        {expanded && (
+        {expanded && view !== 'both' && (
+          <span className="mx-3 shrink-0 text-[11px] text-[#8A949D]" data-testid="financials-view-note">
+            {view === 'consultant' ? 'Consultant view' : 'Clinic owner view'} · change beside the bell
+          </span>
+        )}
+        {expanded && view === 'both' && (
           <div className="flex items-center gap-1.5 mx-3 shrink-0">
             {[['clinic', 'Clinic'], ['consultant', 'Consultant']].map(([v, label]) => (
               <button
@@ -121,7 +148,7 @@ export default function FinancialsSection({
       {expanded && (
         <div className="px-6 pb-6">
           {/* Summary tiles — Clinic filter shows only the clinic's own boxes, Consultant only theirs */}
-          <div className={`grid grid-cols-2 ${showClinicTiles && showConsultantTiles ? 'sm:grid-cols-6' : 'sm:grid-cols-4'} gap-3 mb-6`}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
             {showClinicTiles && (
               <>
                 <StatTile label="Total Charged" value={totalCharged} color="#2A2F35" formatCurrency={formatCurrency} />
@@ -134,16 +161,20 @@ export default function FinancialsSection({
                   </div>
                   <div className="text-[11px] text-emerald-700">Clinic Profit</div>
                 </div>
+                {paidToVisiting > 0 && (
+                  <StatTile label="Paid to Visiting Consultants" value={paidToVisiting} color="#5C6773" formatCurrency={formatCurrency} />
+                )}
               </>
             )}
             {showConsultantTiles && (
               <>
-                <StatTile label="Paid to Consultant" value={paidToConsultants} color="#7C3AED" formatCurrency={formatCurrency} />
+                <StatTile label="Your Consultant Fees" value={myFees} color="#7C3AED" formatCurrency={formatCurrency} />
+                <StatTile label="Your Costs" value={myCosts} color="#5C6773" formatCurrency={formatCurrency} />
                 <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
                   <div className="flex items-center justify-center gap-1 text-lg font-bold text-purple-700">
-                    <TrendUp size={15} weight="bold" /> {formatCurrency(consultantProfit)}
+                    <TrendUp size={15} weight="bold" /> {formatCurrency(myProfit)}
                   </div>
-                  <div className="text-[11px] text-purple-700">Consultant Profit</div>
+                  <div className="text-[11px] text-purple-700">Your Consultant Profit</div>
                 </div>
               </>
             )}
@@ -165,7 +196,9 @@ export default function FinancialsSection({
             </div>
             {visibleItems.length === 0 ? (
               <p className="text-xs text-[#9CA3AF]">
-                {providerFilter ? `No ${providerFilter} expenses or charges logged yet.` : 'No expenses or charges logged yet.'}
+                {sideFilter === 'consultant' ? 'No consulting work logged for this patient yet.'
+                  : sideFilter === 'owner' ? 'No clinic expenses or charges logged yet.'
+                  : 'No expenses or charges logged yet.'}
               </p>
             ) : (
               <div className="space-y-2">
@@ -176,20 +209,25 @@ export default function FinancialsSection({
                         <span className="px-2 py-0.5 rounded-full bg-[#F0F0EE] text-[#5C6773] text-[10px] font-semibold uppercase tracking-wide">
                           {categoryLabel(item.category)}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${item.provider_type === 'consultant' ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                          {item.provider_type === 'consultant' ? 'Consultant' : 'Clinic'}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                          sideOf(item) === 'consultant' ? 'bg-purple-100 text-purple-700'
+                            : item.provider_type === 'consultant' ? 'bg-[#F0F0EE] text-[#5C6773]'
+                            : 'bg-blue-50 text-blue-700'}`}>
+                          {sideOf(item) === 'consultant' ? 'My consulting' : item.provider_type === 'consultant' ? 'Visiting consultant' : 'Clinic'}
                         </span>
                         {item.item_date && <span className="text-[11px] text-[#9CA3AF]">{item.item_date}</span>}
                       </div>
                       {item.description && <p className="text-sm text-[#2A2F35] mt-1 truncate">{item.description}</p>}
                       <p className="text-xs text-[#5C6773] mt-0.5">
-                        {item.provider_type === 'consultant' ? (
+                        {sideOf(item) === 'consultant' ? (
                           <>
-                            Paid to consultant {formatCurrency(item.consultant_charge)} ·{' '}
+                            Fee you receive {formatCurrency(item.consultant_charge)} ·{' '}
                             <span className="text-purple-700 font-medium">
-                              Consultant Profit {formatCurrency((Number(item.consultant_charge) || 0) - (Number(item.material_cost) || 0) - (Number(item.other_expenses) || 0))}
+                              Your profit {formatCurrency((Number(item.consultant_charge) || 0) - (Number(item.material_cost) || 0) - (Number(item.other_expenses) || 0))}
                             </span>
                           </>
+                        ) : item.provider_type === 'consultant' ? (
+                          <>Paid to visiting consultant {formatCurrency(item.consultant_charge)}</>
                         ) : (
                           <>
                             Cost {formatCurrency(item.cost_amount)} · Charged {formatCurrency(item.charged_amount)} ·{' '}
@@ -224,7 +262,8 @@ export default function FinancialsSection({
             )}
           </div>
 
-          {/* Payments */}
+          {/* Payments — owner side only: the patient pays the clinic, not the consultant */}
+          {showPayments && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-[#2A2F35]">
@@ -268,6 +307,7 @@ export default function FinancialsSection({
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

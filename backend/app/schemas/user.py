@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -53,6 +55,7 @@ class UserUpdate(BaseModel):
     education: list | None = None
     publications: list | None = None
     reminder_emails_enabled: bool | None = None
+    finance_view: Literal['both', 'clinic', 'consultant'] | None = None
 
 
 class UserRead(UserBase):
@@ -77,5 +80,6 @@ class UserRead(UserBase):
     education: list | None = None
     publications: list | None = None
     reminder_emails_enabled: bool = True
+    finance_view: str = 'both'
 
     model_config = {"from_attributes": True}

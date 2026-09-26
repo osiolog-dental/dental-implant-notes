@@ -53,6 +53,9 @@ class User(Base):
     reminder_emails_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_true()
     )
+    # Which side of the finances to show: 'both' | 'clinic' (clinic owner) | 'consultant'.
+    # Picked beside the notification bell; stored here so it follows the doctor across devices.
+    finance_view: Mapped[str] = mapped_column(String(20), nullable=False, server_default="both")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

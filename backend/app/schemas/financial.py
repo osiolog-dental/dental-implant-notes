@@ -60,6 +60,10 @@ class FinancialLineItemRead(FinancialLineItemBase):
     id: uuid.UUID
     patient_id: uuid.UUID
     created_at: datetime
+    # Filled in by the list endpoint (services/finance_sides.py): 'owner' | 'consultant',
+    # and the clinic the line was attributed to (its own, or its implant/abutment's).
+    finance_side: str | None = None
+    resolved_clinic_id: str | None = None
 
     model_config = {"from_attributes": True}
 

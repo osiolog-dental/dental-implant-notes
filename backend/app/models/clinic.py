@@ -29,6 +29,9 @@ class Clinic(Base):
     gmaps_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(sa.Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(sa.Numeric(10, 7), nullable=True)
+    # The doctor's role at this clinic: 'owner' (their own clinic) or 'consultant'
+    # (they visit to consult). Cost lines at a 'consultant' clinic are their own income.
+    my_role: Mapped[str] = mapped_column(String(20), nullable=False, server_default="owner")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

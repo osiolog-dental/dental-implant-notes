@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocale, COUNTRIES } from '../contexts/LocaleContext';
-import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope, Package, ShieldCheck } from '@phosphor-icons/react';
+import { House, Users, ChartLine, Buildings, SignOut, ClockCounterClockwise, MagnifyingGlass, UserCircle, GearSix, CloudArrowUp, Crown, Envelope, Package, ShieldCheck, Wallet } from '@phosphor-icons/react';
 import client from '../api/client';
 import AdBanner from './AdBanner';
 import ExternalAdBanner from './ExternalAdBanner';
 import AIChatBox from './AIChatBox';
 import ContactModal from './ContactModal';
 import NotificationBell from './NotificationBell';
+import { FinanceViewProvider, useFinanceView, FINANCE_VIEWS } from '../contexts/FinanceViewContext';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   DropdownMenu,
@@ -18,6 +19,44 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
+
+/* Finance view — beside the bell: which side of the finances to show */
+function FinanceViewPicker() {
+  const { view, setView } = useFinanceView();
+  const current = FINANCE_VIEWS.find(([v]) => v === view)?.[1] || 'Both';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-[#F0F0EE] transition-colors duration-150 outline-none text-xs font-medium text-[#2A2F35] border border-[#E5E5E2]"
+          data-testid="finance-view-trigger"
+          title="Which finances to show"
+        >
+          <Wallet size={15} className="text-[#82A098]" />
+          <span className="hidden sm:inline">{current}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="text-xs font-normal text-[#5C6773]">Show finances as</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {FINANCE_VIEWS.map(([v, label]) => (
+          <DropdownMenuItem
+            key={v}
+            onClick={() => setView(v)}
+            data-testid={`finance-view-${v}`}
+            className={view === v ? 'font-semibold text-[#2A2F35]' : 'text-[#5C6773]'}
+          >
+            {view === v ? '✓ ' : ''}{label}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <p className="px-2 py-1.5 text-[11px] leading-snug text-[#8A949D]">
+          Clinic owner: your clinic's charges, payments and costs. Consultant: fees from clinics you consult at.
+        </p>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /* Country picker popover — shown next to OSIOLOG logo on mobile */
 function CountryPicker() {
@@ -144,6 +183,7 @@ const Layout = () => {
     .slice(0, 2) || 'U';
 
   return (
+    <FinanceViewProvider>
     <div className="min-h-screen bg-[#F9F9F8] flex">
       {/* Sidebar */}
       <aside className="w-64 bg-[#F0F0EE] border-r border-[#E5E5E2] hidden md:flex md:flex-col relative">
@@ -192,6 +232,7 @@ const Layout = () => {
           <div className="hidden md:block" />
 
           <div className="flex items-center gap-1">
+          <FinanceViewPicker />
           <NotificationBell />
 
           <DropdownMenu>
@@ -308,6 +349,7 @@ const Layout = () => {
         </div>
       </nav>
     </div>
+    </FinanceViewProvider>
   );
 };
 

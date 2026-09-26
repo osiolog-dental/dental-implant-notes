@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import client from '../api/client';
 import { useLocale } from '../contexts/LocaleContext';
 import { LINE_ITEM_CATEGORIES } from './FinancialLineItemModal';
+import { useFinanceView } from '../contexts/FinanceViewContext';
 
 const inputClass = "w-full px-2 py-1.5 bg-white border border-[#E5E5E2] rounded-md text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none";
 const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
@@ -23,7 +24,26 @@ function implantLabel(imp) {
   return `Tooth #${imp.tooth_number}${brandLine ? ` — ${brandLine}` : ''}${dims}`;
 }
 
-function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, providerFilter }) {
+/*
+  Which side a row belongs to — same rule as the server (services/finance_sides.py):
+  a row at a clinic you've marked Consultant is YOUR consulting work; at your own
+  clinic it's the clinic's business (a 'consultant' row there = a visiting
+  consultant you paid); a row with no clinic goes by its Clinic/Consultant label.
+*/
+function rowSide(row, roles) {
+  const role = row.clinic_id ? roles[row.clinic_id] : null;
+  if (role) return role === 'consultant' ? 'consultant' : 'owner';
+  return row.provider_type === 'consultant' ? 'consultant' : 'owner';
+}
+
+function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles }) {
+  // Only a clinic id that belongs to this practice is kept (older implants can
+  // hold free text in clinic_id) — anything else is treated as "no clinic".
+  const known = (id) => (id && roles[String(id)] ? String(id) : '');
+  const defaultProvider = (clinicId) => {
+    if (clinicId) return roles[clinicId] === 'consultant' ? 'consultant' : 'clinic';
+    return sideFilter === 'consultant' ? 'consultant' : 'clinic';
+  };
   const claimedIds = new Set();
 
   // Entries saved before source_type/source_id existed (or via a manually
@@ -40,9 +60,11 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
     return byLabel;
   };
 
-  const fromRecord = (sourceType, category, sourceId, label, date) => {
+  const fromRecord = (sourceType, category, sourceId, label, date, sourceClinicId) => {
     const existing = findExisting(sourceType, sourceId, category, label);
+    const clinicId = known(existing?.clinic_id) || known(sourceClinicId);
     return {
+      clinic_id: clinicId,
       key: `${sourceType}_${sourceId}`,
       existingId: existing?.id || null,
       source_type: sourceType,
@@ -51,8 +73,8 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
       description: label,
       custom: false,
       // A record already saved keeps its true provider — only a never-logged
-      // procedure defaults to whichever side is currently being filtered on.
-      provider_type: existing?.provider_type || providerFilter || 'clinic',
+      // procedure defaults from its clinic (Consultant clinic → your consulting).
+      provider_type: existing?.provider_type || defaultProvider(clinicId),
       consultant_charge: existing?.consultant_charge != null ? String(existing.consultant_charge) : '',
       material_cost: existing?.material_cost != null ? String(existing.material_cost) : '',
       other_expenses: existing?.other_expenses != null ? String(existing.other_expenses) : '',
@@ -62,8 +84,8 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
   };
 
   const rows = [
-    ...(implants || []).map(imp => fromRecord('implant', 'implant', imp.id, implantLabel(imp), imp.surgery_date)),
-    ...(abutmentRecords || []).map(ab => fromRecord('abutment', 'abutment', ab.id, `Tooth #${ab.tooth_number ?? '—'} — ${ab.abutment_type || 'Abutment'}`, ab.placement_date)),
+    ...(implants || []).map(imp => fromRecord('implant', 'implant', imp.id, implantLabel(imp), imp.surgery_date, imp.clinic_id)),
+    ...(abutmentRecords || []).map(ab => fromRecord('abutment', 'abutment', ab.id, `Tooth #${ab.tooth_number ?? '—'} — ${ab.abutment_type || 'Abutment'}`, ab.placement_date, ab.clinic_id)),
     ...(fpdRecords || []).map(fpd => fromRecord('fpd', 'crown', fpd.id, `Teeth ${fpd.tooth_numbers?.join(', ') || '—'} — ${fpd.crown_type || 'Crown'}${fpd.crown_material ? ` (${fpd.crown_material})` : ''}`, fpd.prosthetic_loading_date)),
   ];
 
@@ -74,6 +96,7 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
     .map(li => ({
       key: `custom_${li.id}`,
       existingId: li.id,
+      clinic_id: known(li.clinic_id),
       source_type: null,
       source_id: null,
       category: li.category,
@@ -87,11 +110,22 @@ function buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems
       item_date: li.item_date || '',
     }));
 
-  return [...rows, ...freeform];
+  // Remember each row's side as it was when the window opened, so editing a
+  // row's clinic doesn't make it vanish from a filtered view mid-edit.
+  return [...rows, ...freeform].map(r => ({ ...r, initialSide: rowSide(r, roles) }));
 }
 
-function RowCard({ row, onChange, onRemove }) {
+function RowCard({ row, onChange, onRemove, clinics, roles }) {
   const isConsultant = row.provider_type === 'consultant';
+  const mine = rowSide(row, roles) === 'consultant';   // your own consulting work
+  const atConsultantClinic = !!row.clinic_id && roles[row.clinic_id] === 'consultant';
+  const reset = { consultant_charge: '', material_cost: '', other_expenses: '', charged_amount: '' };
+  const changeClinic = (clinicId) => {
+    const role = clinicId ? roles[clinicId] : null;
+    if (role === 'consultant' && !isConsultant) onChange({ clinic_id: clinicId, provider_type: 'consultant', ...reset });
+    else if (atConsultantClinic && role !== 'consultant') onChange({ clinic_id: clinicId, provider_type: 'clinic', ...reset });
+    else onChange({ clinic_id: clinicId });
+  };
   const rowCost = (isConsultant ? num(row.consultant_charge) : 0) + num(row.material_cost) + num(row.other_expenses);
   const rowProfit = num(row.charged_amount) - rowCost;
   // The consultant is paid a flat fee by the clinic and never sees what the
@@ -120,7 +154,10 @@ function RowCard({ row, onChange, onRemove }) {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {[['clinic', 'Clinic'], ['consultant', 'Consultant']].map(([v, label]) => (
+          {atConsultantClinic && (
+            <span className="px-2 py-1 rounded-md text-[11px] font-medium bg-purple-100 text-purple-700">My consulting</span>
+          )}
+          {!atConsultantClinic && [['clinic', 'Clinic'], ['consultant', row.clinic_id ? 'Visiting consultant' : 'Consultant']].map(([v, label]) => (
             <button
               key={v}
               type="button"
@@ -152,6 +189,21 @@ function RowCard({ row, onChange, onRemove }) {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 mb-2">
+        <label className="text-[10px] text-[#9CA3AF] shrink-0">Clinic</label>
+        <select
+          value={row.clinic_id || ''}
+          onChange={e => changeClinic(e.target.value)}
+          data-testid={`bulk-row-clinic-${row.key}`}
+          className={`${inputClass} py-1`}
+        >
+          <option value="">No clinic</option>
+          {clinics.map(c => (
+            <option key={c.id} value={String(c.id)}>{c.name}{c.my_role === 'consultant' ? ' — I consult here' : ''}</option>
+          ))}
+        </select>
+      </div>
+
       {row.custom && (
         <input
           value={row.description}
@@ -164,7 +216,7 @@ function RowCard({ row, onChange, onRemove }) {
       <div className={`grid gap-2 ${isConsultant ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-4'}`}>
         {isConsultant && (
           <div>
-            <label className="text-[10px] text-[#9CA3AF]">Consultant Charge</label>
+            <label className="text-[10px] text-[#9CA3AF]">{mine ? 'Fee You Receive' : 'Consultant Charge'}</label>
             <input type="number" step="0.01" min="0" value={row.consultant_charge}
               onChange={e => onChange({ consultant_charge: e.target.value })}
               placeholder="0" className={inputClass} />
@@ -200,10 +252,16 @@ function RowCard({ row, onChange, onRemove }) {
 
       {isConsultant ? (
         num(row.consultant_charge) > 0 && (
-          <p className="text-[11px] text-[#5C6773] mt-1.5">
-            Paid to consultant {num(row.consultant_charge).toFixed(2)} ·{' '}
-            <span className={consultantProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>Consultant Profit {consultantProfit.toFixed(2)}</span>
-          </p>
+          mine ? (
+            <p className="text-[11px] text-[#5C6773] mt-1.5">
+              Fee you receive {num(row.consultant_charge).toFixed(2)} ·{' '}
+              <span className={consultantProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}>Your profit {consultantProfit.toFixed(2)}</span>
+            </p>
+          ) : (
+            <p className="text-[11px] text-[#5C6773] mt-1.5">
+              Paid to visiting consultant {num(row.consultant_charge).toFixed(2)}
+            </p>
+          )
         )
       ) : (
         (rowCost > 0 || num(row.charged_amount) > 0) && (
@@ -228,20 +286,38 @@ export default function BulkCostEntryModal({
   onSaved,
 }) {
   const { formatCurrency } = useLocale();
+  const { view } = useFinanceView();
   const [rows, setRows] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [clinics, setClinics] = useState([]);
+
+  // The account-wide view (beside the bell) wins; on 'Both' the per-patient filter applies.
+  const sideFilter = view === 'clinic' ? 'owner'
+    : view === 'consultant' ? 'consultant'
+    : providerFilter === 'clinic' ? 'owner'
+    : providerFilter === 'consultant' ? 'consultant'
+    : null;
+  const roles = useMemo(() => Object.fromEntries(clinics.map(c => [String(c.id), c.my_role || 'owner'])), [clinics]);
 
   useEffect(() => {
-    if (open) {
-      setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, providerFilter }));
-    }
+    if (!open) return undefined;
+    let cancelled = false;
+    client.get('/api/clinics')
+      .then(res => res.data || [])
+      .catch(() => { toast.error('Could not load your clinics — rows will show without a clinic'); return []; })
+      .then(list => {
+        if (cancelled) return;
+        const r = Object.fromEntries(list.map(c => [String(c.id), c.my_role || 'owner']));
+        setClinics(list);
+        setRows(buildRowsFromRecords({ implants, abutmentRecords, fpdRecords, lineItems, sideFilter, roles: r }));
+      });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Mirrors whichever side is selected on the Financials filter above — a
-  // procedure already saved as the other side still keeps its own data,
-  // it's just not shown while this filter is active.
-  const visibleRows = providerFilter ? rows.filter(r => r.provider_type === providerFilter) : rows;
+  // Mirrors whichever side is being shown — a procedure already saved on the
+  // other side still keeps its own data, it's just not shown while filtered.
+  const visibleRows = sideFilter ? rows.filter(r => r.initialSide === sideFilter) : rows;
 
   const updateRow = (key, changes) => {
     setRows(prev => prev.map(r => r.key === key ? { ...r, ...changes } : r));
@@ -256,7 +332,9 @@ export default function BulkCostEntryModal({
       category: 'lab',
       description: '',
       custom: true,
-      provider_type: providerFilter || 'clinic',
+      clinic_id: '',
+      initialSide: sideFilter || 'owner',
+      provider_type: sideFilter === 'consultant' ? 'consultant' : 'clinic',
       consultant_charge: '',
       material_cost: '',
       other_expenses: '',
@@ -301,6 +379,7 @@ export default function BulkCostEntryModal({
           description: r.description,
           source_type: r.source_type,
           source_id: r.source_id,
+          clinic_id: r.clinic_id && roles[r.clinic_id] ? r.clinic_id : null,
           provider_type: r.provider_type,
           consultant_charge: consultantCharge,
           material_cost: materialCost,
@@ -333,9 +412,9 @@ export default function BulkCostEntryModal({
         <p className="text-xs text-[#5C6773] -mt-2 mb-3">
           Every implant, abutment, and crown/FPD for this patient is listed below — fill in whichever ones you need, then save all at once.
         </p>
-        {providerFilter && (
+        {sideFilter && (
           <p className="text-xs text-emerald-700 -mt-2 mb-3 font-medium">
-            Showing {providerFilter} only — matches the filter selected on the Financials section.
+            Showing {sideFilter === 'consultant' ? 'your consulting work' : "your clinic's costs"} only — matches the finance view you've selected.
           </p>
         )}
 
@@ -344,6 +423,8 @@ export default function BulkCostEntryModal({
             <RowCard
               key={row.key}
               row={row}
+              clinics={clinics}
+              roles={roles}
               onChange={(changes) => updateRow(row.key, changes)}
               onRemove={() => removeRow(row.key)}
             />

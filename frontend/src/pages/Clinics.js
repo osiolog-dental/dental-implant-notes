@@ -23,6 +23,7 @@ const INITIAL_FORM = {
   email: '',
   latitude: null,
   longitude: null,
+  my_role: 'owner',
 };
 
 const Clinics = () => {
@@ -68,6 +69,7 @@ const Clinics = () => {
       email: clinic.email || '',
       latitude: clinic.latitude ?? null,
       longitude: clinic.longitude ?? null,
+      my_role: clinic.my_role || 'owner',
     });
     setIsDialogOpen(true);
   };
@@ -203,6 +205,30 @@ const Clinics = () => {
               </div>
 
               <div>
+                <Label>My role at this clinic *</Label>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  {[['owner', 'Clinic owner'], ['consultant', 'Consultant']].map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      data-testid={`clinic-role-${v}`}
+                      onClick={() => setFormData({ ...formData, my_role: v })}
+                      className={`py-2 rounded-md text-sm font-medium border transition-colors ${
+                        formData.my_role === v
+                          ? 'bg-[#82A098] text-white border-[#82A098]'
+                          : 'border-[#E5E5E2] text-[#5C6773] hover:border-[#82A098]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[#9CA3AF] mt-1">
+                  Consultant: you visit this clinic to treat patients and are paid a fee. Costs logged here count as your own consulting work.
+                </p>
+              </div>
+
+              <div>
                 <Label htmlFor="address">Address *</Label>
                 <Input
                   id="address"
@@ -301,6 +327,14 @@ const Clinics = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-medium text-[#2A2F35] truncate">{clinic.name}</h3>
+                    <span
+                      data-testid={`clinic-role-badge-${clinic.id || clinic._id}`}
+                      className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                        clinic.my_role === 'consultant' ? 'bg-purple-100 text-purple-700' : 'bg-[#82A098]/15 text-[#5F7F77]'
+                      }`}
+                    >
+                      {clinic.my_role === 'consultant' ? 'I consult here' : 'My clinic'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>

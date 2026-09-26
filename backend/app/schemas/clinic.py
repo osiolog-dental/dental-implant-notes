@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, field_validator
 
 
@@ -15,6 +17,8 @@ class ClinicBase(BaseModel):
     gmaps_link: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    # The doctor's role here: their own clinic, or one they visit to consult.
+    my_role: Literal['owner', 'consultant'] = 'owner'
 
     @field_validator('address', 'phone', 'alternate_phone', 'email', 'gmaps_link', mode='before')
     @classmethod
@@ -40,6 +44,7 @@ class ClinicUpdate(BaseModel):
     gmaps_link: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    my_role: Literal['owner', 'consultant'] | None = None
 
     @field_validator('address', 'phone', 'alternate_phone', 'email', 'gmaps_link', mode='before')
     @classmethod

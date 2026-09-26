@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendUp, Users, Tooth, CurrencyDollar, Plus, Trash, PencilSimple, Check, X, Tag, Package, Stethoscope } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { getAnalyticsOverview, getAnalyticsFinancial } from '../api/dashboard';
+import { getAnalyticsOverview, getFinanceSummary } from '../api/dashboard';
+import { useFinanceView } from '../contexts/FinanceViewContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { usePricing } from '../contexts/PricingContext';
 
@@ -424,23 +425,35 @@ function DiscountsTab({ patients }) {
 /* ── Main Analytics page ── */
 const Analytics = () => {
   const { formatCurrency, country } = useLocale();
-  const { procedures, getFee } = usePricing();
+  const { procedures } = usePricing();
+  const { view } = useFinanceView();
   const [tab, setTab] = useState('overview');
   const [overview, setOverview] = useState(null);
-  const [financial, setFinancial] = useState(null);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Real money figures (logged cost lines + payments), not price-list estimates.
+  const [finPeriod, setFinPeriod] = useState('month');
+  const [fin, setFin] = useState(null);
+  const [finError, setFinError] = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setFinError(false);
+    getFinanceSummary(finPeriod)
+      .then(d => { if (!cancelled) setFin(d); })
+      .catch(() => {
+        if (cancelled) return;
+        setFinError(true);
+        toast.error('Failed to load your finance figures');
+      });
+    return () => { cancelled = true; };
+  }, [finPeriod]);
+
   const fetchAll = async () => {
     try {
-      const [overviewData, financialData] = await Promise.all([
-        getAnalyticsOverview(),
-        getAnalyticsFinancial(),
-      ]);
-      setOverview(overviewData);
-      setFinancial(financialData);
+      setOverview(await getAnalyticsOverview());
     } catch {
       toast.error('Failed to load analytics');
     } finally {
@@ -448,9 +461,19 @@ const Analytics = () => {
     }
   };
 
-  /* Compute revenue from user's own prices */
-  const implantFee = getFee('implant_surgery');
-  const estimatedRevenue = (overview?.total_implants || 0) * implantFee;
+  const PERIOD_LABEL = { month: 'This month', year: 'This year', all: 'All time' };
+  const showOwner = view !== 'consultant';
+  const showMine = view === 'consultant' || (view === 'both' && ((fin?.consultant?.fees || 0) > 0 || (fin?.consultant?.costs || 0) > 0));
+  const clinicRows = (fin?.clinics || []).filter(r => {
+    const ownerData = r.charged > 0 || r.clinic_cost > 0;
+    const mineData = r.fees > 0 || r.costs > 0;
+    if (view === 'clinic') return r.my_role === 'owner' || (!r.my_role && ownerData);
+    if (view === 'consultant') return r.my_role === 'consultant' || (!r.my_role && mineData);
+    return true;
+  });
+  const headline = view === 'consultant'
+    ? { label: 'Your Consultant Profit', value: fin?.consultant?.profit || 0 }
+    : { label: 'Clinic Profit', value: fin?.owner?.profit || 0 };
 
   const TABS = [
     { id: 'overview',  label: 'Overview',  icon: TrendUp    },
@@ -541,15 +564,18 @@ const Analytics = () => {
             <div data-testid="revenue-card" className="bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm text-[#5C6773] mb-1">Est. Revenue</p>
-                  <p className="text-3xl font-semibold text-[#2A2F35]">{formatCurrency(estimatedRevenue)}</p>
+                  <p className="text-sm text-[#5C6773] mb-1">{headline.label}</p>
+                  <p className="text-3xl font-semibold text-[#2A2F35]">{fin ? formatCurrency(headline.value) : '—'}</p>
                 </div>
                 <div className="w-12 h-12 bg-[#7B9EBB]/10 rounded-lg flex items-center justify-center">
                   <CurrencyDollar size={24} weight="fill" className="text-[#7B9EBB]" />
                 </div>
               </div>
               <div className="flex items-center gap-1 text-sm text-[#7B9EBB]">
-                <span>Avg: {formatCurrency(implantFee)}/implant</span>
+                <span>
+                  {PERIOD_LABEL[finPeriod]}
+                  {view === 'both' && showMine ? ` · + ${formatCurrency(fin?.consultant?.profit || 0)} consulting` : ''}
+                </span>
               </div>
             </div>
           </div>
@@ -621,25 +647,111 @@ const Analytics = () => {
           )}
 
           <div className="mt-6 bg-white border border-[#E5E5E2] rounded-xl p-6 shadow-sm">
-            <h2 className="text-xl font-medium text-[#2A2F35] mb-4" style={{ fontFamily: 'Work Sans, sans-serif' }}>Financial Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="border-l-4 border-[#82A098] pl-4">
-                <p className="text-sm text-[#5C6773] mb-1">Total Revenue</p>
-                <p className="text-2xl font-semibold text-[#2A2F35]">{formatCurrency(estimatedRevenue)}</p>
-              </div>
-              <div className="border-l-4 border-[#C27E70] pl-4">
-                <p className="text-sm text-[#5C6773] mb-1">Total Procedures</p>
-                <p className="text-2xl font-semibold text-[#2A2F35]">{overview?.total_implants || 0}</p>
-              </div>
-              <div className="border-l-4 border-[#7B9EBB] pl-4">
-                <p className="text-sm text-[#5C6773] mb-1">Average per Procedure</p>
-                <p className="text-2xl font-semibold text-[#2A2F35]">{formatCurrency(implantFee)}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="text-xl font-medium text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Financial Summary</h2>
+              <div className="flex items-center gap-1.5" data-testid="finance-period-picker">
+                {Object.entries(PERIOD_LABEL).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    data-testid={`finance-period-${v}`}
+                    onClick={() => setFinPeriod(v)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      finPeriod === v ? 'bg-[#82A098] text-white border-[#82A098]' : 'border-[#E5E5E2] text-[#5C6773] hover:border-[#82A098]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
+
+            {finError ? (
+              <p className="text-sm text-red-600" data-testid="finance-summary-error">
+                Couldn't load your finance figures. Refresh the page to try again.
+              </p>
+            ) : !fin ? (
+              <div className="h-20 bg-[#F0F0EE] rounded-lg animate-pulse" />
+            ) : (
+              <>
+                {showOwner && (
+                  <div className="mb-5" data-testid="finance-owner-tiles">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8A949D] mb-2">Your clinic</p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      {[
+                        ['Charged to Patients', fin.owner.charged, '#82A098'],
+                        ['Clinic Cost', fin.owner.clinic_cost, '#C27E70'],
+                        ['Payments Received', fin.owner.paid, '#2563EB'],
+                        ['Balance Due', Math.max(fin.owner.balance, 0), '#D97706'],
+                        ['Clinic Profit', fin.owner.profit, '#059669'],
+                      ].map(([label, value, color]) => (
+                        <div key={label} className="border-l-4 pl-3" style={{ borderColor: color }}>
+                          <p className="text-xs text-[#5C6773] mb-1">{label}</p>
+                          <p className="text-xl font-semibold text-[#2A2F35] tabular-nums">{formatCurrency(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {fin.owner.paid_to_visiting > 0 && (
+                      <p className="text-xs text-[#5C6773] mt-2">Includes {formatCurrency(fin.owner.paid_to_visiting)} paid to visiting consultants.</p>
+                    )}
+                  </div>
+                )}
+
+                {showMine && (
+                  <div className="mb-5" data-testid="finance-consultant-tiles">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8A949D] mb-2">Your consulting</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {[
+                        ['Your Consultant Fees', fin.consultant.fees, '#7C3AED'],
+                        ['Your Costs', fin.consultant.costs, '#C27E70'],
+                        ['Your Consultant Profit', fin.consultant.profit, '#059669'],
+                      ].map(([label, value, color]) => (
+                        <div key={label} className="border-l-4 pl-3" style={{ borderColor: color }}>
+                          <p className="text-xs text-[#5C6773] mb-1">{label}</p>
+                          <p className="text-xl font-semibold text-[#2A2F35] tabular-nums">{formatCurrency(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {clinicRows.length > 0 ? (
+                  <div className="overflow-x-auto" data-testid="finance-clinic-table">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-[#8A949D] border-b border-[#E5E5E2]">
+                          <th className="py-2 pr-3 font-medium">Clinic</th>
+                          <th className="py-2 pr-3 font-medium">My role</th>
+                          {showOwner && <th className="py-2 pr-3 font-medium text-right">Charged</th>}
+                          {showOwner && <th className="py-2 pr-3 font-medium text-right">Clinic cost</th>}
+                          {(showMine || view === 'consultant') && <th className="py-2 pr-3 font-medium text-right">Your fees</th>}
+                          {(showMine || view === 'consultant') && <th className="py-2 font-medium text-right">Your profit</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clinicRows.map(r => (
+                          <tr key={r.clinic_id || 'none'} className="border-b border-[#F0F0EE]">
+                            <td className="py-2 pr-3 text-[#2A2F35]">{r.name}</td>
+                            <td className="py-2 pr-3 text-[#5C6773]">{r.my_role === 'consultant' ? 'Consultant' : r.my_role === 'owner' ? 'Owner' : '—'}</td>
+                            {showOwner && <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(r.charged)}</td>}
+                            {showOwner && <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(r.clinic_cost)}</td>}
+                            {(showMine || view === 'consultant') && <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(r.fees)}</td>}
+                            {(showMine || view === 'consultant') && <td className="py-2 text-right tabular-nums">{formatCurrency(r.my_profit)}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#8A949D]">No costs logged for {PERIOD_LABEL[finPeriod].toLowerCase()}.</p>
+                )}
+              </>
+            )}
             <div className="mt-4 p-3 bg-[#F9F9F8] rounded-lg">
-              <p className="text-xs text-[#5C6773] italic">
-                Revenue shown in {country.currency} ({country.flag} {country.name}) using your procedure prices from the Procedures tab.
-                <button onClick={() => setTab('pricing')} className="ml-1 text-[#82A098] underline">Edit prices →</button>
+              <p className="text-xs text-[#5C6773]">
+                From the costs and payments logged on each patient, in {country.currency}. Patient payments aren't tied to a clinic, so they
+                count in the totals but not per clinic. Costs without a date count only in All time. Showing:{' '}
+                <strong>{view === 'consultant' ? 'Consultant' : view === 'clinic' ? 'Clinic owner' : 'Both'}</strong> (change beside the bell).
               </p>
             </div>
           </div>
