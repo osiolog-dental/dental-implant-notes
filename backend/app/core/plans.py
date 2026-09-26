@@ -27,6 +27,11 @@ CLINIC_ADDON_OPTIONS = [
 
 PLANS_WITH_CLINIC_ADDON = {"basic", "pro", "clinic"}
 
+# Referral program (see services/referrals.py). Each approved referral adds
+# this many MB to the referring org's storage_bonus_mb, up to the cap.
+REFERRAL_BONUS_MB = 500
+REFERRAL_BONUS_CAP_MB = 5120
+
 
 def patient_limit(plan: str) -> int | None:
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["patients"]
@@ -34,6 +39,12 @@ def patient_limit(plan: str) -> int | None:
 
 def storage_limit_mb(plan: str) -> int | None:
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["storage_mb"]
+
+
+def total_storage_limit_mb(plan: str, storage_bonus_mb: int = 0) -> int | None:
+    """Plan's base storage plus any referral bonus. None stays None (enterprise, unlimited)."""
+    base = storage_limit_mb(plan)
+    return None if base is None else base + storage_bonus_mb
 
 
 def base_clinic_limit(plan: str) -> int | None:

@@ -1,12 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+
+// Read once on mount and stashed in sessionStorage — AuthContext.js's actual
+// registration call happens after a Google popup redirect and possibly a
+// separate CompleteProfile.js page, so a plain JS variable wouldn't survive
+// to reach it. Cleared by AuthContext.js once it's actually used.
+const REFERRAL_STORAGE_KEY = 'osiolog_referral_code';
 
 const Register = () => {
   const [loading, setLoading] = useState(false);
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) sessionStorage.setItem(REFERRAL_STORAGE_KEY, ref);
+  }, []);
 
   const handleGoogle = async () => {
     setLoading(true);

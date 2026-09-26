@@ -4,19 +4,21 @@ import logging
 
 import requests as _requests
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.plans import REFERRAL_BONUS_CAP_MB, REFERRAL_BONUS_MB
 from app.db.session import get_db
 from app.models.audit import AuditEvent, DeviceToken
 from app.models.user import User
 from app.models.organization import Organization
 from app.schemas.user import UserRead, UserUpdate
+from app.services import referrals as referral_service
 from app.services import s3 as s3_service
 
-logger = logging.getLogger("dentalhub")
+logger = logging.getLogger("osiolog")
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -71,6 +73,45 @@ async def update_me(
     db.add(current_user)
     await db.flush()
     return _user_read_with_pic(current_user)
+
+
+@router.get("/me/referral")
+async def get_my_referral(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    A share link + ready-made message for "Refer a Colleague", plus how much
+    storage bonus this org has earned so far. Generates a referral code on
+    first call if this org doesn't have one yet.
+    """
+    org = await db.get(Organization, current_user.org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    code = await referral_service.get_or_create_referral_code(db, org)
+    share_url = f"{settings.FRONTEND_URL}/register?ref={code}"
+    share_message = (
+        f"Hi! I've been using Osiolog to manage my dental implant cases — "
+        f"it's made tracking healing timelines, photos, and case records so "
+        f"much easier. Thought you might find it useful too: {share_url}"
+    )
+    pending_count = int((await db.execute(
+        select(func.count()).select_from(Organization).where(
+            Organization.referred_by_org_id == org.id,
+            Organization.referral_reward_status == "pending",
+        )
+    )).scalar_one())
+
+    return {
+        "code": code,
+        "share_url": share_url,
+        "share_message": share_message,
+        "bonus_mb": org.storage_bonus_mb,
+        "bonus_per_referral_mb": REFERRAL_BONUS_MB,
+        "bonus_cap_mb": REFERRAL_BONUS_CAP_MB,
+        "pending_count": pending_count,
+    }
 
 
 @router.delete("/me", status_code=status.HTTP_200_OK)

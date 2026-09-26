@@ -8,6 +8,7 @@ from firebase_admin import auth as firebase_auth
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.api.deps import require_admin
 from app.core.plans import VALID_PLANS, clinic_limit
@@ -20,6 +21,7 @@ from app.models.patient import Patient
 from app.models.sent_email import SentEmail
 from app.models.user import User
 from app.services import email as email_service
+from app.services import referrals as referral_service
 from app.services import reminder_email as reminder_email_service
 from app.services import reminders as reminder_service
 
@@ -107,9 +109,78 @@ async def list_organizations(
             "clinic_count": clinic_count,
             "extra_clinics": org.extra_clinics,
             "clinic_limit": clinic_limit(org.plan, org.extra_clinics),
+            "storage_bonus_mb": org.storage_bonus_mb,
             "created_at": org.created_at,
         })
     return results
+
+
+@router.get("/referrals/pending")
+async def list_pending_referrals(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """
+    Signups made through a colleague's referral link, awaiting a human
+    decision before the referrer's storage bonus is granted.
+    """
+    Referrer = aliased(Organization)
+    rows = (await db.execute(
+        select(Organization, Referrer)
+        .join(Referrer, Organization.referred_by_org_id == Referrer.id)
+        .where(Organization.referral_reward_status == "pending")
+        .order_by(Organization.created_at.asc())
+    )).all()
+
+    results = []
+    for referred, referrer in rows:
+        owner = (await db.execute(
+            select(User).where(User.org_id == referred.id).order_by(User.created_at.asc()).limit(1)
+        )).scalar_one_or_none()
+        referrer_owner = (await db.execute(
+            select(User).where(User.org_id == referrer.id).order_by(User.created_at.asc()).limit(1)
+        )).scalar_one_or_none()
+        results.append({
+            "referred_org_id": str(referred.id),
+            "referred_name": owner.name if owner else referred.name,
+            "referred_email": owner.email if owner else None,
+            "signed_up_at": referred.created_at,
+            "referrer_org_id": str(referrer.id),
+            "referrer_name": referrer_owner.name if referrer_owner else referrer.name,
+            "referrer_email": referrer_owner.email if referrer_owner else None,
+            "referrer_current_bonus_mb": referrer.storage_bonus_mb,
+        })
+    return results
+
+
+@router.post("/referrals/{referred_org_id}/approve")
+async def approve_referral(
+    referred_org_id: uuid.UUID,
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    referred = await db.get(Organization, referred_org_id)
+    if not referred:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    result = await referral_service.approve_referral(db, referred)
+    if not result["applied"] and result["reason"] == "not_pending":
+        raise HTTPException(status_code=409, detail="This referral has already been decided")
+    return result
+
+
+@router.post("/referrals/{referred_org_id}/reject")
+async def reject_referral(
+    referred_org_id: uuid.UUID,
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    referred = await db.get(Organization, referred_org_id)
+    if not referred:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    ok = await referral_service.reject_referral(db, referred)
+    if not ok:
+        raise HTTPException(status_code=409, detail="This referral has already been decided")
+    return {"rejected": True}
 
 
 class UpdatePlanBody(BaseModel):

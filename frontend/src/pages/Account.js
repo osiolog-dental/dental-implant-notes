@@ -10,7 +10,7 @@ import {
   GraduationCap, Stethoscope, PencilSimple, FloppyDisk,
   ShareNetwork, ArrowSquareOut, X, Warning, Camera, CurrencyDollar,
   Briefcase, Buildings, Clock, Plus, Trash, House, CalendarBlank,
-  GenderIntersex, Newspaper, Bell,
+  GenderIntersex, Newspaper, Bell, UserPlus, Copy,
 } from '@phosphor-icons/react';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Input } from '../components/ui/input';
@@ -80,6 +80,24 @@ export default function Account() {
     } finally {
       setRemindersSaving(false);
     }
+  };
+
+  /* Refer a Colleague — fetched once; the backend generates the code on
+     first call, so there is nothing to create here, only to read. */
+  const [referral, setReferral] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(true);
+
+  useEffect(() => {
+    client.get('/api/users/me/referral')
+      .then(res => setReferral(res.data))
+      .catch(() => setReferral(null))
+      .finally(() => setReferralLoading(false));
+  }, []);
+
+  const copyReferralMessage = () => {
+    if (!referral) return;
+    navigator.clipboard.writeText(referral.share_message);
+    toast.success('Message copied — paste it into WhatsApp, email, or a text');
   };
 
   const emptyEdu = () => ({ _id: String(Date.now() + Math.random()), degree_type: '', institution: '', field: '', passing_year: '', start_year: '', end_year: '' });
@@ -709,6 +727,50 @@ export default function Account() {
               }`}
             />
           </button>
+        </div>
+      </div>
+
+      {/* Refer a Colleague */}
+      <div className="bg-white rounded-xl border border-[#E5E5E2] mt-5 overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E5E5E2] flex items-center gap-2">
+          <UserPlus size={18} className="text-[#82A098]" />
+          <h2 className="font-semibold text-[#2A2F35]" style={{ fontFamily: 'Work Sans, sans-serif' }}>Refer a Colleague</h2>
+        </div>
+        <div className="p-6">
+          {referralLoading && (
+            <p className="text-sm text-[#5C6773]">Loading…</p>
+          )}
+          {!referralLoading && !referral && (
+            <p className="text-sm text-[#5C6773]">Could not load your referral link. Check your connection and reload this page.</p>
+          )}
+          {referral && (
+            <>
+              <p className="text-sm text-[#5C6773] mb-4 max-w-lg">
+                Know another dentist who'd find Osiolog useful? Send them this message —
+                it's a link to your own account, and Osiolog never contacts them on your behalf.
+                Each colleague who signs up through it earns you {referral.bonus_per_referral_mb}MB
+                of extra storage, once we've confirmed it, up to a cap of {(referral.bonus_cap_mb / 1024).toFixed(0)}GB total.
+              </p>
+              <div className="bg-[#F9F9F8] border border-[#E5E5E2] rounded-lg p-3 text-sm text-[#2A2F35] whitespace-pre-wrap mb-3">
+                {referral.share_message}
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  data-testid="copy-referral-message-btn"
+                  onClick={copyReferralMessage}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#82A098] text-white text-sm font-semibold rounded-lg hover:bg-[#6B8A82] transition-colors"
+                >
+                  <Copy size={16} /> Copy Message
+                </button>
+                <p className="text-xs text-[#9CA3AF]">
+                  You've earned <span className="font-semibold text-[#2A2F35]">{referral.bonus_mb}MB</span> so far
+                  {referral.pending_count > 0 && (
+                    <> · {referral.pending_count} referral{referral.pending_count > 1 ? 's' : ''} awaiting review</>
+                  )}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

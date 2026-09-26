@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,24 @@ class Organization(Base):
     # connected Drive account, billed by Google directly). Switching only
     # affects new uploads; existing CaseImage rows keep their own backend.
     storage_backend: Mapped[str] = mapped_column(String(20), nullable=False, default="platform")
+
+    # Referral program — see services/referrals.py. Generated lazily the
+    # first time a doctor opens "Refer a Colleague" in Account, not at org
+    # creation, so most orgs never have one.
+    referral_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
+    # Which org's referral link this one signed up through, if any. Kept
+    # even if that org is later deleted (SET NULL), so this org's own
+    # history isn't destroyed by someone else's account going away.
+    referred_by_org_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    # 'none' | 'pending' | 'approved' | 'rejected' — the state of *this org's*
+    # referral, i.e. whether the org that referred it has been rewarded yet.
+    referral_reward_status: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
+    # Extra storage earned by referring others, added on top of the plan's
+    # base storage_mb (app.core.plans) — capped at REFERRAL_BONUS_CAP_MB.
+    storage_bonus_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

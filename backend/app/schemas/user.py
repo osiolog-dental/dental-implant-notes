@@ -21,6 +21,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     firebase_uid: str | None = None
+    # Present only when signing up through a colleague's "Refer a Colleague"
+    # link. An unknown or missing code is silently ignored — see
+    # services/referrals.py.
+    referral_code: str | None = None
 
 
 class UserUpdate(BaseModel):

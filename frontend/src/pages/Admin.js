@@ -117,19 +117,23 @@ export default function Admin() {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailPrefill, setEmailPrefill] = useState([]);
   const [testingReminder, setTestingReminder] = useState(false);
+  const [pendingReferrals, setPendingReferrals] = useState([]);
+  const [referralActing, setReferralActing] = useState({}); // { [referred_org_id]: 'approve' | 'reject' }
 
   const fetchAll = async () => {
     try {
-      const [overviewRes, orgsRes, messagesRes, sentEmailsRes] = await Promise.all([
+      const [overviewRes, orgsRes, messagesRes, sentEmailsRes, referralsRes] = await Promise.all([
         client.get('/api/admin/overview'),
         client.get('/api/admin/organizations'),
         client.get('/api/admin/contact-messages'),
         client.get('/api/admin/sent-emails'),
+        client.get('/api/admin/referrals/pending').catch(() => ({ data: [] })),
       ]);
       setOverview(overviewRes.data);
       setOrgs(orgsRes.data);
       setMessages(messagesRes.data);
       setSentEmails(sentEmailsRes.data);
+      setPendingReferrals(referralsRes.data);
     } catch {
       toast.error('Failed to load admin data — you may not have admin access');
     } finally {
@@ -158,6 +162,27 @@ export default function Admin() {
   const toggleSelectAll = () => {
     const selectable = orgs.filter(o => o.owner_email);
     setSelectedOrgIds(prev => prev.size === selectable.length ? new Set() : new Set(selectable.map(o => o.id)));
+  };
+
+  const decideReferral = async (referredOrgId, action) => {
+    setReferralActing(prev => ({ ...prev, [referredOrgId]: action }));
+    try {
+      const { data } = await client.post(`/api/admin/referrals/${referredOrgId}/${action}`);
+      if (action === 'approve') {
+        toast.success(
+          data.applied
+            ? `Bonus granted — ${data.referrer_new_bonus_mb}MB total now`
+            : 'Approved, but no bonus was added (referrer is already at the cap)',
+        );
+      } else {
+        toast.success('Referral rejected — no bonus granted');
+      }
+      setPendingReferrals(prev => prev.filter(r => r.referred_org_id !== referredOrgId));
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || `Could not ${action} this referral`);
+    } finally {
+      setReferralActing(prev => { const next = { ...prev }; delete next[referredOrgId]; return next; });
+    }
   };
 
   const selectedEmails = useMemo(
@@ -330,6 +355,62 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      {pendingReferrals.length > 0 && (
+        <>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-[#2A2F35]">Pending Referrals</h2>
+            <span className="text-xs text-[#5C6773]">{pendingReferrals.length} awaiting review</span>
+          </div>
+          <div className="bg-white border border-[#E5E5E2] rounded-xl overflow-hidden mb-8 overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="bg-[#F9F9F8] text-left text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+                  <th className="px-3 py-2 font-medium">Referred</th>
+                  <th className="px-3 py-2 font-medium">Referred By</th>
+                  <th className="px-3 py-2 font-medium">Signed Up</th>
+                  <th className="px-3 py-2 font-medium">Referrer's Bonus So Far</th>
+                  <th className="px-3 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingReferrals.map(r => (
+                  <tr key={r.referred_org_id} className="border-t border-[#E5E5E2]">
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-[#2A2F35]">{r.referred_name}</div>
+                      <div className="text-xs text-[#9CA3AF]">{r.referred_email}</div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-[#2A2F35]">{r.referrer_name}</div>
+                      <div className="text-xs text-[#9CA3AF]">{r.referrer_email}</div>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-[#5C6773]">{new Date(r.signed_up_at).toLocaleDateString()}</td>
+                    <td className="px-3 py-2.5 text-xs text-[#5C6773]">{r.referrer_current_bonus_mb}MB</td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => decideReferral(r.referred_org_id, 'approve')}
+                        disabled={!!referralActing[r.referred_org_id]}
+                        data-testid={`approve-referral-${r.referred_org_id}`}
+                        className="px-3 py-1.5 mr-2 bg-[#82A098] hover:bg-[#6B8A82] text-white text-xs font-medium rounded-md disabled:opacity-50"
+                      >
+                        {referralActing[r.referred_org_id] === 'approve' ? 'Approving…' : 'Approve'}
+                      </button>
+                      <button
+                        onClick={() => decideReferral(r.referred_org_id, 'reject')}
+                        disabled={!!referralActing[r.referred_org_id]}
+                        data-testid={`reject-referral-${r.referred_org_id}`}
+                        className="px-3 py-1.5 border border-[#E5E5E2] text-[#5C6773] text-xs font-medium rounded-md hover:bg-[#F9F9F8] disabled:opacity-50"
+                      >
+                        {referralActing[r.referred_org_id] === 'reject' ? 'Rejecting…' : 'Reject'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold text-[#2A2F35]">Organizations</h2>

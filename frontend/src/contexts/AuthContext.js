@@ -15,6 +15,14 @@ import { registerForNotifications, unregisterNotifications } from '../lib/notifi
 
 const AuthContext = createContext();
 
+// Must match Register.js's REFERRAL_STORAGE_KEY.
+const REFERRAL_STORAGE_KEY = 'osiolog_referral_code';
+function _consumeReferralCode() {
+  const code = sessionStorage.getItem(REFERRAL_STORAGE_KEY);
+  if (code) sessionStorage.removeItem(REFERRAL_STORAGE_KEY);
+  return code || null;
+}
+
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -118,6 +126,7 @@ export const AuthProvider = ({ children }) => {
           specialization: userData.specialization || null,
           place: userData.address_city || userData.place || null,
           bio: userData.bio || null,
+          referral_code: _consumeReferralCode(),
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -139,7 +148,7 @@ export const AuthProvider = ({ children }) => {
       const token = await auth.currentUser.getIdToken();
       const { data } = await client.post(
         '/api/auth/register',
-        { ...profileData, email: auth.currentUser.email },
+        { ...profileData, email: auth.currentUser.email, referral_code: _consumeReferralCode() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setUser(data);

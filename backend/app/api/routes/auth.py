@@ -14,6 +14,7 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead
 from app.services import email as email_service
+from app.services import referrals as referral_service
 from app.services import s3 as s3_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -70,8 +71,16 @@ async def register(
             detail="An account with this email already exists",
         )
 
+    # A code that matches nobody (typo, stale link, someone else's account
+    # since deleted) is silently ignored — registration must never fail over
+    # a referral link, only the reward is affected.
+    referrer = await referral_service.find_referrer(db, body.referral_code)
+
     # Create org (solo doctor = their own org; multi-doctor clinics added later via invites)
     org = Organization(name=body.name)
+    if referrer:
+        org.referred_by_org_id = referrer.id
+        org.referral_reward_status = "pending"
     db.add(org)
     await db.flush()  # get org.id without committing
 

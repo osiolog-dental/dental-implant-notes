@@ -1067,3 +1067,92 @@ a sensible operation regardless.
 ### Revisit if
 The Excel-import path is ever asked to support this — would need that endpoint to start
 returning created implant IDs, which it doesn't today.
+
+---
+
+## D-017 — "Refer a Colleague": a shared link, manual admin approval, a capped storage reward
+
+- **Date:** 2026-09-26
+- **Status:** Active
+- **Area:** backend (schema, registration flow, admin) / frontend (Account, Admin)
+
+### Problem
+The user wanted a way for existing doctors to introduce colleagues to Osiolog. The first
+idea raised — scraping doctors' personal contact details (email, phone, home address) off
+the AP State Dental Council's public licence-verification registry to send unsolicited
+marketing email — was refused. That registry exists to verify who holds a real dental
+licence, not as a marketing list; bulk-harvesting it for cold outreach risks breaching the
+council's own terms and India's DPDPA, and unsolicited bulk mail risks getting
+`hello@osiolog.com` blocked as spam, which would take the reminder and welcome emails down
+with it. The user redirected to referrals instead.
+
+### Decisions, each put to the user before building
+1. **What a referral actually does: give the doctor a message to send themselves, not have
+   Osiolog email the colleague directly.** Rejected the alternative (doctor types a
+   colleague's email, Osiolog sends it) because it puts a stranger's email into the database
+   on someone else's say-so — a real consent question, avoided entirely by never collecting
+   that email at all.
+2. **Reward: extra storage, permanently, not a plan-tier bump or a time-limited trial.**
+   Storage was chosen deliberately even after being told it currently gates nothing (see
+   below) — the user wanted the mechanism in place now as groundwork.
+3. **Amount and cap: 500MB per approved referral, capped at 5120MB (5GB) total.** Both
+   numbers came from the user; neither was invented.
+4. **Tracking: automatic (a code embedded in the link), but reward is not automatic — an
+   admin approves each one.** Chosen over pure self-service so a referral link opened by
+   mistake, or a doctor testing their own link, can never grant a reward with nobody having
+   looked at it.
+5. **Placement: Account page**, beside the reminder-email toggle, matching the existing
+   settings-style layout there.
+
+### A fact surfaced before building, not after
+Storage limits are not enforced anywhere in this codebase — `storage_limit_mb()` is read in
+exactly one place (`GET /api/subscription/status`) purely for display, and "used_mb" is
+hardcoded to 0 there since real usage isn't measured yet. `patient_limit()` and
+`clinic_limit()`, by contrast, are both genuinely enforced (`patients.py`, `clinics.py`).
+This was put to the user directly rather than silently building a reward that does nothing
+— they chose to keep storage as the reward anyway, explicitly as groundwork for later
+enforcement (see the user's separate storage-measurement request, tracked separately).
+
+### Data model
+Four columns added to `organizations` (migration `a3e7c1b9d2f5`), no new table:
+- `referral_code` — nullable, unique, generated lazily on first use of "Refer a Colleague"
+  rather than backfilled for every existing org, so the migration carries no bulk-uniqueness
+  risk.
+- `referred_by_org_id` — nullable FK to `organizations.id`, `ON DELETE SET NULL`, set once at
+  registration if a valid code was supplied.
+- `referral_reward_status` — `'none' | 'pending' | 'approved' | 'rejected'`, describing *this*
+  org's own referral (whether the org that referred it has been paid out).
+- `storage_bonus_mb` — the referrer's cumulative reward, added on top of
+  `PLAN_LIMITS[plan]["storage_mb"]` via a new `total_storage_limit_mb()` helper.
+
+One org can only ever have one referrer, so this fits on the referred org's own row without
+a join table — the referrer's side (cumulative bonus) is just their own `storage_bonus_mb`.
+
+### Registration flow (Rule 11 — auth — territory)
+Only one signup path is actually wired to the frontend: Google sign-in through
+`completeGoogleRegistration()` in `AuthContext.js`. A same-named, fully-built email/password
+path (`register()`) exists in code but nothing in the UI calls it — both were still wired for
+referral tracking, for parity if that path is ever exposed, at no extra cost.
+
+A referral code arriving via `?ref=` on `/register` is stashed in `sessionStorage` (a plain
+JS variable would not survive the Google popup redirect and the separate CompleteProfile.js
+page that follows it), read once at the actual registration call, and cleared immediately —
+so it cannot leak into a later, unrelated signup in the same browser tab. An unknown or
+missing code is silently ignored inside `find_referrer()`: **registration itself must never
+fail because of a bad referral link**, only the reward is affected.
+
+### Verification status
+- Verified: full app import; migration chain resolves to a single head (33 revisions);
+  generated SQL read offline — four additive columns/indexes/constraints on one table, no
+  rewrite; frontend compiles; every touched file's diff checked against `HEAD`.
+- **Pending, before push:** a full round-trip against production — register a throwaway
+  referred account through a throwaway referrer's real link, confirm the referrer sees
+  "1 referral awaiting review," approve it as admin, confirm the bonus lands — is planned
+  next and will be added to this entry once run. Admin approve/reject cannot be tested by
+  Claude directly (no admin credentials), only observed indirectly via the referrer's own
+  `pending_count`.
+
+### Revisit if
+Storage limits become enforced — at that point this reward starts doing something
+observable beyond a number on the Subscription page, and it's worth re-confirming the
+500MB/5GB figures still make sense once they carry real weight.
