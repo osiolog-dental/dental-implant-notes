@@ -125,6 +125,7 @@ export default function Landing() {
             <a href="#features" className={navLink} data-testid="nav-features">Features</a>
             <a href="#pricing" className={navLink} data-testid="nav-pricing">Pricing</a>
             <button onClick={() => setIsContactOpen(true)} className={navLink} data-testid="nav-contact">Contact</button>
+            <Link to="/help" className={navLink} data-testid="nav-help">How to use</Link>
             <Link to="/login" className={navLink} data-testid="nav-login">Log In</Link>
           </nav>
           <Link
@@ -147,7 +148,7 @@ export default function Landing() {
           Osiolog replaces the spreadsheet — a visual FDI chart, implant &amp; prosthetic logging, healing-phase
           reminders, photo vault, and analytics, all in one place for your practice.
         </p>
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/register"
             data-testid="hero-get-started"
@@ -163,6 +164,13 @@ export default function Landing() {
           >
             See Pricing
           </a>
+          <Link
+            to="/help"
+            data-testid="hero-how-to-use"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold border border-[#E5E5E2] hover:border-[#82A098] transition-colors"
+          >
+            How to use Osiolog
+          </Link>
         </div>
       </section>
 
@@ -263,6 +271,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-sm text-[#5C6773]">© {new Date().getFullYear()} Osiolog</span>
           <div className="flex items-center gap-5">
+            <Link to="/help" className={navLink} data-testid="footer-help">How to use Osiolog</Link>
             <Link to="/privacy" className={navLink} data-testid="footer-privacy">Privacy Policy</Link>
             <button onClick={() => setIsContactOpen(true)} className={navLink} data-testid="footer-contact">Contact</button>
             <Link to="/login" className={navLink} data-testid="footer-login">Log In</Link>

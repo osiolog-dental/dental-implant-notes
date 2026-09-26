@@ -199,6 +199,15 @@ const Login = () => {
                 Register here
               </Link>
             </p>
+            <p className="mt-2 text-sm">
+              <Link
+                to="/help"
+                data-testid="login-help-link"
+                className="text-[#5C6773] hover:text-[#82A098] underline underline-offset-2 transition-colors duration-200"
+              >
+                How to use Osiolog →
+              </Link>
+            </p>
           </div>
 
           {showForgot && (
